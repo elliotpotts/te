@@ -36,7 +36,7 @@ GLuint compile_shader(std::string source, GLenum type) {
         switch(type) {
             case GL_VERTEX_SHADER: sstr << "Vertex "; break;
             case GL_FRAGMENT_SHADER: sstr << "Fragment "; break;
-            default: "Unkown " ;
+            default: sstr << "Unkown " ;
         }
         sstr << "shader compilation failed because: " << log;
         throw std::runtime_error(sstr.str());
@@ -71,7 +71,7 @@ GLuint make_buffer(const std::array<T, N> data, GLenum type) {
     GLuint vbo;
     glGenBuffers(1, &vbo);
     glBindBuffer(type, vbo);
-    glBufferData(type, sizeof(data), data.data(), GL_STATIC_DRAW);
+    glBufferData(type, data.size() * sizeof(T), data.data(), GL_STATIC_DRAW);
     return vbo;
 }
 
@@ -80,7 +80,7 @@ GLuint make_buffer(const std::vector<T> data, GLenum type) {
     GLuint vbo;
     glGenBuffers(1, &vbo);
     glBindBuffer(type, vbo);
-    glBufferData(type, sizeof(data), data.data(), GL_STATIC_DRAW);
+    glBufferData(type, data.size() * sizeof(T), data.data(), GL_STATIC_DRAW);
     return vbo;
 }
 
@@ -89,7 +89,12 @@ std::mt19937 rengine;
 std::uniform_int_distribution tile_select {0, 1};
 
 GLuint grid(int width, int height) {
-    std::vector<std::tuple<glm::vec2, glm::vec3, glm::vec2>> data;
+    struct vertex {
+        glm::vec2 pos;
+        glm::vec3 col;
+        glm::vec2 uv;
+    };
+    std::vector<vertex> data;
     glm::vec2 grid_tl {-width/2.0f, -height/2.0f};
     glm::vec3 white {1.0f, 1.0f, 1.0f};
     for (int xi = 0; xi < width; xi++) {
@@ -97,18 +102,19 @@ GLuint grid(int width, int height) {
             glm::vec2 uv_tl {tile_select(rengine) * 0.5f, tile_select(rengine) * 0.5f};
             auto cell_tl_pos = grid_tl + static_cast<float>(xi) * glm::vec2{1.0f, 0.0f}
                                        + static_cast<float>(yi) * glm::vec2{0.0f, 1.0f};
-            auto cell_tl = std::make_tuple(cell_tl_pos + glm::vec2{0.0f, 0.0f}, white, uv_tl + glm::vec2(0.0f, 0.0f));
-            auto cell_tr = std::make_tuple(cell_tl_pos + glm::vec2{1.0f, 0.0f}, white, uv_tl + glm::vec2(0.5f, 0.0f));
-            auto cell_br = std::make_tuple(cell_tl_pos + glm::vec2{1.0f, 1.0f}, white, uv_tl + glm::vec2(0.5f, 0.5f));
-            auto cell_bl = std::make_tuple(cell_tl_pos + glm::vec2{0.0f, 1.0f}, white, uv_tl + glm::vec2(0.0f, 0.5f));
+            vertex cell_tl {cell_tl_pos + glm::vec2{0.0f, 0.0f}, white, uv_tl + glm::vec2(0.0f, 0.0f)};
+            vertex cell_tr {cell_tl_pos + glm::vec2{1.0f, 0.0f}, white, uv_tl + glm::vec2(0.5f, 0.0f)};
+            vertex cell_br {cell_tl_pos + glm::vec2{1.0f, 1.0f}, white, uv_tl + glm::vec2(0.5f, 0.5f)};
+            vertex cell_bl {cell_tl_pos + glm::vec2{0.0f, 1.0f}, white, uv_tl + glm::vec2(0.0f, 0.5f)};
             data.push_back(cell_tl);
             data.push_back(cell_tr);
             data.push_back(cell_br);
             data.push_back(cell_br);
             data.push_back(cell_bl);
-            data.push_back(cell_tr);
+            data.push_back(cell_tl);
         }
     }
+    return make_buffer(data, GL_ARRAY_BUFFER);
 }
 
 GLuint image_texture(std::string filename) {
@@ -140,13 +146,6 @@ GLuint image_texture(std::string filename) {
 
 auto start_time = std::chrono::high_resolution_clock::now();
 
-glm::vec3 up {0.0, 1.0, 0.0};
-glm::vec3 right {1.0, 0.0, 0.0};
-glm::vec3 forward {0.0, 0.0, -1.0};
-glm::vec3 down = -up;
-glm::vec3 left = -right;
-glm::vec3 backward = -forward;
-
 std::string const vshader_src = R"EOF(
 #version 150 core
 in vec2 position;
@@ -173,21 +172,10 @@ void main() {
     out_colour = texture(tex, v_texcoord) * vec4(v_colour, 1.0f);
 } )EOF";
 
-const std::array<float, 4*7> vertex_data = {
-//  Position      Color             Texcoords
-    -0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, // Top-left
-     0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, // Top-right
-     0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, // Bottom-right
-    -0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f  // Bottom-left
-};
-
-const std::array<int, 6> vertex_elems = {0, 1, 2,    2, 3, 0};
-
 class game {
     GLFWwindow* w;
     GLuint vao;
     GLuint vbo;
-    GLuint ebo;
     GLuint program;
     GLint model_uniform;
     GLint view_uniform;
@@ -204,7 +192,7 @@ public:
         glGenVertexArrays(1, &vao);
         glBindVertexArray(vao);
 
-        vbo = make_buffer(vertex_data, GL_ARRAY_BUFFER);
+        vbo = grid(5,5);
 
         GLint pos_attrib = glGetAttribLocation(program, "position");
         glEnableVertexAttribArray(pos_attrib);
@@ -217,8 +205,6 @@ public:
         GLint tex_attrib = glGetAttribLocation(program, "texcoord");
         glEnableVertexAttribArray(tex_attrib);
         glVertexAttribPointer(tex_attrib, 2, GL_FLOAT, GL_FALSE, 7*sizeof(float), reinterpret_cast<void*>(5*sizeof(float)));
-
-        ebo = make_buffer(vertex_elems, GL_ELEMENT_ARRAY_BUFFER);
 
         image_texture("tiles.png");
 
@@ -236,22 +222,28 @@ public:
         glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
 
         glm::mat4 view = glm::lookAt(
-            glm::vec3(1.2f, 1.2f, 1.2f/std::sqrt(3.0)),
+            glm::vec3(1.2f, 1.2f, 1.2f),
             glm::vec3(0.0f, 0.0f, 0.0f),
             glm::vec3(0.0f, 0.0f, 1.0f)
         );
         glUniformMatrix4fv(view_uniform, 1, GL_FALSE, glm::value_ptr(view));
 
-        glm::mat4 proj = glm::ortho(-5.0f, 5.0f, -5.0f, 5.0f, 0.01f, 50.0f);//glm::perspective(glm::radians(45.0), 1024.0/768.0, 1.0, 10.0);
+        glm::mat4 proj = glm::ortho(-5.0f, 5.0f, -5.0f, 5.0f, 0.000001f, 50.0f);
         glUniformMatrix4fv(proj_uniform, 1, GL_FALSE, glm::value_ptr(proj));
 
-        glDrawElements(GL_TRIANGLES, vertex_elems.size(), GL_UNSIGNED_INT, 0);
+        glDrawArrays(GL_TRIANGLES, 0, 5*5*6);
     }
 };
 
-void error_callback(int error, const char* description) {
+void glfw_error_callback(int error, const char* description) {
     std::cout << "glfw3 Error[" << error << "]: " << description << std::endl;
     std::abort();
+}
+
+void opengl_error_callback(
+    GLenum source, GLenum type, GLuint id, GLenum severity,
+    GLsizei length, const GLchar* message, const void* userParam) {
+    std::cout << message << std::endl;
 }
 
 int main(void) {
@@ -259,7 +251,7 @@ int main(void) {
         std::cout << "Could not initialise glfw" << std::endl;
         return -1;
     }
-    glfwSetErrorCallback(error_callback);
+    glfwSetErrorCallback(glfw_error_callback);
     glfwWindowHint(GLFW_RESIZABLE , false);
     GLFWwindow* window = glfwCreateWindow(win_w, win_h, "Hello World", NULL, NULL);
     if (!window) {
@@ -273,6 +265,7 @@ int main(void) {
         std::cout << "Could not initialize OpenGL context" << std::endl;
         return -1;
     }
+    glDebugMessageCallback(opengl_error_callback, nullptr);
     game g(window);
     while (!glfwWindowShouldClose(window)) {
         g.draw();
