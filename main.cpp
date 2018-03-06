@@ -179,6 +179,7 @@ class game {
     GLuint program;
     GLint model_uniform;
     GLint view_uniform;
+    glm::mat4 view;
     GLint proj_uniform;
 
 public:
@@ -206,14 +207,19 @@ public:
         glEnableVertexAttribArray(tex_attrib);
         glVertexAttribPointer(tex_attrib, 2, GL_FLOAT, GL_FALSE, 7*sizeof(float), reinterpret_cast<void*>(5*sizeof(float)));
 
-        image_texture("tiles.png");
+        image_texture("grass_tiles.png");
 
         model_uniform = glGetUniformLocation(program, "model");
         view_uniform = glGetUniformLocation(program, "view");
+        view = glm::lookAt(
+            glm::vec3(48.0f, 48.0f, 48.0f),
+            glm::vec3(0.0f, 0.0f, 0.0f),
+            glm::vec3(0.0f, 0.0f, 1.0f)
+        );
         proj_uniform = glGetUniformLocation(program, "projection");
     }
 
-    void draw() {
+    void operator()() {
         glClear(GL_COLOR_BUFFER_BIT);
 
         std::chrono::duration<float> secs = start_time - std::chrono::high_resolution_clock::now();
@@ -221,14 +227,21 @@ public:
         glm::mat4 model;
         glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
 
-        glm::mat4 view = glm::lookAt(
-            glm::vec3(1.2f, 1.2f, 1.2f),
-            glm::vec3(0.0f, 0.0f, 0.0f),
-            glm::vec3(0.0f, 0.0f, 1.0f)
-        );
+        if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) {
+            view = glm::translate(view, glm::vec3(0.002f, 0.002f, 0.0f));
+        } 
+        if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) {
+            view = glm::translate(view, glm::vec3(-0.001f, 0.001f, 0.0f));
+        } 
+        if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) {
+            view = glm::translate(view, glm::vec3(-0.002f, -0.002f, 0.0f));
+        } 
+        if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) {
+            view = glm::translate(view, glm::vec3(0.001f, -0.001f, 0.0f));
+        }  
         glUniformMatrix4fv(view_uniform, 1, GL_FALSE, glm::value_ptr(view));
 
-        glm::mat4 proj = glm::ortho(-5.0f, 5.0f, -5.0f, 5.0f, 0.000001f, 50.0f);
+        glm::mat4 proj = glm::ortho(-5.0f, 5.0f, -5.0f, 5.0f, 0.00001f, 500.0f);
         glUniformMatrix4fv(proj_uniform, 1, GL_FALSE, glm::value_ptr(proj));
 
         glDrawArrays(GL_TRIANGLES, 0, 5*5*6);
@@ -268,7 +281,7 @@ int main(void) {
     glDebugMessageCallback(opengl_error_callback, nullptr);
     game g(window);
     while (!glfwWindowShouldClose(window)) {
-        g.draw();
+        g();
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
