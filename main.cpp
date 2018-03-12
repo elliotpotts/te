@@ -212,7 +212,7 @@ public:
         glEnableVertexAttribArray(tex_attrib);
         glVertexAttribPointer(tex_attrib, 2, GL_FLOAT, GL_FALSE, 7*sizeof(float), reinterpret_cast<void*>(5*sizeof(float)));
 
-        image_texture("grass_tiles.png");
+        image_texture("media/grass_tiles.png");
 
         model_uniform = glGetUniformLocation(program, "model");
         view_uniform = glGetUniformLocation(program, "view");
@@ -220,6 +220,7 @@ public:
     }
 
     void operator()() {
+        if(glfwGetKey(w, GLFW_KEY_ESCAPE) == GLFW_PRESS) { glfwSetWindowShouldClose(w, true); };
         glClear(GL_COLOR_BUFFER_BIT);
 
         std::chrono::duration<float> secs = start_time - std::chrono::high_resolution_clock::now();
