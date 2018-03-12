@@ -9,10 +9,14 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/constants.hpp>
+#include <glm/gtx/rotate_vector.hpp>
 #include <vector>
 #include <FreeImage.h>
 #include <tuple>
 #include <random>
+#define TINYGLTF_IMPLEMENTATION
+//#include <tiny_gltf.h>
 
 int const win_w = 1024;
 int const win_h = 768;
@@ -179,11 +183,12 @@ class game {
     GLuint program;
     GLint model_uniform;
     GLint view_uniform;
-    glm::mat4 view;
+    glm::vec3 cam_focus;
+    glm::vec3 cam_offset = {-48.0f, -48.0f, 48.0f};
     GLint proj_uniform;
 
 public:
-    game(GLFWwindow* w) : w(w) {
+    game(GLFWwindow* w) : w{w} {
         program = link_program(
             compile_shader(vshader_src, GL_VERTEX_SHADER),
             compile_shader(fshader_src, GL_FRAGMENT_SHADER)
@@ -211,11 +216,6 @@ public:
 
         model_uniform = glGetUniformLocation(program, "model");
         view_uniform = glGetUniformLocation(program, "view");
-        view = glm::lookAt(
-            glm::vec3(48.0f, 48.0f, 48.0f),
-            glm::vec3(0.0f, 0.0f, 0.0f),
-            glm::vec3(0.0f, 0.0f, 1.0f)
-        );
         proj_uniform = glGetUniformLocation(program, "projection");
     }
 
@@ -227,18 +227,33 @@ public:
         glm::mat4 model;
         glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
 
+        if (glfwGetKey(w, GLFW_KEY_Q) == GLFW_PRESS) {
+            cam_offset = glm::rotate(cam_offset, 0.001f, glm::vec3{0.0f, 0.0f, 1.0f});
+        }
+        if (glfwGetKey(w, GLFW_KEY_E) == GLFW_PRESS) {
+            cam_offset = glm::rotate(cam_offset, -0.001f, glm::vec3{0.0f, 0.0f, 1.0f});
+        }
+        glm::vec3 forward = -cam_offset;
+        forward.z = 0.0f;
+        forward = glm::normalize(forward);
+        glm::vec3 right = glm::rotate(forward, glm::half_pi<float>(), glm::vec3{0.0f, 0.0f, 1.0f});
         if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) {
-            view = glm::translate(view, glm::vec3(0.002f, 0.002f, 0.0f));
+            cam_focus += 0.002f * forward;
         } 
         if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) {
-            view = glm::translate(view, glm::vec3(-0.001f, 0.001f, 0.0f));
+            cam_focus -= 0.002f * right;
         } 
         if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) {
-            view = glm::translate(view, glm::vec3(-0.002f, -0.002f, 0.0f));
+            cam_focus -= 0.002f * forward;
         } 
         if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) {
-            view = glm::translate(view, glm::vec3(0.001f, -0.001f, 0.0f));
-        }  
+            cam_focus += 0.002f * right;
+        }        
+        glm::mat4 view = glm::lookAt(
+            cam_focus - cam_offset,
+            cam_focus,
+            glm::vec3(0.0f, 0.0f, 1.0f)
+        );
         glUniformMatrix4fv(view_uniform, 1, GL_FALSE, glm::value_ptr(view));
 
         glm::mat4 proj = glm::ortho(-5.0f, 5.0f, -5.0f, 5.0f, 0.00001f, 500.0f);
