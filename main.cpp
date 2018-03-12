@@ -15,8 +15,6 @@
 #include <FreeImage.h>
 #include <tuple>
 #include <random>
-#define TINYGLTF_IMPLEMENTATION
-//#include <tiny_gltf.h>
 
 int const win_w = 1024;
 int const win_h = 768;
@@ -219,6 +217,15 @@ public:
         proj_uniform = glGetUniformLocation(program, "projection");
     }
 
+    void handle_key(int key, int scancode, int action, int mods) {
+        if (key == GLFW_KEY_Q && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
+            cam_offset = glm::rotate(cam_offset, glm::half_pi<float>()/4.0f, glm::vec3{0.0f, 0.0f, 1.0f});
+        }
+        if (key == GLFW_KEY_E && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
+            cam_offset = glm::rotate(cam_offset, -glm::half_pi<float>()/4.0f, glm::vec3{0.0f, 0.0f, 1.0f});
+        }
+    }
+
     void operator()() {
         if(glfwGetKey(w, GLFW_KEY_ESCAPE) == GLFW_PRESS) { glfwSetWindowShouldClose(w, true); };
         glClear(GL_COLOR_BUFFER_BIT);
@@ -228,12 +235,6 @@ public:
         glm::mat4 model;
         glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
 
-        if (glfwGetKey(w, GLFW_KEY_Q) == GLFW_PRESS) {
-            cam_offset = glm::rotate(cam_offset, 0.001f, glm::vec3{0.0f, 0.0f, 1.0f});
-        }
-        if (glfwGetKey(w, GLFW_KEY_E) == GLFW_PRESS) {
-            cam_offset = glm::rotate(cam_offset, -0.001f, glm::vec3{0.0f, 0.0f, 1.0f});
-        }
         glm::vec3 forward = -cam_offset;
         forward.z = 0.0f;
         forward = glm::normalize(forward);
@@ -275,6 +276,11 @@ void opengl_error_callback(
     std::cout << message << std::endl;
 }
 
+void glfw_dispatch_key(GLFWwindow* w, int key, int scancode, int action, int mods) {
+    reinterpret_cast<game*>(glfwGetWindowUserPointer(w))
+    ->handle_key(key, scancode, action, mods);
+}
+
 int main(void) {
     if (!glfwInit()) {
         std::cout << "Could not initialise glfw" << std::endl;
@@ -296,6 +302,8 @@ int main(void) {
     }
     glDebugMessageCallback(opengl_error_callback, nullptr);
     game g(window);
+    glfwSetWindowUserPointer(window, &g);
+    glfwSetKeyCallback(window, glfw_dispatch_key);
     while (!glfwWindowShouldClose(window)) {
         g();
         glfwSwapBuffers(window);
