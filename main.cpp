@@ -239,18 +239,10 @@ public:
         forward.z = 0.0f;
         forward = glm::normalize(forward);
         glm::vec3 right = glm::rotate(forward, glm::half_pi<float>(), glm::vec3{0.0f, 0.0f, 1.0f});
-        if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) {
-            cam_focus += 0.002f * forward;
-        } 
-        if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) {
-            cam_focus -= 0.002f * right;
-        } 
-        if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) {
-            cam_focus -= 0.002f * forward;
-        } 
-        if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) {
-            cam_focus += 0.002f * right;
-        }        
+        if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) cam_focus += 0.002f * forward;
+        if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) cam_focus -= 0.002f * right;
+        if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) cam_focus -= 0.002f * forward;
+        if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) cam_focus += 0.002f * right;
         glm::mat4 view = glm::lookAt(
             cam_focus - cam_offset,
             cam_focus,
