@@ -235,7 +235,7 @@ public:
 
         std::chrono::duration<float> secs = start_time - std::chrono::high_resolution_clock::now();
 
-        glm::mat4 model;
+        glm::mat4 model { 1 };
         glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
 
         glm::vec3 forward = -cam_offset;
