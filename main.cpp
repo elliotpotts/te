@@ -230,6 +230,8 @@ public:
         }
     }
 
+    float zoom = 1.0f;
+
     void operator()() {
         if(glfwGetKey(w, GLFW_KEY_ESCAPE) == GLFW_PRESS) { glfwSetWindowShouldClose(w, true); };
         glClear(GL_COLOR_BUFFER_BIT);
@@ -243,10 +245,12 @@ public:
         forward.z = 0.0f;
         forward = glm::normalize(forward);
         glm::vec3 right = glm::rotate(forward, glm::half_pi<float>(), glm::vec3{0.0f, 0.0f, 1.0f});
-        if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) cam_focus += 0.002f * forward;
-        if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) cam_focus -= 0.002f * right;
-        if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) cam_focus -= 0.002f * forward;
-        if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) cam_focus += 0.002f * right;
+        if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) cam_focus += 0.1f * forward;
+        if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) cam_focus -= 0.1f * right;
+        if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) cam_focus -= 0.1f * forward;
+        if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) cam_focus += 0.1f * right;
+	if (glfwGetKey(w, GLFW_KEY_H) == GLFW_PRESS) zoom += 0.05f;
+	if (glfwGetKey(w, GLFW_KEY_J) == GLFW_PRESS) zoom -= 0.05f;
         glm::mat4 view = glm::lookAt(
             cam_focus - cam_offset,
             cam_focus,
@@ -254,7 +258,7 @@ public:
         );
         glUniformMatrix4fv(view_uniform, 1, GL_FALSE, glm::value_ptr(view));
 
-        glm::mat4 proj = glm::ortho(-5.0f, 5.0f, -5.0f, 5.0f, 0.00001f, 500.0f);
+        glm::mat4 proj = glm::ortho(-5.0f - zoom, 5.0f + zoom, -5.0f - zoom, 5.0f + zoom, 0.00001f, 500.0f);
         glUniformMatrix4fv(proj_uniform, 1, GL_FALSE, glm::value_ptr(proj));
 
         glDrawArrays(GL_TRIANGLES, 0, 5*5*6);
