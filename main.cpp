@@ -139,7 +139,7 @@ GLuint image_texture(std::string filename) {
     glTexImage2D(
         GL_TEXTURE_2D, 0, GL_RGB,
         FreeImage_GetWidth(bitmap), FreeImage_GetHeight(bitmap),
-        0, GL_RGB, GL_UNSIGNED_BYTE, FreeImage_GetBits(bitmap));
+        0, GL_BGR, GL_UNSIGNED_BYTE, FreeImage_GetBits(bitmap));
     FreeImage_Unload(bitmap);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -213,7 +213,7 @@ public:
         glEnableVertexAttribArray(tex_attrib);
         glVertexAttribPointer(tex_attrib, 2, GL_FLOAT, GL_FALSE, 7*sizeof(float), reinterpret_cast<void*>(5*sizeof(float)));
 
-        image_texture("media/grass_tiles.png");
+        image_texture("grass_tiles.png");
 
         model_uniform = glGetUniformLocation(program, "model");
         view_uniform = glGetUniformLocation(program, "view");

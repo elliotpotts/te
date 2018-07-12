@@ -1,14 +1,14 @@
-project('te', 'cpp', 'c')
+project('te', 'cpp', 'c', default_options: ['cpp_std=c++17'])
 
-includes = include_directories('deps/glad/include')
+includes = include_directories('glad/include')
 
 threads = dependency('threads')
-glfw3 = dependency('glfw3', fallback: ['glfw-3.2.1', 'dep'])
+glfw3 = dependency('glfw3')
 freeimage = dependency('freeimage')
 boost = dependency('boost', modules: ['log'])
 
 executable('main',
-    ['main.cpp', 'deps/glad/src/glad.c'],
+    ['main.cpp', 'glad/src/glad.c'],
     dependencies: [glfw3, freeimage, boost, threads],
     include_directories: includes
 )
