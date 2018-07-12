@@ -291,7 +291,7 @@ int main(void) {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
-    GLFWwindow* window = glfwCreateWindow(win_w, win_h, "Hello World", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(win_w, win_h, "Hello World", nullptr, nullptr);
     if (!window) {
         BOOST_LOG_TRIVIAL(fatal) << "Could not create opengl window";
         glfwTerminate();
