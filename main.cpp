@@ -1,6 +1,5 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-#include <iostream>
 #include <array>
 #include <sstream>
 #include <stdexcept>
@@ -15,6 +14,8 @@
 #include <FreeImage.h>
 #include <tuple>
 #include <random>
+#define  BOOST_LOG_DYN_LINK
+#include <boost/log/trivial.hpp>
 
 int const win_w = 1024;
 int const win_h = 768;
@@ -96,6 +97,7 @@ GLuint grid(int width, int height) {
         glm::vec3 col;
         glm::vec2 uv;
     };
+    static_assert(sizeof(vertex) == sizeof(GLfloat) * 7, "Platform doesn't support this directly.");
     std::vector<vertex> data;
     glm::vec2 grid_tl {-width/2.0f, -height/2.0f};
     glm::vec3 white {1.0f, 1.0f, 1.0f};
@@ -258,14 +260,14 @@ public:
 };
 
 void glfw_error_callback(int error, const char* description) {
-    std::cout << "glfw3 Error[" << error << "]: " << description << std::endl;
+    BOOST_LOG_TRIVIAL(error) << "glfw3 Error[" << error << "]: " << description;
     std::abort();
 }
 
 void opengl_error_callback(
     GLenum source, GLenum type, GLuint id, GLenum severity,
     GLsizei length, const GLchar* message, const void* userParam) {
-    std::cout << message << std::endl;
+    BOOST_LOG_TRIVIAL(error) << "opengl error: " << message;
 }
 
 void glfw_dispatch_key(GLFWwindow* w, int key, int scancode, int action, int mods) {
@@ -275,22 +277,91 @@ void glfw_dispatch_key(GLFWwindow* w, int key, int scancode, int action, int mod
 
 int main(void) {
     if (!glfwInit()) {
-        std::cout << "Could not initialise glfw" << std::endl;
+        BOOST_LOG_TRIVIAL(fatal) << "Could not initialise glfw";
         return -1;
+    } else {
+        BOOST_LOG_TRIVIAL(info) << "Initialized glfw " << glfwGetVersionString();
     }
+
     glfwSetErrorCallback(glfw_error_callback);
     glfwWindowHint(GLFW_RESIZABLE , false);
+    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
     GLFWwindow* window = glfwCreateWindow(win_w, win_h, "Hello World", NULL, NULL);
     if (!window) {
-        std::cout << "Could not create gl window" << std::endl;
+        BOOST_LOG_TRIVIAL(fatal) << "Could not create opengl window";
         glfwTerminate();
         return -1;
+    } else {
+        BOOST_LOG_TRIVIAL(info) << "Created window with following attributes: ";
+        switch(glfwGetWindowAttrib(window, GLFW_CLIENT_API)) {
+            case GLFW_OPENGL_API:
+                BOOST_LOG_TRIVIAL(info) << " |             GLFW_CLIENT_API: GLFW_OPENGL_API";
+                break;
+            case GLFW_OPENGL_ES_API:
+                BOOST_LOG_TRIVIAL(info) << " |             GLFW_CLIENT_API: GLFW_OPENGL_ES_API";
+                break;
+            case GLFW_NO_API:
+                BOOST_LOG_TRIVIAL(info) << " |             GLFW_CLIENT_API: GLFW_NO_API";
+                break;
+        }
+        switch(glfwGetWindowAttrib(window, GLFW_CONTEXT_CREATION_API)) {
+            case GLFW_NATIVE_CONTEXT_API:
+                BOOST_LOG_TRIVIAL(info) << " |   GLFW_CONTEXT_CREATION_API: GLFW_NATIVE_CONTEXT_API";
+                break;
+            case GLFW_EGL_CONTEXT_API:
+                BOOST_LOG_TRIVIAL(info) << " |   GLFW_CONTEXT_CREATION_API: GLFW_EGL_CONTEXT_API";
+                break;
+        }
+        BOOST_LOG_TRIVIAL(info) << " |  GLFW_CONTEXT_VERSION_MAJOR: " << glfwGetWindowAttrib(window, GLFW_CONTEXT_VERSION_MAJOR);
+        BOOST_LOG_TRIVIAL(info) << " |  GLFW_CONTEXT_VERSION_MINOR: " << glfwGetWindowAttrib(window, GLFW_CONTEXT_VERSION_MINOR);
+        BOOST_LOG_TRIVIAL(info) << " |       GLFW_CONTEXT_REVISION: " << glfwGetWindowAttrib(window, GLFW_CONTEXT_REVISION);
+        switch(glfwGetWindowAttrib(window, GLFW_OPENGL_FORWARD_COMPAT)) {
+            case GLFW_TRUE:
+                BOOST_LOG_TRIVIAL(info) << " |  GLFW_OPENGL_FORWARD_COMPAT: GLFW_TRUE";
+                break;
+            case GLFW_FALSE:
+                BOOST_LOG_TRIVIAL(info) << " |  GLFW_OPENGL_FORWARD_COMPAT: GLFW_FALSE";
+                break;
+        }
+        switch(glfwGetWindowAttrib(window, GLFW_OPENGL_DEBUG_CONTEXT)) {
+            case GLFW_TRUE:
+                BOOST_LOG_TRIVIAL(info) << " |   GLFW_OPENGL_DEBUG_CONTEXT: GLFW_TRUE";
+                break;
+            case GLFW_FALSE:
+                BOOST_LOG_TRIVIAL(info) << " |   GLFW_OPENGL_DEBUG_CONTEXT: GLFW_FALSE";
+                break;
+        }
+        switch(glfwGetWindowAttrib(window, GLFW_OPENGL_PROFILE)) {
+            case GLFW_OPENGL_CORE_PROFILE:
+                BOOST_LOG_TRIVIAL(info) << " |         GLFW_OPENGL_PROFILE: GLFW_OPENGL_CORE_PROFILE";
+                break;
+            case GLFW_OPENGL_COMPAT_PROFILE:
+                BOOST_LOG_TRIVIAL(info) << " |         GLFW_OPENGL_PROFILE: GLFW_OPENGL_COMPAT_PROFILE";
+                break;
+            case GLFW_OPENGL_ANY_PROFILE:
+                BOOST_LOG_TRIVIAL(info) << " |         GLFW_OPENGL_PROFILE: GLFW_OPENGL_ANY_PROFILE";
+                break;
+        }
+        switch(glfwGetWindowAttrib(window, GLFW_CONTEXT_ROBUSTNESS)) {
+            case GLFW_LOSE_CONTEXT_ON_RESET:
+                BOOST_LOG_TRIVIAL(info) << " |     GLFW_CONTEXT_ROBUSTNESS: GLFW_LOSE_CONTEXT_ON_RESET";
+                break;
+            case GLFW_NO_RESET_NOTIFICATION:
+                BOOST_LOG_TRIVIAL(info) << " |     GLFW_CONTEXT_ROBUSTNESS: GLFW_NO_RESET_NOTIFICATION";
+                break;
+            case GLFW_NO_ROBUSTNESS:
+                BOOST_LOG_TRIVIAL(info) << " |     GLFW_CONTEXT_ROBUSTNESS: GLFW_NO_ROBUSTNESS";
+                break;
+        }
     }
 
     glfwMakeContextCurrent(window);
+    BOOST_LOG_TRIVIAL(info) << "Context is now current.";
     if (!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress)) {
-        std::cout << "Could not initialize OpenGL context" << std::endl;
+        BOOST_LOG_TRIVIAL(fatal) << "Could not load opengl extensions";
         return -1;
+    } else {
+        BOOST_LOG_TRIVIAL(info) << "Loaded opengl extensions";
     }
     glDebugMessageCallback(opengl_error_callback, nullptr);
     game g(window);
