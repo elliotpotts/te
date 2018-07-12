@@ -184,7 +184,7 @@ class game {
     GLuint program;
     GLint model_uniform;
     GLint view_uniform;
-    glm::vec3 cam_focus;
+    glm::vec3 cam_focus = {0.0f, 0.0f, 0.0f};
     glm::vec3 cam_offset = {-48.0f, -48.0f, 48.0f};
     GLint proj_uniform;
 
