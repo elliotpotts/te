@@ -72,20 +72,21 @@ GLuint link_program(GLuint vertex, GLuint fragment) {
 
 template<typename T, size_t N>
 GLuint make_buffer(const std::array<T, N> data, GLenum type) {
-    GLuint vbo;
-    glGenBuffers(1, &vbo);
-    glBindBuffer(type, vbo);
-    glBufferData(type, data.size() * sizeof(T), data.data(), GL_STATIC_DRAW);
-    return vbo;
+    return make_buffer(data.data(), data.size(), type);
 }
 
 template<typename T>
 GLuint make_buffer(const std::vector<T> data, GLenum type) {
-    GLuint vbo;
-    glGenBuffers(1, &vbo);
-    glBindBuffer(type, vbo);
-    glBufferData(type, data.size() * sizeof(T), data.data(), GL_STATIC_DRAW);
-    return vbo;
+    return make_buffer(data.data(), data.size(), type);
+}
+
+template<typename T>
+GLuint make_buffer(T const * const data, std::size_t size, GLenum type) {
+  GLuint vbo;
+  glGenBuffers(1, &vbo);
+  glBindBuffer(type, vbo);
+  glBufferData(type, size * sizeof(T), data, GL_STATIC_DRAW);
+  return vbo;
 }
 
 std::random_device seed_device;
