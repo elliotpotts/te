@@ -12,82 +12,11 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/rotate_vector.hpp>
 #include <vector>
-#include <FreeImage.h>
 #include <tuple>
 #include <random>
 #define  BOOST_LOG_DYN_LINK
 #include <boost/log/trivial.hpp>
-
-int const win_w = 1024;
-int const win_h = 768;
-
-using gl_string = std::basic_string<GLchar>;
-
-GLuint compile_shader(std::string source, GLenum type) {
-    GLuint const shader = glCreateShader(type);
-    std::array<GLchar const* const, 1> const sources = { source.c_str() };
-    std::array<GLint const, 1> const lengths = { static_cast<GLint>(source.size()) };
-    glShaderSource(shader, 1, sources.data(), lengths.data());
-    glCompileShader(shader);
-    GLint status;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
-    if(status != GL_TRUE) {
-        GLint log_length;
-        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &log_length);
-        gl_string log(' ', log_length);
-        glGetShaderInfoLog(shader, log_length, nullptr, log.data());
-        std::ostringstream sstr;
-        switch(type) {
-            case GL_VERTEX_SHADER: sstr << "Vertex "; break;
-            case GL_FRAGMENT_SHADER: sstr << "Fragment "; break;
-            default: sstr << "Unkown " ;
-        }
-        sstr << "shader compilation failed because: " << log;
-        throw std::runtime_error(sstr.str());
-    } else {
-        return shader;
-    }
-}
-
-GLuint link_program(GLuint vertex, GLuint fragment) {
-    GLuint program = glCreateProgram();
-    glAttachShader(program, vertex);
-    glAttachShader(program, fragment);
-    glBindFragDataLocation(program, 0, "out_colour");
-    glLinkProgram(program);
-    GLint status;
-    glGetProgramiv(program, GL_LINK_STATUS, &status);
-    if(status != GL_TRUE) {
-        GLint log_length;
-        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &log_length);
-        gl_string log(' ', log_length);
-        glGetProgramInfoLog(program, log_length, nullptr, log.data());
-        std::ostringstream sstr;
-        sstr << "Program linking failed because: " << log;
-        throw std::runtime_error(sstr.str());
-    } else {
-        return program;
-    }
-}
-
-template<typename T, size_t N>
-GLuint make_buffer(const std::array<T, N> data, GLenum type) {
-    return make_buffer(data.data(), data.size(), type);
-}
-
-template<typename T>
-GLuint make_buffer(const std::vector<T> data, GLenum type) {
-    return make_buffer(data.data(), data.size(), type);
-}
-
-template<typename T>
-GLuint make_buffer(T const * const data, std::size_t size, GLenum type) {
-  GLuint vbo;
-  glGenBuffers(1, &vbo);
-  glBindBuffer(type, vbo);
-  glBufferData(type, size * sizeof(T), data, GL_STATIC_DRAW);
-  return vbo;
-}
+#include <te/opengl.hpp>
 
 std::random_device seed_device;
 std::mt19937 rengine;
@@ -101,6 +30,7 @@ GLuint grid(int width, int height) {
     };
     static_assert(sizeof(vertex) == sizeof(GLfloat) * 7, "Platform doesn't support this directly.");
     std::vector<vertex> data;
+    data.reserve(width * height * 6);
     glm::vec2 grid_tl {-width/2.0f, -height/2.0f};
     glm::vec3 white {1.0f, 1.0f, 1.0f};
     for (int xi = 0; xi < width; xi++) {
@@ -120,34 +50,7 @@ GLuint grid(int width, int height) {
             data.push_back(cell_tl);
         }
     }
-    return make_buffer(data, GL_ARRAY_BUFFER);
-}
-
-GLuint image_texture(std::string filename) {
-    FREE_IMAGE_FORMAT fmt = FreeImage_GetFileType(filename.c_str());
-    if(fmt == FIF_UNKNOWN) {
-        std::ostringstream sstr;
-        sstr << "The FREE_IMAGE_FORMAT of " << filename << " could not be ascertained so it cannot be loaded!";
-        throw std::runtime_error(sstr.str());
-    }
-    FIBITMAP* bitmap = FreeImage_Load(fmt, filename.c_str());
-    if(!bitmap) {
-        throw std::runtime_error("Couldn't load image.");
-    }
-    GLuint tex;
-    glGenTextures(1, &tex);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexImage2D(
-        GL_TEXTURE_2D, 0, GL_RGB,
-        FreeImage_GetWidth(bitmap), FreeImage_GetHeight(bitmap),
-        0, GL_BGR, GL_UNSIGNED_BYTE, FreeImage_GetBits(bitmap));
-    FreeImage_Unload(bitmap);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    return tex;
+    return te::gl::make_buffer(data, GL_ARRAY_BUFFER);
 }
 
 auto start_time = std::chrono::high_resolution_clock::now();
@@ -191,9 +94,9 @@ class game {
 
 public:
     game(GLFWwindow* w) : w{w} {
-        program = link_program(
-            compile_shader(vshader_src, GL_VERTEX_SHADER),
-            compile_shader(fshader_src, GL_FRAGMENT_SHADER)
+        program = te::gl::link_program(
+            te::gl::compile_shader(vshader_src, GL_VERTEX_SHADER),
+            te::gl::compile_shader(fshader_src, GL_FRAGMENT_SHADER)
         );
         glUseProgram(program);
         
@@ -214,7 +117,7 @@ public:
         glEnableVertexAttribArray(tex_attrib);
         glVertexAttribPointer(tex_attrib, 2, GL_FLOAT, GL_FALSE, 7*sizeof(float), reinterpret_cast<void*>(5*sizeof(float)));
 
-        image_texture("grass_tiles.png");
+	te::gl::image_texture("grass_tiles.png");
 
         model_uniform = glGetUniformLocation(program, "model");
         view_uniform = glGetUniformLocation(program, "view");
@@ -281,6 +184,8 @@ void glfw_dispatch_key(GLFWwindow* w, int key, int scancode, int action, int mod
     ->handle_key(key, scancode, action, mods);
 }
 
+int const win_w = 1024;
+int const win_h = 768;
 int main(void) {
     if (!glfwInit()) {
         BOOST_LOG_TRIVIAL(fatal) << "Could not initialise glfw";
