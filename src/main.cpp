@@ -50,8 +50,6 @@ public:
         }
     }
 
-    float zoom = 1.0f;
-
     void operator()() {
         if(glfwGetKey(w, GLFW_KEY_ESCAPE) == GLFW_PRESS) { glfwSetWindowShouldClose(w, true); };
         glClear(GL_COLOR_BUFFER_BIT);
