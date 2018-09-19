@@ -17,119 +17,36 @@
 #define  BOOST_LOG_DYN_LINK
 #include <boost/log/trivial.hpp>
 #include <te/opengl.hpp>
+#include <te/camera.hpp>
+#include <te/terrain_renderer.hpp>
 
 std::random_device seed_device;
 std::mt19937 rengine;
-std::uniform_int_distribution tile_select {0, 1};
-
-GLuint grid(int width, int height) {
-    struct vertex {
-        glm::vec2 pos;
-        glm::vec3 col;
-        glm::vec2 uv;
-    };
-    static_assert(sizeof(vertex) == sizeof(GLfloat) * 7, "Platform doesn't support this directly.");
-    std::vector<vertex> data;
-    data.reserve(width * height * 6);
-    glm::vec2 grid_tl {-width/2.0f, -height/2.0f};
-    glm::vec3 white {1.0f, 1.0f, 1.0f};
-    for (int xi = 0; xi < width; xi++) {
-        for (int yi = 0; yi < height; yi++) {
-            glm::vec2 uv_tl {tile_select(rengine) * 0.5f, tile_select(rengine) * 0.5f};
-            auto cell_tl_pos = grid_tl + static_cast<float>(xi) * glm::vec2{1.0f, 0.0f}
-                                       + static_cast<float>(yi) * glm::vec2{0.0f, 1.0f};
-            vertex cell_tl {cell_tl_pos + glm::vec2{0.0f, 0.0f}, white, uv_tl + glm::vec2(0.0f, 0.0f)};
-            vertex cell_tr {cell_tl_pos + glm::vec2{1.0f, 0.0f}, white, uv_tl + glm::vec2(0.5f, 0.0f)};
-            vertex cell_br {cell_tl_pos + glm::vec2{1.0f, 1.0f}, white, uv_tl + glm::vec2(0.5f, 0.5f)};
-            vertex cell_bl {cell_tl_pos + glm::vec2{0.0f, 1.0f}, white, uv_tl + glm::vec2(0.0f, 0.5f)};
-            data.push_back(cell_tl);
-            data.push_back(cell_tr);
-            data.push_back(cell_br);
-            data.push_back(cell_br);
-            data.push_back(cell_bl);
-            data.push_back(cell_tl);
-        }
-    }
-    return te::gl::make_buffer(data, GL_ARRAY_BUFFER);
-}
 
 auto start_time = std::chrono::high_resolution_clock::now();
 
-std::string const vshader_src = R"EOF(
-#version 150 core
-in vec2 position;
-in vec3 colour;
-in vec2 texcoord;
-out vec3 v_colour;
-out vec2 v_texcoord;
-uniform mat4 model;
-uniform mat4 view;
-uniform mat4 projection;
-void main() {
-    v_colour = colour;
-    v_texcoord = texcoord;
-    gl_Position = projection * view * model * vec4(position, 0.0, 1.0);
-} )EOF";
-
-std::string const fshader_src = R"EOF(
-#version 150 core
-in vec3 v_colour;
-in vec2 v_texcoord;
-out vec4 out_colour;
-uniform sampler2D tex;
-void main() {
-    out_colour = texture(tex, v_texcoord) * vec4(v_colour, 1.0f);
-} )EOF";
-
 class game {
     GLFWwindow* w;
-    GLuint vao;
-    GLuint vbo;
-    GLuint program;
-    GLint model_uniform;
-    GLint view_uniform;
-    glm::vec3 cam_focus = {0.0f, 0.0f, 0.0f};
-    glm::vec3 cam_offset = {-48.0f, -48.0f, 48.0f};
-    GLint proj_uniform;
+    te::camera cam;
+    te::terrain_renderer terrain;
 
 public:
-    game(GLFWwindow* w) : w{w} {
-        program = te::gl::link_program(
-            te::gl::compile_shader(vshader_src, GL_VERTEX_SHADER),
-            te::gl::compile_shader(fshader_src, GL_FRAGMENT_SHADER)
-        );
-        glUseProgram(program);
-        
-        glGenVertexArrays(1, &vao);
-        glBindVertexArray(vao);
-
-        vbo = grid(5,5);
-
-        GLint pos_attrib = glGetAttribLocation(program, "position");
-        glEnableVertexAttribArray(pos_attrib);
-        glVertexAttribPointer(pos_attrib, 2, GL_FLOAT, GL_FALSE, 7*sizeof(float), reinterpret_cast<void*>(0));
-
-        GLint col_attrib = glGetAttribLocation(program, "colour");
-        glEnableVertexAttribArray(col_attrib);
-        glVertexAttribPointer(col_attrib, 3, GL_FLOAT, GL_FALSE, 7*sizeof(float), reinterpret_cast<void*>(2*sizeof(float)));
-
-        GLint tex_attrib = glGetAttribLocation(program, "texcoord");
-        glEnableVertexAttribArray(tex_attrib);
-        glVertexAttribPointer(tex_attrib, 2, GL_FLOAT, GL_FALSE, 7*sizeof(float), reinterpret_cast<void*>(5*sizeof(float)));
-
-	te::gl::image_texture("grass_tiles.png");
-
-        model_uniform = glGetUniformLocation(program, "model");
-        view_uniform = glGetUniformLocation(program, "view");
-        proj_uniform = glGetUniformLocation(program, "projection");
+    game(GLFWwindow* w):
+        w {w},
+        cam {
+            {0.0f, 0.0f, 0.0f},
+            {-48.0f, -48.0f, 48.0f}
+        },
+        terrain(rengine, 80, 80)
+        {
     }
 
     void handle_key(int key, int scancode, int action, int mods) {
         if (key == GLFW_KEY_Q && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
-            cam_offset = glm::rotate(cam_offset, glm::half_pi<float>()/4.0f, glm::vec3{0.0f, 0.0f, 1.0f});
+            cam.position = glm::rotate(cam.position, glm::half_pi<float>()/4.0f, glm::vec3{0.0f, 0.0f, 1.0f});
         }
         if (key == GLFW_KEY_E && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
-            cam_offset = glm::rotate(cam_offset, -glm::half_pi<float>()/4.0f, glm::vec3{0.0f, 0.0f, 1.0f});
+            cam.position = glm::rotate(cam.position, -glm::half_pi<float>()/4.0f, glm::vec3{0.0f, 0.0f, 1.0f});
         }
     }
 
@@ -141,30 +58,19 @@ public:
 
         std::chrono::duration<float> secs = start_time - std::chrono::high_resolution_clock::now();
 
-        glm::mat4 model { 1 };
-        glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
-
-        glm::vec3 forward = -cam_offset;
+        glm::vec3 forward = -cam.position;
         forward.z = 0.0f;
         forward = glm::normalize(forward);
+        
         glm::vec3 right = glm::rotate(forward, glm::half_pi<float>(), glm::vec3{0.0f, 0.0f, 1.0f});
-        if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) cam_focus += 0.1f * forward;
-        if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) cam_focus -= 0.1f * right;
-        if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) cam_focus -= 0.1f * forward;
-        if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) cam_focus += 0.1f * right;
-	if (glfwGetKey(w, GLFW_KEY_H) == GLFW_PRESS) zoom += 0.05f;
-	if (glfwGetKey(w, GLFW_KEY_J) == GLFW_PRESS) zoom -= 0.05f;
-        glm::mat4 view = glm::lookAt(
-            cam_focus - cam_offset,
-            cam_focus,
-            glm::vec3(0.0f, 0.0f, 1.0f)
-        );
-        glUniformMatrix4fv(view_uniform, 1, GL_FALSE, glm::value_ptr(view));
+        if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) cam.focus += 0.1f * forward;
+        if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) cam.focus -= 0.1f * right;
+        if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) cam.focus -= 0.1f * forward;
+        if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) cam.focus += 0.1f * right;
+	if (glfwGetKey(w, GLFW_KEY_H) == GLFW_PRESS) cam.zoom += 0.05f;
+	if (glfwGetKey(w, GLFW_KEY_J) == GLFW_PRESS) cam.zoom -= 0.05f;
 
-        glm::mat4 proj = glm::ortho(-5.0f - zoom, 5.0f + zoom, -5.0f - zoom, 5.0f + zoom, 0.00001f, 500.0f);
-        glUniformMatrix4fv(proj_uniform, 1, GL_FALSE, glm::value_ptr(proj));
-
-        glDrawArrays(GL_TRIANGLES, 0, 5*5*6);
+        terrain.render(cam);
     }
 };
 

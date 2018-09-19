@@ -9,7 +9,8 @@ boost = dependency('boost', modules: ['log'])
 fmt = dependency('fmt')
 
 executable('main',
-    ['src/main.cpp', 'src/opengl.cpp', 'glad/src/glad.c'],
+    ['src/main.cpp', 'src/opengl.cpp', 'glad/src/glad.c', 'src/terrain_renderer.cpp', 'src/camera.cpp', 'src/util.cpp'],
     dependencies: [glfw3, freeimage, boost, threads, fmt],
-    include_directories: includes
+    include_directories: includes,
+    cpp_args: '-DGLFW_INCLUDE_NONE'
 )
