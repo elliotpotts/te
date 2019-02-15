@@ -19,17 +19,15 @@
 #include <te/opengl.hpp>
 #include <te/camera.hpp>
 #include <te/terrain_renderer.hpp>
+#include <fmt/core.h>
 
 std::random_device seed_device;
 std::mt19937 rengine;
-
-auto start_time = std::chrono::high_resolution_clock::now();
 
 class game {
     GLFWwindow* w;
     te::camera cam;
     te::terrain_renderer terrain;
-
 public:
     game(GLFWwindow* w):
         w {w},
@@ -50,11 +48,12 @@ public:
         }
     }
 
+    void handle_cursor_pos(double xpos, double ypos) {
+    }
+
     void operator()() {
         if(glfwGetKey(w, GLFW_KEY_ESCAPE) == GLFW_PRESS) { glfwSetWindowShouldClose(w, true); };
         glClear(GL_COLOR_BUFFER_BIT);
-
-        std::chrono::duration<float> secs = start_time - std::chrono::high_resolution_clock::now();
 
         glm::vec3 forward = -cam.position;
         forward.z = 0.0f;
@@ -73,7 +72,7 @@ public:
 };
 
 void glfw_error_callback(int error, const char* description) {
-    BOOST_LOG_TRIVIAL(error) << "glfw3 Error[" << error << "]: " << description;
+    BOOST_LOG_TRIVIAL(error) << "glfw3 error[" << error << "]: " << description;
     std::abort();
 }
 
@@ -85,7 +84,12 @@ void opengl_error_callback(
 
 void glfw_dispatch_key(GLFWwindow* w, int key, int scancode, int action, int mods) {
     reinterpret_cast<game*>(glfwGetWindowUserPointer(w))
-    ->handle_key(key, scancode, action, mods);
+        ->handle_key(key, scancode, action, mods);
+}
+
+void glfw_dispatch_cursor_pos(GLFWwindow* w, double xpos, double ypos) {
+    reinterpret_cast<game*>(glfwGetWindowUserPointer(w))
+        ->handle_cursor_pos(xpos, ypos);
 }
 
 int const win_w = 1024;
@@ -184,11 +188,26 @@ int main(void) {
     glDebugMessageCallback(opengl_error_callback, nullptr);
     game g(window);
     glfwSetWindowUserPointer(window, &g);
+    glfwSetInputMode(window, GLFW_STICKY_KEYS, 1);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     glfwSetKeyCallback(window, glfw_dispatch_key);
+    glfwSetCursorPosCallback(window, glfw_dispatch_cursor_pos);
+
+    auto then = std::chrono::high_resolution_clock::now();
+    int frames = 0;
+    
     while (!glfwWindowShouldClose(window)) {
         g();
         glfwSwapBuffers(window);
         glfwPollEvents();
+        frames++;
+        auto now = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> secs = now - then;
+        if (secs.count() > 1.0) {
+            fmt::print("fps: {}\n", frames / secs.count());
+            frames = 0;
+            then = std::chrono::high_resolution_clock::now();
+        }
     }
     glfwTerminate();
     return 0;
