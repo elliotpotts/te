@@ -24,12 +24,12 @@
 std::random_device seed_device;
 std::mt19937 rengine;
 
-class game {
+class client {
     GLFWwindow* w;
     te::camera cam;
     te::terrain_renderer terrain;
 public:
-    game(GLFWwindow* w):
+    client(GLFWwindow* w):
         w {w},
         cam {
             {0.0f, 0.0f, 0.0f},
@@ -83,12 +83,12 @@ void opengl_error_callback(
 }
 
 void glfw_dispatch_key(GLFWwindow* w, int key, int scancode, int action, int mods) {
-    reinterpret_cast<game*>(glfwGetWindowUserPointer(w))
+    reinterpret_cast<client*>(glfwGetWindowUserPointer(w))
         ->handle_key(key, scancode, action, mods);
 }
 
 void glfw_dispatch_cursor_pos(GLFWwindow* w, double xpos, double ypos) {
-    reinterpret_cast<game*>(glfwGetWindowUserPointer(w))
+    reinterpret_cast<client*>(glfwGetWindowUserPointer(w))
         ->handle_cursor_pos(xpos, ypos);
 }
 
@@ -186,7 +186,7 @@ int main(void) {
         BOOST_LOG_TRIVIAL(info) << "Loaded opengl extensions";
     }
     glDebugMessageCallback(opengl_error_callback, nullptr);
-    game g(window);
+    client g(window);
     glfwSetWindowUserPointer(window, &g);
     glfwSetInputMode(window, GLFW_STICKY_KEYS, 1);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
