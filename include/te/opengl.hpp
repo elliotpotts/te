@@ -4,30 +4,7 @@
 #include <glad/glad.h>
 #include <array>
 #include <vector>
-
-#include <optional>
-namespace te {
-    // Unique reference
-    // T = identity value representing object to which we only want one "reference" to
-    template<typename T, typename Deleter>
-    struct unique {
-        std::optional<T> storage;
-        unique(unique&& other) : storage(std::move(other.storage)) {
-            other.storage.reset();
-        }
-        explicit unique(T hnd) : storage(hnd) {
-        }
-        unique(const unique&) = delete;
-        const T& operator*() const {
-            return *storage;
-        }
-        ~unique() {
-            if (storage) {
-                Deleter {}(storage.value());
-            }
-        }
-    };
-}
+#include <te/unique.hpp>
 namespace te::gl {
     using string = std::basic_string<GLchar>;
 
