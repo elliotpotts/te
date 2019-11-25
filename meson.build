@@ -8,10 +8,11 @@ boost = dependency('boost', modules: ['log'])
 fmt = dependency('fmt')
 fxgltf = declare_dependency(include_directories: 'fx-gltf/include')
 entt = declare_dependency(include_directories: 'entt/src')
+spdlog = dependency('spdlog')
 
 executable('main',
     ['src/main.cpp', 'src/opengl.cpp', 'src/terrain_renderer.cpp', 'src/camera.cpp', 'src/util.cpp', 'glad/src/glad.c'],
-    dependencies: [glfw3, glad, freeimage, boost, threads, fmt, fxgltf, entt],
+    dependencies: [glfw3, glad, freeimage, boost, threads, fmt, fxgltf, entt, spdlog],
     include_directories: 'include',
     cpp_args: ['-DGLFW_INCLUDE_NONE'],
     link_args: ['-ldl']

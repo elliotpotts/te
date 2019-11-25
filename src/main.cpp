@@ -14,15 +14,13 @@
 #include <vector>
 #include <tuple>
 #include <random>
-#define  BOOST_LOG_DYN_LINK
-#include <boost/log/trivial.hpp>
+#include <spdlog/spdlog.h>
 #include <te/util.hpp>
 #include <te/opengl.hpp>
 #include <te/camera.hpp>
 #include <te/terrain_renderer.hpp>
 #include <fmt/core.h>
 #include <fx/gltf.h>
-#include <entt/entity/registry.hpp>
 
 std::random_device seed_device;
 std::mt19937 rengine;
@@ -214,14 +212,14 @@ public:
 };
 
 void glfw_error_callback(int error, const char* description) {
-    BOOST_LOG_TRIVIAL(error) << "glfw3 error[" << error << "]: " << description;
+    spdlog::error("glfw3 error[{}]: {}", error, description);
     std::abort();
 }
 
 void opengl_error_callback(
     GLenum source, GLenum type, GLuint id, GLenum severity,
     GLsizei length, const GLchar* message, const void* userParam) {
-    BOOST_LOG_TRIVIAL(error) << "opengl error: " << message;
+    spdlog::error("opengl error: {}", message);
 }
 
 void glfw_dispatch_key(GLFWwindow* w, int key, int scancode, int action, int mods) {
@@ -241,7 +239,7 @@ glfw_library::glfw_library() {
     if (!glfwInit()) {
         throw std::runtime_error("Could not initialise glfw");
     } else {
-        BOOST_LOG_TRIVIAL(info) << "Initialized glfw " << glfwGetVersionString();
+        spdlog::info("Initialized glfw {}", glfwGetVersionString());
     }
 }
 glfw_library::~glfw_library() {
@@ -260,80 +258,80 @@ int main(void) {
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
     GLFWwindow* window = glfwCreateWindow(win_w, win_h, "Hello World", nullptr, nullptr);
     if (!window) {
-        BOOST_LOG_TRIVIAL(fatal) << "Could not create opengl window";
+        spdlog::error("Could not create opengl window");
         glfwTerminate();
         return -1;
     } else {
-        BOOST_LOG_TRIVIAL(info) << "Created window with following attributes: ";
+        spdlog::info("Created window with following attributes: ");
         switch(glfwGetWindowAttrib(window, GLFW_CLIENT_API)) {
             case GLFW_OPENGL_API:
-                BOOST_LOG_TRIVIAL(info) << " |             GLFW_CLIENT_API: GLFW_OPENGL_API";
+                spdlog::info(" |             GLFW_CLIENT_API: GLFW_OPENGL_API");
                 break;
             case GLFW_OPENGL_ES_API:
-                BOOST_LOG_TRIVIAL(info) << " |             GLFW_CLIENT_API: GLFW_OPENGL_ES_API";
+                spdlog::info(" |             GLFW_CLIENT_API: GLFW_OPENGL_ES_API");
                 break;
             case GLFW_NO_API:
-                BOOST_LOG_TRIVIAL(info) << " |             GLFW_CLIENT_API: GLFW_NO_API";
+                spdlog::info(" |             GLFW_CLIENT_API: GLFW_NO_API");
                 break;
         }
         switch(glfwGetWindowAttrib(window, GLFW_CONTEXT_CREATION_API)) {
             case GLFW_NATIVE_CONTEXT_API:
-                BOOST_LOG_TRIVIAL(info) << " |   GLFW_CONTEXT_CREATION_API: GLFW_NATIVE_CONTEXT_API";
+                spdlog::info(" |   GLFW_CONTEXT_CREATION_API: GLFW_NATIVE_CONTEXT_API");
                 break;
             case GLFW_EGL_CONTEXT_API:
-                BOOST_LOG_TRIVIAL(info) << " |   GLFW_CONTEXT_CREATION_API: GLFW_EGL_CONTEXT_API";
+                spdlog::info(" |   GLFW_CONTEXT_CREATION_API: GLFW_EGL_CONTEXT_API");
                 break;
         }
-        BOOST_LOG_TRIVIAL(info) << " |  GLFW_CONTEXT_VERSION_MAJOR: " << glfwGetWindowAttrib(window, GLFW_CONTEXT_VERSION_MAJOR);
-        BOOST_LOG_TRIVIAL(info) << " |  GLFW_CONTEXT_VERSION_MINOR: " << glfwGetWindowAttrib(window, GLFW_CONTEXT_VERSION_MINOR);
-        BOOST_LOG_TRIVIAL(info) << " |       GLFW_CONTEXT_REVISION: " << glfwGetWindowAttrib(window, GLFW_CONTEXT_REVISION);
+        spdlog::info(" |  GLFW_CONTEXT_VERSION_MAJOR: {}", glfwGetWindowAttrib(window, GLFW_CONTEXT_VERSION_MAJOR));
+        spdlog::info(" |  GLFW_CONTEXT_VERSION_MINOR: {}", glfwGetWindowAttrib(window, GLFW_CONTEXT_VERSION_MINOR));
+        spdlog::info(" |       GLFW_CONTEXT_REVISION: {}", glfwGetWindowAttrib(window, GLFW_CONTEXT_REVISION));
         switch(glfwGetWindowAttrib(window, GLFW_OPENGL_FORWARD_COMPAT)) {
             case GLFW_TRUE:
-                BOOST_LOG_TRIVIAL(info) << " |  GLFW_OPENGL_FORWARD_COMPAT: GLFW_TRUE";
+                spdlog::info(" |  GLFW_OPENGL_FORWARD_COMPAT: GLFW_TRUE");
                 break;
             case GLFW_FALSE:
-                BOOST_LOG_TRIVIAL(info) << " |  GLFW_OPENGL_FORWARD_COMPAT: GLFW_FALSE";
+                spdlog::info(" |  GLFW_OPENGL_FORWARD_COMPAT: GLFW_FALSE");
                 break;
         }
         switch(glfwGetWindowAttrib(window, GLFW_OPENGL_DEBUG_CONTEXT)) {
             case GLFW_TRUE:
-                BOOST_LOG_TRIVIAL(info) << " |   GLFW_OPENGL_DEBUG_CONTEXT: GLFW_TRUE";
+                spdlog::info(" |   GLFW_OPENGL_DEBUG_CONTEXT: GLFW_TRUE");
                 break;
             case GLFW_FALSE:
-                BOOST_LOG_TRIVIAL(info) << " |   GLFW_OPENGL_DEBUG_CONTEXT: GLFW_FALSE";
+                spdlog::info(" |   GLFW_OPENGL_DEBUG_CONTEXT: GLFW_FALSE");
                 break;
         }
         switch(glfwGetWindowAttrib(window, GLFW_OPENGL_PROFILE)) {
             case GLFW_OPENGL_CORE_PROFILE:
-                BOOST_LOG_TRIVIAL(info) << " |         GLFW_OPENGL_PROFILE: GLFW_OPENGL_CORE_PROFILE";
+                spdlog::info(" |         GLFW_OPENGL_PROFILE: GLFW_OPENGL_CORE_PROFILE");
                 break;
             case GLFW_OPENGL_COMPAT_PROFILE:
-                BOOST_LOG_TRIVIAL(info) << " |         GLFW_OPENGL_PROFILE: GLFW_OPENGL_COMPAT_PROFILE";
+                spdlog::info(" |         GLFW_OPENGL_PROFILE: GLFW_OPENGL_COMPAT_PROFILE");
                 break;
             case GLFW_OPENGL_ANY_PROFILE:
-                BOOST_LOG_TRIVIAL(info) << " |         GLFW_OPENGL_PROFILE: GLFW_OPENGL_ANY_PROFILE";
+                spdlog::info(" |         GLFW_OPENGL_PROFILE: GLFW_OPENGL_ANY_PROFILE");
                 break;
         }
         switch(glfwGetWindowAttrib(window, GLFW_CONTEXT_ROBUSTNESS)) {
             case GLFW_LOSE_CONTEXT_ON_RESET:
-                BOOST_LOG_TRIVIAL(info) << " |     GLFW_CONTEXT_ROBUSTNESS: GLFW_LOSE_CONTEXT_ON_RESET";
+                spdlog::info(" |     GLFW_CONTEXT_ROBUSTNESS: GLFW_LOSE_CONTEXT_ON_RESET");
                 break;
             case GLFW_NO_RESET_NOTIFICATION:
-                BOOST_LOG_TRIVIAL(info) << " |     GLFW_CONTEXT_ROBUSTNESS: GLFW_NO_RESET_NOTIFICATION";
+                spdlog::info(" |     GLFW_CONTEXT_ROBUSTNESS: GLFW_NO_RESET_NOTIFICATION");
                 break;
             case GLFW_NO_ROBUSTNESS:
-                BOOST_LOG_TRIVIAL(info) << " |     GLFW_CONTEXT_ROBUSTNESS: GLFW_NO_ROBUSTNESS";
+                spdlog::info(" |     GLFW_CONTEXT_ROBUSTNESS: GLFW_NO_ROBUSTNESS");
                 break;
         }
     }
 
     glfwMakeContextCurrent(window);
-    BOOST_LOG_TRIVIAL(info) << "Context is now current.";
+    spdlog::info("Context is now current.");
     if (!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress)) {
-        BOOST_LOG_TRIVIAL(fatal) << "Could not load opengl extensions";
+        spdlog::error("Could not load opengl extensions");
         return -1;
     } else {
-        BOOST_LOG_TRIVIAL(info) << "Loaded opengl extensions";
+        spdlog::info("Loaded opengl extensions");
     }
     glDebugMessageCallback(opengl_error_callback, nullptr);
 
