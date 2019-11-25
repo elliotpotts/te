@@ -3,6 +3,7 @@
 
 #include <glad/glad.h>
 #include <te/camera.hpp>
+#include <te/opengl.hpp>
 #include <random>
 
 namespace te {
@@ -10,7 +11,7 @@ namespace te {
         int width;
         int height;
         GLuint vbo;
-        GLuint program;
+        gl::program program;
         GLint model_uniform;
         GLint view_uniform;
         GLint proj_uniform;

@@ -6,7 +6,7 @@
 namespace te {
     struct camera {
         glm::vec3 focus;
-        glm::vec3 position;
+        glm::vec3 offset;
         float zoom;
         glm::mat4 view() const;
         glm::mat4 projection() const;
