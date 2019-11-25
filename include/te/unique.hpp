@@ -16,6 +16,9 @@ namespace te {
         const T& operator*() const {
             return *storage;
         }
+        void release() {
+            storage.reset();
+        }
         ~unique() {
             if (storage) {
                 Deleter {}(storage.value());

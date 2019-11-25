@@ -10,7 +10,10 @@ te::gl::shader::shader(te::gl::shader_hnd shader): hnd(std::move(shader)) {
 }
 te::gl::shader te::gl::compile(std::string source, GLenum type) {
     shader_hnd shader {glCreateShader(type)};
-    //TODO: check that glCreateShader was succesful
+    if (*shader == 0) {
+        shader.release();
+        throw std::runtime_error(fmt::format("glCreateShader failed. Reason: {}", glGetError()));
+    }
     std::array<GLchar const* const, 1> const sources = { source.c_str() };
     std::array<GLint const, 1> const lengths = { static_cast<GLint>(source.size()) };
     glShaderSource(*shader, 1, sources.data(), lengths.data());
@@ -59,6 +62,10 @@ GLint te::gl::program::attribute(const char* name) const {
 }
 te::gl::program te::gl::link(const te::gl::shader& vertex, const te::gl::shader& fragment) {
     program_hnd program {glCreateProgram()};
+    if (*program == 0) {
+        program.release();
+        throw std::runtime_error(fmt::format("glCreateProgram failed. Reason: {}", glGetError()));
+    }
     //TODO: check that glCreateProgram was successful
     glAttachShader(*program, *vertex.hnd);
     glAttachShader(*program, *fragment.hnd);

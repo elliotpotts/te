@@ -11,7 +11,7 @@ entt = declare_dependency(include_directories: 'entt/src')
 spdlog = dependency('spdlog')
 
 executable('main',
-    ['src/main.cpp', 'src/opengl.cpp', 'src/terrain_renderer.cpp', 'src/camera.cpp', 'src/util.cpp', 'glad/src/glad.c'],
+    ['src/main.cpp', 'src/opengl.cpp', 'src/terrain_renderer.cpp', 'src/camera.cpp', 'src/util.cpp', 'glad/src/glad.c', 'src/mesh_renderer.cpp', 'src/loader.cpp'],
     dependencies: [glfw3, glad, freeimage, boost, threads, fmt, fxgltf, entt, spdlog],
     include_directories: 'include',
     cpp_args: ['-DGLFW_INCLUDE_NONE'],
