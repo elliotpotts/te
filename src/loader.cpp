@@ -1,8 +1,8 @@
 #include <te/loader.hpp>
 #include <glad/glad.h>
 #include <te/mesh_renderer.hpp>
-#include <list>
 #include <fx/gltf.h>
+#include <unordered_map>
 namespace {
     GLint component_count(fx::gltf::Accessor::Type type) {
         switch (type) {
@@ -20,7 +20,7 @@ namespace {
     }
 
     template<GLenum target>
-    using buffer_cache = std::list<std::pair<const fx::gltf::BufferView*, te::gl::buffer<target>*>>;
+    using buffer_cache = std::unordered_map<const fx::gltf::BufferView*, te::gl::buffer<target>*>;
     
     template<GLenum target>
     te::gl::buffer<target>& gl_buffer_for(std::vector<te::gl::buffer<target>>& store,
@@ -40,7 +40,7 @@ namespace {
                 doc_buffers[view.buffer].data.data() + view.byteOffset,
                 GL_STATIC_DRAW
             );
-            loaded.emplace_front(&view, &gl_buffer);
+            loaded.emplace(&view, &gl_buffer);
             return gl_buffer;
         } else {
             return *buffer_it->second;
