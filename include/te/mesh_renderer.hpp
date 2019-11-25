@@ -6,7 +6,6 @@
 #include <glad/glad.h>
 namespace te {
     struct primitive {
-        gl::buffer<GL_ELEMENT_ARRAY_BUFFER>& elements;
         GLuint vao;
         GLenum mode;
         GLenum type;
@@ -16,6 +15,7 @@ namespace te {
     struct mesh {
         std::vector<gl::buffer<GL_ARRAY_BUFFER>> attribute_buffers;
         std::vector<gl::buffer<GL_ELEMENT_ARRAY_BUFFER>> element_buffers;
+        std::vector<GLuint> textures;
         std::vector<primitive> primitives;
     };
     mesh load_mesh(std::string filename, gl::program& prog);

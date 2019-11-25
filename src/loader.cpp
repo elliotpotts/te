@@ -23,7 +23,7 @@ namespace {
     using buffer_cache = std::unordered_map<const fx::gltf::BufferView*, te::gl::buffer<target>*>;
     
     template<GLenum target>
-    te::gl::buffer<target>& gl_buffer_for(std::vector<te::gl::buffer<target>>& store,
+    te::gl::buffer<target>& get_gl_buffer(std::vector<te::gl::buffer<target>>& store,
                                           buffer_cache<target>& loaded,
                                           const fx::gltf::BufferView& view,
                                           const std::vector<fx::gltf::Buffer>& doc_buffers) {
@@ -62,7 +62,7 @@ te::mesh te::load_mesh(std::string filename, gl::program& program) {
         for (auto [attribute_name, accessor_ix] : primitive.attributes) {
             const fx::gltf::Accessor& accessor = doc.accessors[accessor_ix];
             const fx::gltf::BufferView& view = doc.bufferViews[accessor.bufferView];
-            te::gl::buffer<GL_ARRAY_BUFFER>& gl_buffer = gl_buffer_for(out.attribute_buffers, loaded_attribute_buffers, view, doc.buffers);
+            te::gl::buffer<GL_ARRAY_BUFFER>& gl_buffer = get_gl_buffer(out.attribute_buffers, loaded_attribute_buffers, view, doc.buffers);
             // Bind the buffer and associate the attribute with our vao
             gl_buffer.bind();
             auto attrib = program.attribute(attribute_name.c_str());
@@ -78,9 +78,8 @@ te::mesh te::load_mesh(std::string filename, gl::program& program) {
         }
         const fx::gltf::Accessor& elements_accessor = doc.accessors[primitive.indices];
         const fx::gltf::BufferView& elements_view = doc.bufferViews[elements_accessor.bufferView];
-        auto& gl_element_buffer = gl_buffer_for(out.element_buffers, loaded_element_buffers, elements_view, doc.buffers);
+        get_gl_buffer(out.element_buffers, loaded_element_buffers, elements_view, doc.buffers).bind();
         out.primitives.push_back ({
-                gl_element_buffer,
                 vao,
                 static_cast<GLenum>(primitive.mode),
                 static_cast<GLenum>(elements_accessor.componentType),
