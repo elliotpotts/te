@@ -9,7 +9,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/constants.hpp>
-#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/rotate_vector.hpp>
 #include <vector>
 #include <tuple>
@@ -36,10 +35,11 @@ public:
         w {w},
         cam {
             {0.0f, 0.0f, 0.0f},
-            {-8.0f, -8.0f, 8.0f}
+            {-0.7f, -0.7f, 1.0f},
+            8.0f
         },
         terrain(rengine, 80, 80),
-        meshr("BoxTextured.glb") {
+        meshr("BarramundiFish.glb") {
     }
 
     void handle_key(int key, int scancode, int action, int mods) {
@@ -69,8 +69,9 @@ public:
         if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) cam.focus += 0.1f * left;
         if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) cam.focus -= 0.1f * forward;
         if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) cam.focus -= 0.1f * left;
-	if (glfwGetKey(w, GLFW_KEY_H) == GLFW_PRESS) cam.zoom += 0.05f;
-	if (glfwGetKey(w, GLFW_KEY_J) == GLFW_PRESS) cam.zoom -= 0.05f;
+	if (glfwGetKey(w, GLFW_KEY_H) == GLFW_PRESS) cam.zoom(0.15f);
+        if (glfwGetKey(w, GLFW_KEY_J) == GLFW_PRESS) cam.zoom(-0.15f);
+        cam.use_ortho = glfwGetKey(w, GLFW_KEY_SPACE) != GLFW_PRESS;
 
         terrain.render(cam);
         meshr.draw(cam);

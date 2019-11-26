@@ -14,6 +14,6 @@ executable('main',
     ['src/main.cpp', 'src/opengl.cpp', 'src/terrain_renderer.cpp', 'src/camera.cpp', 'src/util.cpp', 'glad/src/glad.c', 'src/mesh_renderer.cpp', 'src/loader.cpp'],
     dependencies: [glfw3, glad, freeimage, boost, threads, fmt, fxgltf, entt, spdlog],
     include_directories: 'include',
-    cpp_args: ['-DGLFW_INCLUDE_NONE'],
+    cpp_args: ['-DGLFW_INCLUDE_NONE', '-DGLM_ENABLE_EXPERIMENTAL'],
     link_args: ['-ldl']
 )

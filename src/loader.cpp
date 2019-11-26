@@ -73,10 +73,14 @@ namespace {
         FreeImage_Unload(bitmap);
         // TODO: do samplers separately from textures
         const fx::gltf::Sampler& sampler = doc.samplers[doc_texture.sampler];
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, static_cast<GLenum>(sampler.wrapS));
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, static_cast<GLenum>(sampler.wrapT));
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, static_cast<GLenum>(sampler.minFilter));
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, static_cast<GLenum>(sampler.magFilter));
+        //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, static_cast<GLenum>(sampler.wrapS));
+        //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, static_cast<GLenum>(sampler.wrapT));
+        //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, static_cast<GLenum>(sampler.minFilter));
+        //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, static_cast<GLenum>(sampler.magFilter));
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); //static_cast<GLenum>(sampler.wrapS));
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT); //static_cast<GLenum>(sampler.wrapT));
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); //static_cast<GLenum>(sampler.minFilter));
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); //static_cast<GLenum>(sampler.magFilter));
         glGenerateMipmap(GL_TEXTURE_2D);
         return tex;
     }
@@ -94,6 +98,11 @@ te::mesh te::load_mesh(std::string filename, gl::program& program) {
         glGenVertexArrays(1, &vao);
         glBindVertexArray(vao);
         for (auto [attribute_name, accessor_ix] : primitive.attributes) {
+            if (std::string("POSITION") != attribute_name
+                && std::string("NORMAL") != attribute_name
+                && std::string("TEXCOORD_0") != attribute_name) {
+                continue;
+            }
             const fx::gltf::Accessor& accessor = doc.accessors[accessor_ix];
             const fx::gltf::BufferView& view = doc.bufferViews[accessor.bufferView];
             te::gl::buffer<GL_ARRAY_BUFFER>& gl_buffer = get_gl_buffer(out.attribute_buffers, loaded_attribute_buffers, view, doc.buffers);
