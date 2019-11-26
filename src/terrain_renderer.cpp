@@ -67,5 +67,6 @@ void te::terrain_renderer::render(const te::camera& cam) {
     glUniformMatrix4fv(view_uniform, 1, GL_FALSE, glm::value_ptr(cam.view()));
     glUniformMatrix4fv(proj_uniform, 1, GL_FALSE, glm::value_ptr(cam.projection()));
     glBindVertexArray(vao);
+    glBindTexture(GL_TEXTURE_2D, texture);
     glDrawArrays(GL_TRIANGLES, 0, width * height * 6);
 }

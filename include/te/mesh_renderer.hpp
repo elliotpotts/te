@@ -11,6 +11,7 @@ namespace te {
         GLenum type;
         unsigned count;
         unsigned offset;
+        GLuint texture;
     };
     struct mesh {
         std::vector<gl::buffer<GL_ARRAY_BUFFER>> attribute_buffers;
@@ -24,7 +25,7 @@ namespace te {
         GLint model_uniform;
         GLint view_uniform;
         GLint proj_uniform;
-        GLuint texture;
+        GLint sampler_uniform;
         mesh the_mesh;
         
         mesh_renderer(std::string filename);
