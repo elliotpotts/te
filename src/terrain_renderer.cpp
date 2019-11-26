@@ -1,5 +1,4 @@
 #include <te/terrain_renderer.hpp>
-#include <te/opengl.hpp>
 #include <te/util.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
@@ -32,15 +31,16 @@ static GLuint fill_grid(std::mt19937& rengine, int width, int height) {
             data.push_back(cell_tl);
         }
     }
-    return te::gl::make_buffer(data, GL_ARRAY_BUFFER);
+    return te::gl::make_buffer(data.begin(), data.end(), GL_ARRAY_BUFFER);
 }
 
-te::terrain_renderer::terrain_renderer(std::mt19937& rengine, int width, int height):
+te::terrain_renderer::terrain_renderer(gl::context& ogl, std::mt19937& rengine, int width, int height):
+    gl(ogl),
     width(width),
     height(height),
     vbo(fill_grid(rengine, width, height)),
-    program(te::gl::link(te::gl::compile(te::file_contents("shaders/terrain_vertex.glsl"), GL_VERTEX_SHADER),
-                         te::gl::compile(te::file_contents("shaders/terrain_fragment.glsl"), GL_FRAGMENT_SHADER)).hnd),
+    program(gl.link(gl.compile(te::file_contents("shaders/terrain_vertex.glsl"), GL_VERTEX_SHADER),
+                    gl.compile(te::file_contents("shaders/terrain_fragment.glsl"), GL_FRAGMENT_SHADER)).hnd),
     model_uniform(program.uniform("model")),
     view_uniform(program.uniform("view")),
     proj_uniform(program.uniform("projection")),

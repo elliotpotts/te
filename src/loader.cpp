@@ -72,7 +72,7 @@ namespace {
         );
         FreeImage_Unload(bitmap);
         // TODO: do samplers separately from textures
-        const fx::gltf::Sampler& sampler = doc.samplers[doc_texture.sampler];
+        //const fx::gltf::Sampler& sampler = doc.samplers[doc_texture.sampler];
         //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, static_cast<GLenum>(sampler.wrapS));
         //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, static_cast<GLenum>(sampler.wrapT));
         //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, static_cast<GLenum>(sampler.minFilter));

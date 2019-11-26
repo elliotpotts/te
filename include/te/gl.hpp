@@ -1,13 +1,13 @@
-#ifndef TE_OPENGL_HPP_INCLUDED
-#define TE_OPENGL_HPP_INCLUDED
-#include <string>
+#ifndef TE_GL_HPP_INCLUDED
+#define TE_GL_HPP_INCLUDED
 #include <glad/glad.h>
-#include <array>
-#include <vector>
 #include <te/unique.hpp>
+#include <type_traits>
+#include <iterator>
+#include <memory>
 namespace te::gl {
     using string = std::basic_string<GLchar>;
-
+    
     struct shader_deleter {
         void operator()(GLuint);
     };
@@ -15,11 +15,6 @@ namespace te::gl {
     struct shader {
         shader_hnd hnd;
         shader(shader_hnd shader);
-    };
-    shader compile(std::string source, GLenum type);
-
-    template<typename T>
-    struct uniform {
     };
 
     struct program_deleter {
@@ -32,8 +27,7 @@ namespace te::gl {
         GLint uniform(const char* name) const;
         GLint attribute(const char* name) const;
     };
-    program link(const shader&, const shader&);
-
+    
     template<GLenum type>
     struct buffer {
         GLuint hnd;
@@ -56,26 +50,22 @@ namespace te::gl {
         glBufferData(type, std::distance(begin, end) * sizeof(decltype(*begin)), begin, hint);
     }
 
-    template<typename T>
-    GLuint make_buffer(T const * const data, std::size_t size, GLenum type) {
+    template<typename It>
+    GLuint make_buffer(It begin, It end, GLenum target, GLenum usage_hint = GL_STATIC_DRAW) {
         GLuint vbo;
         glGenBuffers(1, &vbo);
-        glBindBuffer(type, vbo);
-        glBufferData(type, size * sizeof(T), data, GL_STATIC_DRAW);
+        glBindBuffer(target, vbo);
+        glBufferData(target, reinterpret_cast<char*>(std::to_address(end)) - reinterpret_cast<char*>(std::to_address(begin)), std::to_address(begin), usage_hint);
         return vbo;
-    }
-  
-    template<typename T, size_t N>
-    GLuint make_buffer(const std::array<T, N> data, GLenum type) {
-        return make_buffer(data.data(), data.size(), type);
-    }
-
-    template<typename T>
-    GLuint make_buffer(const std::vector<T> data, GLenum type) {
-        return make_buffer(data.data(), data.size(), type);
     }
 
     GLuint image_texture(std::string filename);
+    
+    struct context {
+        shader compile(std::string source, GLenum type);
+        program link(const shader&, const shader&);
+        context();
+    };
 }
 
-#endif /* TE_OPENGL_HPP_INCLUDED */
+#endif

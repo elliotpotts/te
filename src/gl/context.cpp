@@ -1,14 +1,33 @@
-#include <te/opengl.hpp>
+#include <te/gl.hpp>
+#include <GLFW/glfw3.h>
+#include <glad/glad.h>
 #include <fmt/format.h>
+#include <spdlog/spdlog.h>
 #include <array>
 #include <FreeImage.h>
-#include <sstream>
+
+void opengl_error_callback(
+    GLenum source, GLenum type, GLuint id, GLenum severity,
+    GLsizei length, const GLchar* message, const void* userParam) {
+    spdlog::error("opengl error: {}", message);
+}
+
+te::gl::context::context() {
+    if (!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress)) {
+        throw std::runtime_error("Could not load opengl extensions");
+    }
+    spdlog::info("Loaded opengl extensions");
+    glDebugMessageCallback(opengl_error_callback, nullptr);
+}
+
 void te::gl::shader_deleter::operator()(GLuint shader) {
     glDeleteShader(shader);
 }
+
 te::gl::shader::shader(te::gl::shader_hnd shader): hnd(std::move(shader)) {
 }
-te::gl::shader te::gl::compile(std::string source, GLenum type) {
+
+te::gl::shader te::gl::context::compile(std::string source, GLenum type) {
     shader_hnd shader {glCreateShader(type)};
     if (*shader == 0) {
         shader.release();
@@ -25,29 +44,26 @@ te::gl::shader te::gl::compile(std::string source, GLenum type) {
         glGetShaderiv(*shader, GL_INFO_LOG_LENGTH, &log_length);
 	te::gl::string log(' ', log_length);
         glGetShaderInfoLog(*shader, log_length, nullptr, log.data());
-        std::ostringstream sstr;
-        switch(type) {
-            case GL_VERTEX_SHADER: sstr << "Vertex "; break;
-            case GL_FRAGMENT_SHADER: sstr << "Fragment "; break;
-            default: sstr << "Unkown " ;
-        }
-        sstr << "shader compilation failed because: " << log;
-        throw std::runtime_error(sstr.str());
+        throw std::runtime_error(fmt::format("Shader compilation failed because: {}", log));
     } else {
         return te::gl::shader{std::move(shader)};
     }
 }
+
 void te::gl::program_deleter::operator()(GLuint program) {
     if (!glIsProgram(program)) {
         throw std::runtime_error("This isn't a program!");
     }
     glDeleteProgram(program);
 }
+
 te::gl::program::program(program_hnd program): hnd(std::move(program)) {
 }
+
 GLint te::gl::program::uniform(const char* name) const {
     return glGetUniformLocation(*hnd, name);
 }
+
 GLint te::gl::program::attribute(const char* name) const {
     glGetError();
     GLint location = glGetAttribLocation(*hnd, name);
@@ -60,7 +76,8 @@ GLint te::gl::program::attribute(const char* name) const {
         return location;
     }
 }
-te::gl::program te::gl::link(const te::gl::shader& vertex, const te::gl::shader& fragment) {
+
+te::gl::program te::gl::context::link(const te::gl::shader& vertex, const te::gl::shader& fragment) {
     program_hnd program {glCreateProgram()};
     if (*program == 0) {
         program.release();
@@ -78,9 +95,7 @@ te::gl::program te::gl::link(const te::gl::shader& vertex, const te::gl::shader&
         glGetProgramiv(*program, GL_INFO_LOG_LENGTH, &log_length);
 	te::gl::string log(' ', log_length);
         glGetProgramInfoLog(*program, log_length, nullptr, log.data());
-        std::ostringstream sstr;
-        sstr << "Program linking failed because: " << log;
-        throw std::runtime_error(sstr.str());
+        throw std::runtime_error(fmt::format("Program linking failed because: {}", log));
     } else {
         return te::gl::program{std::move(program)};
     }
@@ -89,9 +104,7 @@ te::gl::program te::gl::link(const te::gl::shader& vertex, const te::gl::shader&
 GLuint te::gl::image_texture(std::string filename) {
     FREE_IMAGE_FORMAT fmt = FreeImage_GetFileType(filename.c_str());
     if(fmt == FIF_UNKNOWN) {
-        std::ostringstream sstr;
-        sstr << "The FREE_IMAGE_FORMAT of " << filename << " could not be ascertained so it cannot be loaded!";
-        throw std::runtime_error(sstr.str());
+        throw std::runtime_error(fmt::format("Couldn't determine image file format from filename: {}", filename));
     }
     FIBITMAP* bitmap = FreeImage_Load(fmt, filename.c_str());
     if(!bitmap) {
@@ -112,3 +125,4 @@ GLuint te::gl::image_texture(std::string filename) {
     glGenerateMipmap(GL_TEXTURE_2D);
     return tex;
 }
+

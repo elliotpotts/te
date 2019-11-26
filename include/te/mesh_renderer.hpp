@@ -1,8 +1,9 @@
 #ifndef TE_MESH_RENDERER_HPP_INCLUDED
 #define TE_MESH_RENDERER_HPP_INCLUDED
-#include <string>
-#include <te/opengl.hpp>
+#include <te/gl.hpp>
 #include <te/camera.hpp>
+#include <string>
+#include <vector>
 #include <glad/glad.h>
 namespace te {
     struct primitive {
@@ -21,6 +22,7 @@ namespace te {
     };
     mesh load_mesh(std::string filename, gl::program& prog);
     struct mesh_renderer {
+        gl::context& gl;
         gl::program program;
         GLint model_uniform;
         GLint view_uniform;
@@ -28,7 +30,7 @@ namespace te {
         GLint sampler_uniform;
         mesh the_mesh;
         
-        mesh_renderer(std::string filename);
+        mesh_renderer(gl::context&, std::string filename);
         void draw(const te::camera& cam);
     };
 }

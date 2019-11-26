@@ -2,9 +2,10 @@
 #include <te/util.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-te::mesh_renderer::mesh_renderer(std::string filename):
-    program(te::gl::link(te::gl::compile(te::file_contents("shaders/basic_vertex.glsl"), GL_VERTEX_SHADER),
-                         te::gl::compile(te::file_contents("shaders/basic_fragment.glsl"), GL_FRAGMENT_SHADER))),
+te::mesh_renderer::mesh_renderer(gl::context& ogl, std::string filename):
+    gl(ogl),
+    program(gl.link(gl.compile(te::file_contents("shaders/basic_vertex.glsl"), GL_VERTEX_SHADER),
+                    gl.compile(te::file_contents("shaders/basic_fragment.glsl"), GL_FRAGMENT_SHADER))),
     model_uniform(program.uniform("model")),
     view_uniform(program.uniform("view")),
     proj_uniform(program.uniform("projection")),

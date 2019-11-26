@@ -3,11 +3,12 @@
 
 #include <glad/glad.h>
 #include <te/camera.hpp>
-#include <te/opengl.hpp>
+#include <te/gl.hpp>
 #include <random>
 
 namespace te {
     class terrain_renderer {
+        gl::context& gl;
         int width;
         int height;
         GLuint vbo;
@@ -18,7 +19,7 @@ namespace te {
         GLuint texture;
         GLuint vao;
     public:
-        terrain_renderer(std::mt19937& rengine, int width, int height);
+        terrain_renderer(gl::context& gl, std::mt19937& rengine, int width, int height);
         void render(const te::camera& cam);
     };
 }
