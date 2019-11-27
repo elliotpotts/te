@@ -38,7 +38,7 @@ struct client {
             8.0f
         },
         terrain(win.gl, rengine, 80, 80),
-        meshr(win.gl, "BoxTextured.glb")
+        meshr(win.gl, "BarramundiFish.glb")
         {
         win.on_key.connect([&](int key, int scancode, int action, int mods){ on_key(key, scancode, action, mods); });
     }
