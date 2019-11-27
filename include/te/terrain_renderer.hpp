@@ -11,12 +11,13 @@ namespace te {
         gl::context& gl;
         int width;
         int height;
-        GLuint vbo;
+        gl::buffer<GL_ARRAY_BUFFER> vbo;
         gl::program program;
         GLint model_uniform;
         GLint view_uniform;
         GLint proj_uniform;
-        GLuint texture;
+        gl::sampler sampler;
+        gl::texture<GL_TEXTURE_2D> texture;
         GLuint vao;
     public:
         terrain_renderer(gl::context& gl, std::mt19937& rengine, int width, int height);

@@ -2,7 +2,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 void te::camera::zoom(float delta) {
-    zoom_factor = glm::clamp(zoom_factor + delta, 2.0f, 20.0f);
+    zoom_factor = glm::clamp(zoom_factor + delta, 2.0f, 14.0f);
 }
 
 glm::mat4 te::camera::view() const {

@@ -9,62 +9,89 @@ namespace te::gl {
     using string = std::basic_string<GLchar>;
     
     struct shader_deleter {
-        void operator()(GLuint);
+        void operator()(GLuint) const;
     };
     using shader_hnd = unique<GLuint, shader_deleter>;
     struct shader {
         shader_hnd hnd;
-        shader(shader_hnd shader);
+        explicit shader(shader_hnd shader);
     };
 
     struct program_deleter {
-        void operator()(GLuint);
+        void operator()(GLuint) const;
     };
     using program_hnd = unique<GLuint, program_deleter>;
     struct program {
         program_hnd hnd;
-        program(program_hnd program);
+        explicit program(program_hnd program);
         GLint uniform(const char* name) const;
         GLint attribute(const char* name) const;
     };
-    
-    template<GLenum type>
+
+    struct buffer_deleter {
+        void operator()(GLuint) const;
+    };
+    using buffer_hnd = unique<GLuint, buffer_deleter>;
+    template<GLenum target>
     struct buffer {
-        GLuint hnd;
-        buffer() {
-            glGenBuffers(1, &hnd);
-        }
-        explicit buffer(GLuint buffer) : hnd(buffer) {
+        buffer_hnd hnd;
+        explicit buffer(buffer_hnd buffer) : hnd(std::move(buffer)) {
         }
         void bind() const {
-            glBindBuffer(type, hnd);
+            glBindBuffer(target, *hnd);
             if (glGetError() == GL_INVALID_OPERATION) {
                 throw std::runtime_error("Invalid bind!\n");
             }
         }
     };
-    
 
-    template<typename It, GLenum type>
-    void copy(It begin, It end, buffer<type>& to, GLenum hint) {
-        glBufferData(type, std::distance(begin, end) * sizeof(decltype(*begin)), begin, hint);
-    }
+    struct sampler_deleter {
+        void operator()(GLuint) const;
+    };
+    using sampler_hnd = unique<GLuint, sampler_deleter>;
+    struct sampler {
+        sampler_hnd hnd;
+        explicit sampler(sampler_hnd sampler);
+        void bind(GLuint texture_unit) const;
+        void set(GLenum param, GLenum value);
+    };
 
-    template<typename It>
-    GLuint make_buffer(It begin, It end, GLenum target, GLenum usage_hint = GL_STATIC_DRAW) {
-        GLuint vbo;
-        glGenBuffers(1, &vbo);
-        glBindBuffer(target, vbo);
-        glBufferData(target, reinterpret_cast<char*>(std::to_address(end)) - reinterpret_cast<char*>(std::to_address(begin)), std::to_address(begin), usage_hint);
-        return vbo;
-    }
-
-    GLuint image_texture(std::string filename);
+    struct texture_deleter {
+        void operator()(GLuint) const;
+    };
+    using texture_hnd = unique<GLuint, texture_deleter>;
+    template<GLenum target>
+    struct texture {
+        texture_hnd hnd;
+        explicit texture(texture_hnd texture) : hnd(std::move(texture)) {
+        }
+        void bind() const {
+            glBindTexture(target, *hnd);
+        }
+        void activate(GLuint texture_unit) const {
+            glActiveTexture(GL_TEXTURE0 + texture_unit);
+            bind();
+        }
+    };
     
     struct context {
         shader compile(std::string source, GLenum type);
         program link(const shader&, const shader&);
-        context();
+        
+        texture<GL_TEXTURE_2D> image_texture(std::string filename);
+
+        sampler make_sampler();
+        
+        template<GLenum target, typename It>
+        buffer<target> make_buffer(It begin, It end, GLenum usage_hint = GL_STATIC_DRAW) {
+            GLuint vbo;
+            glGenBuffers(1, &vbo);
+            buffer<target> buffer {buffer_hnd{vbo}};
+            buffer.bind();
+            glBufferData(target, reinterpret_cast<const char*>(std::to_address(end)) - reinterpret_cast<const char*>(std::to_address(begin)), std::to_address(begin), usage_hint);
+            return buffer;
+        }
+        explicit context();
     };
 }
 

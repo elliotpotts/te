@@ -3,6 +3,7 @@
 #include <te/mesh_renderer.hpp>
 #include <fx/gltf.h>
 #include <unordered_map>
+#include <spdlog/spdlog.h>
 namespace {
     GLint component_count(fx::gltf::Accessor::Type type) {
         switch (type) {
@@ -23,7 +24,8 @@ namespace {
     using buffer_cache = std::unordered_map<const fx::gltf::BufferView*, te::gl::buffer<target>*>;
     
     template<GLenum target>
-    te::gl::buffer<target>& get_gl_buffer(std::vector<te::gl::buffer<target>>& store,
+    te::gl::buffer<target>& get_gl_buffer(te::gl::context& gl,
+                                          std::vector<te::gl::buffer<target>>& store,
                                           buffer_cache<target>& loaded,
                                           const fx::gltf::BufferView& view,
                                           const std::vector<fx::gltf::Buffer>& doc_buffers) {
@@ -32,14 +34,8 @@ namespace {
             [&view](auto pair) { return pair.first == &view; }
         );
         if (buffer_it == loaded.end()) {
-            te::gl::buffer<target>& gl_buffer = store.emplace_back();
-            gl_buffer.bind();
-            glBufferData (
-                target,
-                view.byteLength,
-                doc_buffers[view.buffer].data.data() + view.byteOffset,
-                GL_STATIC_DRAW
-            );
+            const unsigned char* begin = doc_buffers[view.buffer].data.data() + view.byteOffset;
+            te::gl::buffer<target>& gl_buffer = store.emplace_back(gl.make_buffer<target>(begin, begin + view.byteLength));
             loaded.emplace(&view, &gl_buffer);
             return gl_buffer;
         } else {
@@ -49,7 +45,11 @@ namespace {
 }
 #include <FreeImage.h>
 namespace {
-    GLuint memory_texture(const fx::gltf::Document& doc, const fx::gltf::Texture& doc_texture) {
+    GLenum gl_pixel_format(FIBITMAP* bitmap) {
+        //TODO: support pixel formats properly
+        return FreeImage_GetBPP(bitmap) == 32 ? GL_BGRA : GL_BGR;
+    }
+    te::gl::texture<GL_TEXTURE_2D> memory_texture(const fx::gltf::Document& doc, const fx::gltf::Texture& doc_texture) {
         const fx::gltf::Image& image = doc.images[doc_texture.source];
         const fx::gltf::BufferView& view = doc.bufferViews[image.bufferView];
         const fx::gltf::Buffer& buffer = doc.buffers[view.buffer];
@@ -68,25 +68,16 @@ namespace {
         glTexImage2D (
             GL_TEXTURE_2D, 0, GL_RGB,
             FreeImage_GetWidth(bitmap), FreeImage_GetHeight(bitmap),
-            0, GL_BGRA, GL_UNSIGNED_BYTE, FreeImage_GetBits(bitmap)
+            //TODO: FreeImage_GetBits requires alignment to work properly, or something vOv
+            0, gl_pixel_format(bitmap), GL_UNSIGNED_BYTE, FreeImage_GetBits(bitmap)
         );
         FreeImage_Unload(bitmap);
-        // TODO: do samplers separately from textures
-        //const fx::gltf::Sampler& sampler = doc.samplers[doc_texture.sampler];
-        //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, static_cast<GLenum>(sampler.wrapS));
-        //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, static_cast<GLenum>(sampler.wrapT));
-        //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, static_cast<GLenum>(sampler.minFilter));
-        //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, static_cast<GLenum>(sampler.magFilter));
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); //static_cast<GLenum>(sampler.wrapS));
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT); //static_cast<GLenum>(sampler.wrapT));
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); //static_cast<GLenum>(sampler.minFilter));
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); //static_cast<GLenum>(sampler.magFilter));
         glGenerateMipmap(GL_TEXTURE_2D);
-        return tex;
+        return te::gl::texture<GL_TEXTURE_2D>{ te::gl::texture_hnd{tex} };
     }
 }
 
-te::mesh te::load_mesh(std::string filename, gl::program& program) {
+te::mesh te::load_mesh(te::gl::context& gl, std::string filename, gl::program& program) {
     te::mesh out;
     const fx::gltf::Document doc = fx::gltf::LoadFromBinary(filename);
     buffer_cache<GL_ARRAY_BUFFER> loaded_attribute_buffers;
@@ -105,7 +96,7 @@ te::mesh te::load_mesh(std::string filename, gl::program& program) {
             }
             const fx::gltf::Accessor& accessor = doc.accessors[accessor_ix];
             const fx::gltf::BufferView& view = doc.bufferViews[accessor.bufferView];
-            te::gl::buffer<GL_ARRAY_BUFFER>& gl_buffer = get_gl_buffer(out.attribute_buffers, loaded_attribute_buffers, view, doc.buffers);
+            te::gl::buffer<GL_ARRAY_BUFFER>& gl_buffer = get_gl_buffer(gl, out.attribute_buffers, loaded_attribute_buffers, view, doc.buffers);
             // Bind the buffer and associate the attribute with our vao
             gl_buffer.bind();
             auto attrib = program.attribute(attribute_name.c_str());
@@ -121,19 +112,34 @@ te::mesh te::load_mesh(std::string filename, gl::program& program) {
         }
         const fx::gltf::Accessor& elements_accessor = doc.accessors[primitive.indices];
         const fx::gltf::BufferView& elements_view = doc.bufferViews[elements_accessor.bufferView];
-        auto& gl_element_buffer = get_gl_buffer(out.element_buffers, loaded_element_buffers, elements_view, doc.buffers);
+        auto& gl_element_buffer = get_gl_buffer(gl, out.element_buffers, loaded_element_buffers, elements_view, doc.buffers);
         gl_element_buffer.bind();
-        // load one texture
+
         const fx::gltf::Material::PBRMetallicRoughness& material = doc.materials[primitive.material].pbrMetallicRoughness;
-        const fx::gltf::Texture& base_colour_texture = doc.textures[material.baseColorTexture.index];
+        te::gl::texture<GL_TEXTURE_2D>* gl_texture = nullptr;
+        te::gl::sampler* gl_sampler = nullptr;
+        if (material.baseColorTexture.index >= 0) {
+            const fx::gltf::Texture& base_colour_texture = doc.textures[material.baseColorTexture.index];
+            gl_texture = &out.textures.emplace_back(memory_texture(doc, base_colour_texture));
+
+            if (base_colour_texture.sampler >= 0) {
+                const fx::gltf::Sampler& sampler = doc.samplers[base_colour_texture.sampler];
+                gl_sampler = &out.samplers.emplace_back(gl.make_sampler());
+                gl_sampler->set(GL_TEXTURE_WRAP_S, static_cast<GLenum>(sampler.wrapS));
+                gl_sampler->set(GL_TEXTURE_WRAP_T, static_cast<GLenum>(sampler.wrapT));
+                gl_sampler->set(GL_TEXTURE_MIN_FILTER, static_cast<GLenum>(sampler.minFilter));
+                gl_sampler->set(GL_TEXTURE_MAG_FILTER, static_cast<GLenum>(sampler.magFilter));
+            }
+        }
         
-        out.primitives.push_back ({
+        out.primitives.push_back (te::primitive {
                 vao,
                 static_cast<GLenum>(primitive.mode),
                 static_cast<GLenum>(elements_accessor.componentType),
                 elements_accessor.count,
                 0, //we've already applied the offset during upload
-                memory_texture(doc, base_colour_texture)
+                gl_texture,
+                gl_sampler
             });
         glBindVertexArray(0);
     }

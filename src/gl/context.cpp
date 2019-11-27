@@ -20,7 +20,7 @@ te::gl::context::context() {
     glDebugMessageCallback(opengl_error_callback, nullptr);
 }
 
-void te::gl::shader_deleter::operator()(GLuint shader) {
+void te::gl::shader_deleter::operator()(GLuint shader) const {
     glDeleteShader(shader);
 }
 
@@ -50,7 +50,7 @@ te::gl::shader te::gl::context::compile(std::string source, GLenum type) {
     }
 }
 
-void te::gl::program_deleter::operator()(GLuint program) {
+void te::gl::program_deleter::operator()(GLuint program) const {
     if (!glIsProgram(program)) {
         throw std::runtime_error("This isn't a program!");
     }
@@ -77,6 +77,10 @@ GLint te::gl::program::attribute(const char* name) const {
     }
 }
 
+void te::gl::buffer_deleter::operator()(GLuint buffer) const {
+    glDeleteBuffers(1, &buffer);
+}
+
 te::gl::program te::gl::context::link(const te::gl::shader& vertex, const te::gl::shader& fragment) {
     program_hnd program {glCreateProgram()};
     if (*program == 0) {
@@ -101,7 +105,36 @@ te::gl::program te::gl::context::link(const te::gl::shader& vertex, const te::gl
     }
 }
 
-GLuint te::gl::image_texture(std::string filename) {
+void te::gl::sampler_deleter::operator()(GLuint sampler) const {
+    glDeleteSamplers(1, &sampler);
+}
+
+te::gl::sampler::sampler(sampler_hnd sampler) : hnd(std::move(sampler)) {
+    glSamplerParameteri(*hnd, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glSamplerParameteri(*hnd, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glSamplerParameteri(*hnd, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glSamplerParameteri(*hnd, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+}
+
+void te::gl::sampler::bind(GLuint texture_unit) const {
+    glBindSampler(texture_unit, *hnd);
+}
+
+void te::gl::sampler::set(GLenum param, GLenum value) {
+    glSamplerParameteri(*hnd, param, value);
+}
+
+te::gl::sampler te::gl::context::make_sampler() {
+    GLuint hnd;
+    glGenSamplers(1, &hnd);
+    return te::gl::sampler { te::gl::sampler_hnd{hnd} };
+}
+
+void te::gl::texture_deleter::operator()(GLuint hnd) const {
+    glDeleteTextures(1, &hnd);
+}
+
+te::gl::texture<GL_TEXTURE_2D> te::gl::context::image_texture(std::string filename) {
     FREE_IMAGE_FORMAT fmt = FreeImage_GetFileType(filename.c_str());
     if(fmt == FIF_UNKNOWN) {
         throw std::runtime_error(fmt::format("Couldn't determine image file format from filename: {}", filename));
@@ -113,16 +146,13 @@ GLuint te::gl::image_texture(std::string filename) {
     GLuint tex;
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
-    glTexImage2D(
+    glTexImage2D (
         GL_TEXTURE_2D, 0, GL_RGB,
         FreeImage_GetWidth(bitmap), FreeImage_GetHeight(bitmap),
-        0, GL_BGR, GL_UNSIGNED_BYTE, FreeImage_GetBits(bitmap));
+        0, GL_BGR, GL_UNSIGNED_BYTE, FreeImage_GetBits(bitmap)
+    );
     FreeImage_Unload(bitmap);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glGenerateMipmap(GL_TEXTURE_2D);
-    return tex;
+    return te::gl::texture<GL_TEXTURE_2D>{ te::gl::texture_hnd{tex} };
 }
 
