@@ -24,7 +24,7 @@ void te::colour_picker::draw(te::mesh& the_mesh, const glm::mat4& model, std::ui
     glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
     glUniformMatrix4fv(view_uniform, 1, GL_FALSE, glm::value_ptr(cam.view()));
     glUniformMatrix4fv(proj_uniform, 1, GL_FALSE, glm::value_ptr(cam.projection()));
-    auto id_vec = reinterpret_cast<const char*>(&id);
+    auto id_vec = reinterpret_cast<const unsigned char*>(&id);
     glUniform4f(pick_colour_uniform, id_vec[0], id_vec[1], id_vec[2], id_vec[3]);
     for (auto& prim : the_mesh.primitives) {
         //TODO: do we need a default sampler?

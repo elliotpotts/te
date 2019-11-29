@@ -6,10 +6,53 @@
 #include <array>
 #include <FreeImage.h>
 
+namespace {
+    std::string debug_type_to_string(GLenum type) {
+        switch(type) {
+        case GL_DEBUG_TYPE_ERROR: return "error";
+        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: return "deprecation warning";
+        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR: return "undefined behaviour";
+        case GL_DEBUG_TYPE_PORTABILITY: return "implementation specific behaviour";
+        case GL_DEBUG_TYPE_PERFORMANCE: return "performance issue";
+        case GL_DEBUG_TYPE_MARKER: return "command stream annotation";
+        case GL_DEBUG_TYPE_PUSH_GROUP: return "group pushing";
+        case GL_DEBUG_TYPE_POP_GROUP: return "group popping";
+        case GL_DEBUG_TYPE_OTHER: return "other issue";
+        default: return "unknown issue";
+        }
+    }
+    std::string debug_source_to_string(GLenum source) {
+        switch (source) {
+        case GL_DEBUG_SOURCE_API: return "GL";
+        case GL_DEBUG_SOURCE_WINDOW_SYSTEM: return "GLX";
+        case GL_DEBUG_SOURCE_SHADER_COMPILER: return "Compiler";
+        case GL_DEBUG_SOURCE_THIRD_PARTY: return "3rd Party";
+        case GL_DEBUG_SOURCE_APPLICATION: return "This";
+        case GL_DEBUG_SOURCE_OTHER: return "Other";
+            default: return "Unknown";
+        }
+    }
+    std::string debug_severity_to_string(GLenum severity) {
+        switch(severity) {
+        case GL_DEBUG_SEVERITY_HIGH: return "high";
+        case GL_DEBUG_SEVERITY_MEDIUM: return "medium";
+        case GL_DEBUG_SEVERITY_LOW: return "low";
+        case GL_DEBUG_SEVERITY_NOTIFICATION: return "nofication";
+        default: return "Unknown";
+        }
+    }
+}
+
 void opengl_error_callback(
     GLenum source, GLenum type, GLuint id, GLenum severity,
     GLsizei length, const GLchar* message, const void* userParam) {
-    spdlog::error("opengl error: {}", message);
+    spdlog::debug (
+        "{}: {} severity {}: {}",
+        debug_source_to_string(source),
+        debug_severity_to_string(type),
+        debug_type_to_string(type),
+        message
+    );
 }
 
 te::gl::context::context() {

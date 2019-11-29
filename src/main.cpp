@@ -51,7 +51,7 @@ struct client {
         meshr(win.gl),
         colpickr(win),
         fish_mesh(te::load_mesh(win.gl, "BarramundiFish.glb", te::gl::common_attribute_locations)),
-        fish {5.0f, glm::half_pi<float>(), 0.0f}
+        fish {5.0f, glm::half_pi<float>() / 100.0f, 0.0f}
         {
         win.on_key.connect([&](int key, int scancode, int action, int mods){ on_key(key, scancode, action, mods); });
         glEnable(GL_DEPTH_TEST);
@@ -78,17 +78,21 @@ struct client {
 
     void draw() {
         colpickr.colour_fbuffer.bind();
-        colpickr.attachment.bind();
-        glDrawBuffer(GL_COLOR_ATTACHMENT0);
         colpickr.draw(fish_mesh, model(1.0f), 3339895125, cam);
-        colpickr.draw(fish_mesh, model(-1.0f), 1, cam);
+        colpickr.draw(fish_mesh, model(-1.0f), 500, cam);
         glFlush();
         glFinish();
+        double mouse_x; double mouse_y;
+        glfwGetCursorPos(win.hnd.get(), &mouse_x, &mouse_y);
+        int under_mouse_x = static_cast<int>(mouse_x);
+        int under_mouse_y = win.height - mouse_y;
         std::uint32_t id_under_cursor;
-        glReadPixels(0 /*x*/, 0 /*y*/, 1 /*w*/, 1 /*h*/, GL_RGBA, GL_UNSIGNED_BYTE, &id_under_cursor);
-        glFlush();
-        glFinish();
+        glReadPixels(under_mouse_x, under_mouse_y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &id_under_cursor);
         spdlog::debug("Under cursor: {}", id_under_cursor);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        colpickr.draw(fish_mesh, model(1.0f), 3339895125, cam);
+        colpickr.draw(fish_mesh, model(-1.0f), 500, cam);
         
         //glBindFramebuffer(GL_FRAMEBUFFER, 0);
         //terrain.render(cam);
