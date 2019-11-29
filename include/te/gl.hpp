@@ -5,6 +5,8 @@
 #include <type_traits>
 #include <iterator>
 #include <memory>
+#include <vector>
+
 namespace te::gl {
     using string = std::basic_string<GLchar>;
     
@@ -25,7 +27,7 @@ namespace te::gl {
         program_hnd hnd;
         explicit program(program_hnd program);
         GLint uniform(const char* name) const;
-        GLint attribute(const char* name) const;
+        std::optional<GLint> find_attribute(const char* name) const;
     };
 
     struct buffer_deleter {
@@ -73,15 +75,50 @@ namespace te::gl {
             bind();
         }
     };
+
+    struct framebuffer_deleter {
+        void operator()(GLuint) const;
+    };
+    using framebuffer_hnd = unique<GLuint, framebuffer_deleter>;
+    struct framebuffer {
+        framebuffer_hnd hnd;
+        explicit framebuffer(framebuffer_hnd fbo);
+        void bind() const;
+    };
+
+    struct renderbuffer_deleter {
+        void operator()(GLuint) const;
+    };
+    using renderbuffer_hnd = unique<GLuint, framebuffer_deleter>;
+    struct renderbuffer {
+        renderbuffer_hnd hnd;
+        explicit renderbuffer(renderbuffer_hnd hnd);
+        void bind() const;
+    };
+
+    using attribute_locations = std::vector<std::pair<string, GLuint>>;
+    const attribute_locations common_attribute_locations = {
+        {"POSITION", 0},
+        {"NORMAL", 1},
+        {"TANGENT", 2},
+        {"TEXCOORD_0", 3}
+    };;
     
     struct context {
         shader compile(std::string source, GLenum type);
-        program link(const shader&, const shader&);
-        
+        program link(const shader&, const shader&, const std::vector<std::pair<string, GLuint>>& locations = {});
         texture<GL_TEXTURE_2D> image_texture(std::string filename);
-
         sampler make_sampler();
-        
+        framebuffer make_framebuffer();
+        renderbuffer make_renderbuffer(int w, int h);
+        void attach(renderbuffer& rbuf, framebuffer& fbuf);
+        template<typename T, typename F>
+        T make_hnd(F&& generate) {
+            GLuint hnd;
+            generate(1, &hnd);
+            //TODO: typecheck 
+            return T{hnd};
+        }
         template<GLenum target, typename It>
         buffer<target> make_buffer(It begin, It end, GLenum usage_hint = GL_STATIC_DRAW) {
             GLuint vbo;

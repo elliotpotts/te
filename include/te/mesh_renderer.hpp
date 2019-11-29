@@ -22,7 +22,7 @@ namespace te {
         std::vector<gl::sampler> samplers;
         std::vector<primitive> primitives;
     };
-    mesh load_mesh(gl::context& gl, std::string filename, gl::program& prog);
+    mesh load_mesh(gl::context& gl, std::string filename, const gl::attribute_locations& attribs);
     struct mesh_renderer {
         gl::context& gl;
         gl::program program;
@@ -30,10 +30,9 @@ namespace te {
         GLint view_uniform;
         GLint proj_uniform;
         GLint sampler_uniform;
-        mesh the_mesh;
         
-        mesh_renderer(gl::context&, std::string filename);
-        void draw(const te::camera& cam);
+        mesh_renderer(gl::context&);
+        void draw(mesh& themesh, const glm::mat4& model, const te::camera& cam);
     };
 }
 #endif

@@ -52,13 +52,13 @@ te::terrain_renderer::terrain_renderer(gl::context& ogl, std::mt19937& rengine, 
     glUseProgram(*program.hnd);
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
-    GLint pos_attrib = program.attribute("position");
+    GLint pos_attrib = program.find_attribute("position").value();
     glEnableVertexAttribArray(pos_attrib);
     glVertexAttribPointer(pos_attrib, 2, GL_FLOAT, GL_FALSE, 7*sizeof(float), reinterpret_cast<void*>(0));
-    GLint col_attrib = program.attribute("colour");
+    GLint col_attrib = program.find_attribute("colour").value();
     glEnableVertexAttribArray(col_attrib);
     glVertexAttribPointer(col_attrib, 3, GL_FLOAT, GL_FALSE, 7*sizeof(float), reinterpret_cast<void*>(2*sizeof(float)));
-    GLint tex_attrib = program.attribute("texcoord");
+    GLint tex_attrib = program.find_attribute("texcoord").value();
     glEnableVertexAttribArray(tex_attrib);
     glVertexAttribPointer(tex_attrib, 2, GL_FLOAT, GL_FALSE, 7*sizeof(float), reinterpret_cast<void*>(5*sizeof(float)));
 }

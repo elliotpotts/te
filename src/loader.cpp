@@ -95,7 +95,7 @@ namespace {
     }
 }
 
-te::mesh te::load_mesh(te::gl::context& gl, std::string filename, gl::program& program) {
+te::mesh te::load_mesh(te::gl::context& gl, std::string filename, const gl::attribute_locations& attribute_locations) {
     te::mesh out;
     const fx::gltf::Document doc = fx::gltf::LoadFromBinary(filename);
     buffer_cache<GL_ARRAY_BUFFER> loaded_attribute_buffers;
@@ -107,9 +107,9 @@ te::mesh te::load_mesh(te::gl::context& gl, std::string filename, gl::program& p
         glGenVertexArrays(1, &vao);
         glBindVertexArray(vao);
         for (auto [attribute_name, accessor_ix] : primitive.attributes) {
-            if (std::string("POSITION") != attribute_name
-                && std::string("NORMAL") != attribute_name
-                && std::string("TEXCOORD_0") != attribute_name) {
+            auto attrib_it = std::find_if(attribute_locations.begin(), attribute_locations.end(),
+                                          [&] (const auto& pair) { return pair.first == attribute_name; });
+            if (attrib_it == attribute_locations.end()) {
                 continue;
             }
             const fx::gltf::Accessor& accessor = doc.accessors[accessor_ix];
@@ -117,14 +117,13 @@ te::mesh te::load_mesh(te::gl::context& gl, std::string filename, gl::program& p
             te::gl::buffer<GL_ARRAY_BUFFER>& gl_buffer = get_gl_buffer(gl, out.attribute_buffers, loaded_attribute_buffers, view, doc.buffers);
             // Bind the buffer and associate the attribute with our vao
             gl_buffer.bind();
-            auto attrib = program.attribute(attribute_name.c_str());
-            glEnableVertexAttribArray(attrib);
+            glEnableVertexAttribArray(attrib_it->second);
             glVertexAttribPointer (
-                attrib,// attribute in program
-                component_count(accessor.type),// # of components
+                attrib_it->second,// attribute location
+                component_count(accessor.type),
                 static_cast<GLenum>(accessor.componentType),
-                GL_FALSE,
-                view.byteStride,// stride
+                GL_FALSE, // normalise
+                view.byteStride,
                 reinterpret_cast<void*>(accessor.byteOffset)
             );
         }

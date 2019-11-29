@@ -64,16 +64,15 @@ GLint te::gl::program::uniform(const char* name) const {
     return glGetUniformLocation(*hnd, name);
 }
 
-GLint te::gl::program::attribute(const char* name) const {
-    glGetError();
+std::optional<GLint> te::gl::program::find_attribute(const char* name) const {
     GLint location = glGetAttribLocation(*hnd, name);
-    GLenum error = glGetError();
-    if (error == GL_INVALID_OPERATION) {
-        throw std::runtime_error("This program is not a program! (this shouldn't happen)");
-    } else if (location == -1) {
-        throw std::runtime_error(fmt::format("The attribute \"{}\" is not an active attribute or is a reserved name", name));
+    if (glGetError() == GL_INVALID_OPERATION) {
+        throw std::runtime_error("The object represented by \"this\" is not a valid program");
+    }
+    if (location == -1) {
+        return {};
     } else {
-        return location;
+        return std::make_optional(location);
     }
 }
 
@@ -81,16 +80,20 @@ void te::gl::buffer_deleter::operator()(GLuint buffer) const {
     glDeleteBuffers(1, &buffer);
 }
 
-te::gl::program te::gl::context::link(const te::gl::shader& vertex, const te::gl::shader& fragment) {
+te::gl::program te::gl::context::link(const te::gl::shader& vertex, const te::gl::shader& fragment, const std::vector<std::pair<std::string, GLuint>>& locations) {
     program_hnd program {glCreateProgram()};
     if (*program == 0) {
         program.release();
         throw std::runtime_error(fmt::format("glCreateProgram failed. Reason: {}", glGetError()));
     }
-    //TODO: check that glCreateProgram was successful
     glAttachShader(*program, *vertex.hnd);
     glAttachShader(*program, *fragment.hnd);
+    //TODO: don't hardcode out_colour 
     glBindFragDataLocation(*program, 0, "out_colour");
+    for (auto [attr_name, attr_location] : locations) {
+        glBindAttribLocation(*program, attr_location, attr_name.c_str());
+    }
+    
     glLinkProgram(*program);
     GLint status;
     glGetProgramiv(*program, GL_LINK_STATUS, &status);
@@ -125,9 +128,7 @@ void te::gl::sampler::set(GLenum param, GLenum value) {
 }
 
 te::gl::sampler te::gl::context::make_sampler() {
-    GLuint hnd;
-    glGenSamplers(1, &hnd);
-    return te::gl::sampler { te::gl::sampler_hnd{hnd} };
+    return te::gl::sampler { make_hnd<sampler_hnd>(glGenSamplers) };
 }
 
 void te::gl::texture_deleter::operator()(GLuint hnd) const {
@@ -143,9 +144,8 @@ te::gl::texture<GL_TEXTURE_2D> te::gl::context::image_texture(std::string filena
     if(!bitmap) {
         throw std::runtime_error("Couldn't load image.");
     }
-    GLuint tex;
-    glGenTextures(1, &tex);
-    glBindTexture(GL_TEXTURE_2D, tex);
+    auto tex = make_hnd<texture_hnd>(glGenTextures);
+    glBindTexture(GL_TEXTURE_2D, *tex);
     glTexImage2D (
         GL_TEXTURE_2D, 0, GL_RGB,
         FreeImage_GetWidth(bitmap), FreeImage_GetHeight(bitmap),
@@ -153,6 +153,48 @@ te::gl::texture<GL_TEXTURE_2D> te::gl::context::image_texture(std::string filena
     );
     FreeImage_Unload(bitmap);
     glGenerateMipmap(GL_TEXTURE_2D);
-    return te::gl::texture<GL_TEXTURE_2D>{ te::gl::texture_hnd{tex} };
+    return te::gl::texture<GL_TEXTURE_2D>{ std::move(tex) };
 }
 
+void te::gl::framebuffer_deleter::operator()(GLuint hnd) const {
+    glDeleteFramebuffers(1, &hnd);
+}
+
+te::gl::framebuffer::framebuffer(framebuffer_hnd fbo) : hnd {std::move(fbo)} {
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        spdlog::error("fbo not complete");
+    }
+}
+
+void te::gl::framebuffer::bind() const {
+    glBindFramebuffer(GL_FRAMEBUFFER, *hnd);
+}
+
+te::gl::framebuffer te::gl::context::make_framebuffer() {
+    te::gl::framebuffer_hnd fbo = make_hnd<framebuffer_hnd>(glGenFramebuffers);
+    return te::gl::framebuffer{std::move(fbo)};
+}
+
+void te::gl::renderbuffer_deleter::operator()(GLuint hnd) const {
+    glDeleteRenderbuffers(1, &hnd);
+}
+
+te::gl::renderbuffer::renderbuffer(renderbuffer_hnd old) : hnd {std::move(old)} {
+}
+
+void te::gl::renderbuffer::bind() const {
+    glBindRenderbuffer(GL_RENDERBUFFER, *hnd);
+}
+
+te::gl::renderbuffer te::gl::context::make_renderbuffer(int w, int h) {
+    renderbuffer buffer { make_hnd<renderbuffer_hnd>(glGenRenderbuffers) };
+    buffer.bind();
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA, w, h);
+    return buffer;
+}
+
+void te::gl::context::attach(te::gl::renderbuffer& rbuf, te::gl::framebuffer& fbuf) {
+    rbuf.bind();
+    fbuf.bind();
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, *rbuf.hnd);
+}

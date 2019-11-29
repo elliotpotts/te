@@ -2,10 +2,31 @@
 #include <te/window.hpp>
 #include <te/terrain_renderer.hpp>
 #include <te/mesh_renderer.hpp>
+#include <te/colour_picker.hpp>
 #include <glad/glad.h>
 #include <chrono>
 #include <glm/gtx/rotate_vector.hpp>
 #include <spdlog/spdlog.h>
+
+#include <glm/gtc/matrix_transform.hpp>
+#include <chrono>
+#include <complex>
+
+template<typename T = float, typename Clock = std::chrono::high_resolution_clock>
+struct phasor {
+    const Clock::time_point birth;
+    const T A;
+    const T omega;
+    const T phi;
+    phasor(Clock::time_point birth, T A, T omega, T phi) : birth(birth), A(A), omega(omega), phi(phi) {
+    }
+    phasor(T A, T omega, T phi) : birth(Clock::now()), A(A), omega(omega), phi(phi) {
+    }
+    template<typename dt = std::chrono::milliseconds>
+    std::complex<T> operator()(Clock::time_point t = Clock::now()) {
+        return std::polar(A, omega * std::chrono::duration_cast<dt>(t - birth).count() * (static_cast<T>(dt::period::num) / static_cast<T>(dt::period::den)) + phi);
+    }
+};
 
 struct client {
     std::random_device seed_device;
@@ -15,6 +36,9 @@ struct client {
     te::camera cam;
     te::terrain_renderer terrain;
     te::mesh_renderer meshr;
+    te::colour_picker colpickr;
+    te::mesh fish_mesh;
+    phasor<> fish;
 
     client() :
         win {glfw.make_window(1024, 768, "Hello, World!")},
@@ -24,7 +48,10 @@ struct client {
             8.0f
         },
         terrain(win.gl, rengine, 80, 80),
-        meshr(win.gl, "BarramundiFish.glb")
+        meshr(win.gl),
+        colpickr(win),
+        fish_mesh(te::load_mesh(win.gl, "BarramundiFish.glb", te::gl::common_attribute_locations)),
+        fish {5.0f, glm::half_pi<float>(), 0.0f}
         {
         win.on_key.connect([&](int key, int scancode, int action, int mods){ on_key(key, scancode, action, mods); });
         glEnable(GL_DEPTH_TEST);
@@ -39,6 +66,34 @@ struct client {
         if (key == GLFW_KEY_E && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
             cam.offset = glm::rotate(cam.offset, glm::half_pi<float>()/4.0f, glm::vec3{0.0f, 0.0f, 1.0f});
         }
+    }
+
+    glm::mat4 model(float factor) {
+        glm::mat4 orient = glm::rotate(glm::mat4{1.0f}, glm::half_pi<float>(), glm::vec3{1.0f, 0.0f, 0.0f});
+        glm::mat4 turn = glm::rotate(glm::mat4{1.0f}, std::arg(fish() * factor), glm::vec3{0.0f, 0.0f, 1.0f});
+        glm::mat4 upscale = glm::scale(glm::mat4{1.0f}, glm::vec3{10.0f, 10.0f, 10.0f});
+        glm::mat4 move = glm::translate(glm::mat4{1.0f}, glm::vec3{factor * fish().real(), factor * fish().imag(), 1.0f});
+        return(move * upscale * turn * orient);
+    }
+
+    void draw() {
+        colpickr.colour_fbuffer.bind();
+        colpickr.attachment.bind();
+        glDrawBuffer(GL_COLOR_ATTACHMENT0);
+        colpickr.draw(fish_mesh, model(1.0f), 3339895125, cam);
+        colpickr.draw(fish_mesh, model(-1.0f), 1, cam);
+        glFlush();
+        glFinish();
+        std::uint32_t id_under_cursor;
+        glReadPixels(0 /*x*/, 0 /*y*/, 1 /*w*/, 1 /*h*/, GL_RGBA, GL_UNSIGNED_BYTE, &id_under_cursor);
+        glFlush();
+        glFinish();
+        spdlog::debug("Under cursor: {}", id_under_cursor);
+        
+        //glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        //terrain.render(cam);
+        //meshr.draw(fish_mesh, model(1.0f), cam);
+        //meshr.draw(fish_mesh, model(-1.0f), cam);
     }
 
     void tick() {
@@ -58,10 +113,6 @@ struct client {
 	if (win.key(GLFW_KEY_H) == GLFW_PRESS) cam.zoom(0.15f);
         if (win.key(GLFW_KEY_J) == GLFW_PRESS) cam.zoom(-0.15f);
         cam.use_ortho = win.key(GLFW_KEY_SPACE) != GLFW_PRESS;
-
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        terrain.render(cam);
-        meshr.draw(cam);
     }
 
     void run() {
@@ -69,6 +120,8 @@ struct client {
         int frames = 0;    
         while (!glfwWindowShouldClose(win.hnd.get())) {
             tick();
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            draw();
             glfwSwapBuffers(win.hnd.get());
             glfwPollEvents();
             frames++;
