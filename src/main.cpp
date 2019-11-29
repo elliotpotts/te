@@ -1,25 +1,11 @@
-#include <glad/glad.h>
-#include <array>
-#include <sstream>
-#include <stdexcept>
-#include <cmath>
-#include <chrono>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <glm/gtc/constants.hpp>
-#include <glm/gtx/rotate_vector.hpp>
-#include <vector>
-#include <tuple>
 #include <random>
-#include <spdlog/spdlog.h>
-#include <te/util.hpp>
-#include <te/gl.hpp>
-#include <te/camera.hpp>
+#include <te/window.hpp>
 #include <te/terrain_renderer.hpp>
 #include <te/mesh_renderer.hpp>
-#include <te/window.hpp>
-#include <fmt/core.h>
+#include <glad/glad.h>
+#include <chrono>
+#include <glm/gtx/rotate_vector.hpp>
+#include <spdlog/spdlog.h>
 
 struct client {
     std::random_device seed_device;
@@ -41,6 +27,9 @@ struct client {
         meshr(win.gl, "BarramundiFish.glb")
         {
         win.on_key.connect([&](int key, int scancode, int action, int mods){ on_key(key, scancode, action, mods); });
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK);
     }
 
     void on_key(int key, int scancode, int action, int mods) {
@@ -57,10 +46,6 @@ struct client {
             win.close();
             return;
         };
-        glEnable(GL_DEPTH_TEST);
-        glEnable(GL_CULL_FACE);
-        glCullFace(GL_BACK);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glm::vec3 forward = -cam.offset;
         forward.z = 0.0f;
@@ -74,6 +59,7 @@ struct client {
         if (win.key(GLFW_KEY_J) == GLFW_PRESS) cam.zoom(-0.15f);
         cam.use_ortho = win.key(GLFW_KEY_SPACE) != GLFW_PRESS;
 
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         terrain.render(cam);
         meshr.draw(cam);
     }
