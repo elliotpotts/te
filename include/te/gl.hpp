@@ -129,6 +129,7 @@ namespace te::gl {
             return buffer;
         }
         explicit context();
+        void toggle_perf_warnings(bool enabled);
     };
 }
 

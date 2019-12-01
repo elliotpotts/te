@@ -63,6 +63,10 @@ te::gl::context::context() {
     glDebugMessageCallback(opengl_error_callback, nullptr);
 }
 
+void te::gl::context::toggle_perf_warnings(bool enabled) {
+    glDebugMessageControl(GL_DONT_CARE, GL_DEBUG_TYPE_PERFORMANCE, GL_DONT_CARE, 0, nullptr, enabled);
+}
+
 void te::gl::shader_deleter::operator()(GLuint shader) const {
     glDeleteShader(shader);
 }

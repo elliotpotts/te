@@ -78,8 +78,8 @@ struct client {
 
     void draw() {
         colpickr.colour_fbuffer.bind();
-        colpickr.draw(fish_mesh, model(1.0f), 3339895125, cam);
-        colpickr.draw(fish_mesh, model(-1.0f), 500, cam);
+        colpickr.draw(fish_mesh, model(1.0f),  0xff00ffff, cam);
+        colpickr.draw(fish_mesh, model(-1.0f), 0xffff00ff, cam);
         glFlush();
         glFinish();
         double mouse_x; double mouse_y;
@@ -87,17 +87,19 @@ struct client {
         int under_mouse_x = static_cast<int>(mouse_x);
         int under_mouse_y = win.height - mouse_y;
         std::uint32_t id_under_cursor;
+        win.gl.toggle_perf_warnings(false);
         glReadPixels(under_mouse_x, under_mouse_y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &id_under_cursor);
-        spdlog::debug("Under cursor: {}", id_under_cursor);
+        win.gl.toggle_perf_warnings(true);
+        if (id_under_cursor == 0xff00ffff) {
+            spdlog::debug("Fish 1 under cursor");
+        } else if (id_under_cursor == 0xffff00ff) {
+            spdlog::debug("Fish 2 under cursor");
+        }
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        colpickr.draw(fish_mesh, model(1.0f), 3339895125, cam);
-        colpickr.draw(fish_mesh, model(-1.0f), 500, cam);
-        
-        //glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        //terrain.render(cam);
-        //meshr.draw(fish_mesh, model(1.0f), cam);
-        //meshr.draw(fish_mesh, model(-1.0f), cam);
+        terrain.render(cam);
+        meshr.draw(fish_mesh, model(1.0f), cam);
+        meshr.draw(fish_mesh, model(-1.0f), cam);
     }
 
     void tick() {
@@ -114,14 +116,14 @@ struct client {
         if (win.key(GLFW_KEY_A) == GLFW_PRESS) cam.focus += 0.1f * left;
         if (win.key(GLFW_KEY_S) == GLFW_PRESS) cam.focus -= 0.1f * forward;
         if (win.key(GLFW_KEY_D) == GLFW_PRESS) cam.focus -= 0.1f * left;
-	if (win.key(GLFW_KEY_H) == GLFW_PRESS) cam.zoom(0.15f);
+        if (win.key(GLFW_KEY_H) == GLFW_PRESS) cam.zoom(0.15f);
         if (win.key(GLFW_KEY_J) == GLFW_PRESS) cam.zoom(-0.15f);
         cam.use_ortho = win.key(GLFW_KEY_SPACE) != GLFW_PRESS;
     }
 
     void run() {
         auto then = std::chrono::high_resolution_clock::now();
-        int frames = 0;    
+        int frames = 0;
         while (!glfwWindowShouldClose(win.hnd.get())) {
             tick();
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
