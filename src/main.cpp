@@ -6,11 +6,12 @@
 #include <glad/glad.h>
 #include <chrono>
 #include <glm/gtx/rotate_vector.hpp>
+#include <glm/gtx/quaternion.hpp>
 #include <spdlog/spdlog.h>
-
 #include <glm/gtc/matrix_transform.hpp>
 #include <chrono>
 #include <complex>
+#include <entt/entt.hpp>
 
 template<typename T = float, typename Clock = std::chrono::high_resolution_clock>
 struct phasor {
@@ -28,17 +29,33 @@ struct phasor {
     }
 };
 
+namespace {
+    glm::quat rotation_between(const glm::vec3& from, const glm::vec3& to) {
+        // solution from https://stackoverflow.com/a/1171995/303662
+        using namespace glm;
+        const vec3 xyz = cross(from, to);
+        const float w = std::sqrt(length2(from) * length2(to)) + dot(from, to);
+        return normalize(quat{w, xyz});
+    }
+    glm::quat rotation_between_units(const glm::vec3& from, const glm::vec3& to) {
+        using namespace glm;
+        const vec3 xyz = cross(from, to);
+        const float w = 1.0 + dot(from, to);
+        return normalize(quat{w, xyz});
+    }
+}
+
 struct client {
     std::random_device seed_device;
     std::mt19937 rengine;
     te::glfw_context glfw;
     te::window win;
     te::camera cam;
-    te::terrain_renderer terrain;
-    te::mesh_renderer meshr;
-    te::colour_picker colpickr;
+    te::terrain_renderer terrain_renderer;
+    te::mesh_renderer mesh_renderer;
+    te::colour_picker colour_picker;
     te::mesh fish_mesh;
-    phasor<> fish;
+    entt::registry entities;
 
     client() :
         win {glfw.make_window(1024, 768, "Hello, World!")},
@@ -47,11 +64,10 @@ struct client {
             {-0.7f, -0.7f, 1.0f},
             8.0f
         },
-        terrain(win.gl, rengine, 80, 80),
-        meshr(win.gl),
-        colpickr(win),
-        fish_mesh(te::load_mesh(win.gl, "BarramundiFish.glb", te::gl::common_attribute_locations)),
-        fish {5.0f, glm::half_pi<float>() / 100.0f, 0.0f}
+        terrain_renderer(win.gl, rengine, 80, 80),
+        mesh_renderer(win.gl),
+        colour_picker(win),
+        fish_mesh(te::load_mesh(win.gl, "house.glb", te::gl::common_attribute_locations))
         {
         win.on_key.connect([&](int key, int scancode, int action, int mods){ on_key(key, scancode, action, mods); });
         glEnable(GL_DEPTH_TEST);
@@ -69,17 +85,18 @@ struct client {
     }
 
     glm::mat4 model(float factor) {
-        glm::mat4 orient = glm::rotate(glm::mat4{1.0f}, glm::half_pi<float>(), glm::vec3{1.0f, 0.0f, 0.0f});
-        glm::mat4 turn = glm::rotate(glm::mat4{1.0f}, std::arg(fish() * factor), glm::vec3{0.0f, 0.0f, 1.0f});
-        glm::mat4 upscale = glm::scale(glm::mat4{1.0f}, glm::vec3{10.0f, 10.0f, 10.0f});
-        glm::mat4 move = glm::translate(glm::mat4{1.0f}, glm::vec3{factor * fish().real(), factor * fish().imag(), 1.0f});
-        return(move * upscale * turn * orient);
+        using namespace glm;
+        mat4 resize {1.0f};
+        // gltf convention says y+ is up, so rotate such that z+ is up
+        quat rotate = rotation_between_units(vec3{0.0f, 1.0f, 0.0f}, vec3{0.0f, 0.0f, 1.0f});
+        mat4 move = translate(mat4{1.0f}, vec3{-0.5f, -0.5f, 0.0f});
+        return move * mat4_cast(rotate) * resize;
     }
 
     void draw() {
-        colpickr.colour_fbuffer.bind();
-        colpickr.draw(fish_mesh, model(1.0f),  0xff00ffff, cam);
-        colpickr.draw(fish_mesh, model(-1.0f), 0xffff00ff, cam);
+        colour_picker.colour_fbuffer.bind();
+        colour_picker.draw(fish_mesh, model(1.0f),  0xff00ffff, cam);
+        colour_picker.draw(fish_mesh, model(-1.0f), 0xffff00ff, cam);
         glFlush();
         glFinish();
         double mouse_x; double mouse_y;
@@ -89,6 +106,7 @@ struct client {
         std::uint32_t id_under_cursor;
         win.gl.toggle_perf_warnings(false);
         glReadPixels(under_mouse_x, under_mouse_y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &id_under_cursor);
+        glClear(GL_COLOR_BUFFER_BIT);
         win.gl.toggle_perf_warnings(true);
         if (id_under_cursor == 0xff00ffff) {
             spdlog::debug("Fish 1 under cursor");
@@ -97,9 +115,9 @@ struct client {
         }
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        terrain.render(cam);
-        meshr.draw(fish_mesh, model(1.0f), cam);
-        meshr.draw(fish_mesh, model(-1.0f), cam);
+        terrain_renderer.render(cam);
+        mesh_renderer.draw(fish_mesh, model(1.0f), cam);
+        mesh_renderer.draw(fish_mesh, model(-1.0f), cam);
     }
 
     void tick() {

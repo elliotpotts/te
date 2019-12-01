@@ -4,6 +4,19 @@
 #include <fx/gltf.h>
 #include <unordered_map>
 #include <spdlog/spdlog.h>
+#include <iterator>
+#include <sstream>
+namespace {
+    std::string stringise_extents(const std::vector<float>& extents) {
+        if (extents.size() == 0) { return ""; }
+        if (extents.size() == 0) { return std::to_string(extents[0]); }
+        std::ostringstream sstr;
+        std::copy(extents.begin(), std::prev(extents.end()), std::ostream_iterator<float>(sstr, ", "));
+        sstr << extents.back();
+        return sstr.str();
+    }
+}
+
 namespace {
     GLint component_count(fx::gltf::Accessor::Type type) {
         switch (type) {
@@ -96,13 +109,17 @@ namespace {
 }
 
 te::mesh te::load_mesh(te::gl::context& gl, std::string filename, const gl::attribute_locations& attribute_locations) {
+    spdlog::info("Loading mesh from {}", filename);
     te::mesh out;
     const fx::gltf::Document doc = fx::gltf::LoadFromBinary(filename);
     buffer_cache<GL_ARRAY_BUFFER> loaded_attribute_buffers;
     buffer_cache<GL_ELEMENT_ARRAY_BUFFER> loaded_element_buffers;
-    // we're only going to load the first mesh.
+    spdlog::info("Loading mesh 1/{}", doc.meshes.size());
+    // we're only going to load the first mesh for now.
     const fx::gltf::Mesh& docmesh = doc.meshes[0];
-    for (const fx::gltf::Primitive& primitive : docmesh.primitives) {
+    for (std::size_t primitive_ix = 0; primitive_ix < docmesh.primitives.size(); primitive_ix++) {
+        spdlog::info("Loading primitive {}/{}", primitive_ix + 1, docmesh.primitives.size());
+        const fx::gltf::Primitive& primitive = docmesh.primitives[primitive_ix];
         GLuint vao;
         glGenVertexArrays(1, &vao);
         glBindVertexArray(vao);
@@ -110,9 +127,13 @@ te::mesh te::load_mesh(te::gl::context& gl, std::string filename, const gl::attr
             auto attrib_it = std::find_if(attribute_locations.begin(), attribute_locations.end(),
                                           [&] (const auto& pair) { return pair.first == attribute_name; });
             if (attrib_it == attribute_locations.end()) {
+                spdlog::info("Unused attribute {}", attribute_name);
                 continue;
+            } else {
+                spdlog::info("Mapping attribute {} to location {}", attribute_name, attrib_it->second);
             }
             const fx::gltf::Accessor& accessor = doc.accessors[accessor_ix];
+            spdlog::info("Min/max extents are ({}), ({})", stringise_extents(accessor.min), stringise_extents(accessor.max));
             const fx::gltf::BufferView& view = doc.bufferViews[accessor.bufferView];
             te::gl::buffer<GL_ARRAY_BUFFER>& gl_buffer = get_gl_buffer(gl, out.attribute_buffers, loaded_attribute_buffers, view, doc.buffers);
             // Bind the buffer and associate the attribute with our vao
@@ -147,6 +168,8 @@ te::mesh te::load_mesh(te::gl::context& gl, std::string filename, const gl::attr
                 gl_sampler->set(GL_TEXTURE_MIN_FILTER, static_cast<GLenum>(sampler.minFilter));
                 gl_sampler->set(GL_TEXTURE_MAG_FILTER, static_cast<GLenum>(sampler.magFilter));
             }
+        } else {
+            spdlog::warn("Mesh material {} does not specify a base colour texture", primitive.material);
         }
         
         out.primitives.push_back (te::primitive {

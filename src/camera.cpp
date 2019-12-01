@@ -9,7 +9,7 @@ glm::mat4 te::camera::view() const {
     return glm::lookAt (
         focus + (offset * zoom_factor),
         focus,
-        glm::vec3(0.0f, 0.0f, 1.0f)
+        glm::vec3{0.0f, 0.0f, 1.0f}
     );
 }
 
