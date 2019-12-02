@@ -14,6 +14,10 @@
 #include <entt/entt.hpp>
 #include <unordered_set>
 
+#include <imgui.h>
+#include <examples/imgui_impl_glfw.h>
+#include <examples/imgui_impl_opengl3.h>
+
 template<typename T = float, typename Clock = std::chrono::high_resolution_clock>
 struct phasor {
     const Clock::time_point birth;
@@ -59,11 +63,26 @@ struct pickable_mesh {
     std::uint32_t id;
 };
 
+namespace {
+    ImGuiIO& setup_imgui(te::window& win) {
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO();
+        ImGui_ImplGlfw_InitForOpenGL(win.hnd.get(), true);
+        ImGui_ImplOpenGL3_Init("#version 130");
+        io.Fonts->AddFontFromFileTTF("LiberationSans-Regular.ttf", 18);
+        return io;
+    }
+}
+
+double fps = 0.0;
+
 struct client {
     std::random_device seed_device;
     std::mt19937 rengine;
     te::glfw_context glfw;
     te::window win;
+    ImGuiIO& imgui_io;
     te::camera cam;
     te::terrain_renderer terrain_renderer;
     te::mesh_renderer mesh_renderer;
@@ -74,6 +93,7 @@ struct client {
 
     client() :
         win {glfw.make_window(1024, 768, "Hello, World!")},
+        imgui_io {setup_imgui(win)},
         cam {
             {0.0f, 0.0f, 0.0f},
             {-0.7f, -0.7f, 1.0f},
@@ -129,7 +149,7 @@ struct client {
         entities.assign<pickable_mesh>(house, &house_mesh, house_id++);
     }
 
-    void draw() {
+    void render_colourpick() {
         colour_picker.colour_fbuffer.bind();
         glClear(GL_COLOR_BUFFER_BIT);
         entities.view<position, pickable_mesh>().each(
@@ -157,13 +177,14 @@ struct client {
         );
         if (entity_it != pickable_entities.end()) {
             if (!entity_under_cursor || *entity_it != *entity_under_cursor) {
-                spdlog::debug("Under cursor: {}", id_under_cursor);
                 entity_under_cursor = *entity_it;
             }
         } else {
             entity_under_cursor.reset();
         }
+    }
 
+    void render_scene() {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         terrain_renderer.render(cam);
@@ -172,6 +193,26 @@ struct client {
                 mesh_renderer.draw(*rmesh.mesh, pos.model, cam);
             }
         );
+    }
+
+    void render_ui() {
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+        ImGui::Text("FPS: %f", fps);
+        if (entity_under_cursor) {
+            ImGui::Text("Pick ID under cursor: %d", entities.get<pickable_mesh>(*entity_under_cursor).id);
+        } else {
+            ImGui::Text("Pick ID under cursor: ");
+        }
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    }
+
+    void draw() {
+        render_colourpick();
+        render_scene();
+        render_ui();
     }
 
     void tick() {
@@ -205,7 +246,7 @@ struct client {
             auto now = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> secs = now - then;
             if (secs.count() > 1.0) {
-                fmt::print("fps: {}\n", frames / secs.count());
+                fps = frames / secs.count();
                 frames = 0;
                 then = std::chrono::high_resolution_clock::now();
             }

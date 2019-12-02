@@ -10,9 +10,12 @@ fxgltf = declare_dependency(include_directories: 'fx-gltf/include')
 entt = declare_dependency(include_directories: 'entt/src')
 spdlog = dependency('spdlog')
 
+imgui = declare_dependency(include_directories: 'imgui-1.74')
+imgui_src = ['imgui-1.74/imgui.cpp', 'imgui-1.74/imgui_demo.cpp', 'imgui-1.74/imgui_draw.cpp', 'imgui-1.74/imgui_widgets.cpp', 'imgui-1.74/examples/imgui_impl_opengl3.cpp', 'imgui-1.74/examples/imgui_impl_glfw.cpp']
+
 executable('main',
-    ['src/main.cpp', 'src/terrain_renderer.cpp', 'src/camera.cpp', 'src/util.cpp', 'glad/src/glad.c', 'src/mesh_renderer.cpp', 'src/loader.cpp', 'src/window.cpp', 'src/gl/context.cpp', 'src/colour_picker.cpp'],
-    dependencies: [glfw3, glad, freeimage, boost, threads, fmt, fxgltf, entt, spdlog],
+    ['src/main.cpp', 'src/terrain_renderer.cpp', 'src/camera.cpp', 'src/util.cpp', 'glad/src/glad.c', 'src/mesh_renderer.cpp', 'src/loader.cpp', 'src/window.cpp', 'src/gl/context.cpp', 'src/colour_picker.cpp', imgui_src],
+    dependencies: [glfw3, glad, freeimage, boost, threads, fmt, fxgltf, entt, spdlog, imgui],
     include_directories: 'include',
     cpp_args: ['-DGLFW_INCLUDE_NONE', '-DGLM_ENABLE_EXPERIMENTAL'],
     link_args: ['-ldl']
