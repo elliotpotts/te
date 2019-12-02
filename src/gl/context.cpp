@@ -181,26 +181,67 @@ te::gl::sampler te::gl::context::make_sampler() {
 void te::gl::texture_deleter::operator()(GLuint hnd) const {
     glDeleteTextures(1, &hnd);
 }
+#include <FreeImage.h>
+namespace {
+    struct freeimage_bitmap_deleter {
+        void operator()(FIBITMAP* bmp) const {
+            FreeImage_Unload(bmp);
+        }
+    };
+    using unique_bitmap = std::unique_ptr<FIBITMAP, freeimage_bitmap_deleter>;
+    struct freeimage_memory_deleter {
+        void operator()(FIMEMORY* bmp) const {
+            FreeImage_CloseMemory(bmp);
+        }
+    };
+    using unique_memory = std::unique_ptr<FIMEMORY, freeimage_memory_deleter>;
+}
+te::gl::texture<GL_TEXTURE_2D> te::gl::context::make_texture(FIBITMAP* bmp) {
+    auto width = FreeImage_GetWidth(bmp);
+    auto height = FreeImage_GetHeight(bmp);
+    auto pitch = FreeImage_GetPitch(bmp);
+    auto rawbits = std::vector<unsigned char>(height * pitch);
+    FreeImage_ConvertToRawBits(rawbits.data(), bmp, pitch, 32, FI_RGBA_RED_MASK, FI_RGBA_GREEN_MASK, FI_RGBA_BLUE_MASK, TRUE);
+    te::gl::texture<GL_TEXTURE_2D> tex2d {make_hnd<te::gl::texture_hnd>(glGenTextures)};
+    tex2d.bind();
+    glTexImage2D (
+        GL_TEXTURE_2D, 0, GL_RGB,
+        width, height,
+        0, GL_BGRA, GL_UNSIGNED_BYTE, rawbits.data()
+    );
+    glGenerateMipmap(GL_TEXTURE_2D);
+    return tex2d;
+}
+te::gl::texture<GL_TEXTURE_2D> te::gl::context::make_texture(const unsigned char* begin, const unsigned char* end) {
+    //TODO: get rid of this const cast
+    unique_memory memory_img { FreeImage_OpenMemory(const_cast<unsigned char*>(begin), end - begin) };
+    if (!memory_img) {
+        memory_img.release();
+        throw std::runtime_error("Couldn't open memory!");
+    }
+    FREE_IMAGE_FORMAT fmt = FreeImage_GetFileTypeFromMemory(memory_img.get());
+    if(fmt == FIF_UNKNOWN) {
+        throw std::runtime_error("Couldn't determine file format of memory image!");
+    }
+    unique_bitmap bitmap { FreeImage_LoadFromMemory(fmt, memory_img.get(), 0) };
+    if(!bitmap) {
+        bitmap.release();
+        throw std::runtime_error("Couldn't load memory image.");
+    }
+    unique_bitmap bitmap_32 { FreeImage_ConvertTo32Bits(bitmap.get()) };
+    return make_texture(bitmap_32.get());
+}
 
-te::gl::texture<GL_TEXTURE_2D> te::gl::context::image_texture(std::string filename) {
+te::gl::texture<GL_TEXTURE_2D> te::gl::context::make_texture(std::string filename) {
     FREE_IMAGE_FORMAT fmt = FreeImage_GetFileType(filename.c_str());
     if(fmt == FIF_UNKNOWN) {
         throw std::runtime_error(fmt::format("Couldn't determine image file format from filename: {}", filename));
     }
-    FIBITMAP* bitmap = FreeImage_Load(fmt, filename.c_str());
+    unique_bitmap bitmap {FreeImage_Load(fmt, filename.c_str())};
     if(!bitmap) {
         throw std::runtime_error("Couldn't load image.");
     }
-    auto tex = make_hnd<texture_hnd>(glGenTextures);
-    glBindTexture(GL_TEXTURE_2D, *tex);
-    glTexImage2D (
-        GL_TEXTURE_2D, 0, GL_RGB,
-        FreeImage_GetWidth(bitmap), FreeImage_GetHeight(bitmap),
-        0, GL_BGR, GL_UNSIGNED_BYTE, FreeImage_GetBits(bitmap)
-    );
-    FreeImage_Unload(bitmap);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    return te::gl::texture<GL_TEXTURE_2D>{ std::move(tex) };
+    return make_texture(bitmap.get());
 }
 
 void te::gl::framebuffer_deleter::operator()(GLuint hnd) const {

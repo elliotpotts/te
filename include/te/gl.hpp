@@ -7,6 +7,8 @@
 #include <memory>
 #include <vector>
 
+struct FIBITMAP;
+
 namespace te::gl {
     using string = std::basic_string<GLchar>;
     
@@ -102,12 +104,14 @@ namespace te::gl {
         {"NORMAL", 1},
         {"TANGENT", 2},
         {"TEXCOORD_0", 3}
-    };;
+    };
     
     struct context {
         shader compile(std::string source, GLenum type);
         program link(const shader&, const shader&, const std::vector<std::pair<string, GLuint>>& locations = {});
-        texture<GL_TEXTURE_2D> image_texture(std::string filename);
+        texture<GL_TEXTURE_2D> make_texture(FIBITMAP* bitmap);
+        texture<GL_TEXTURE_2D> make_texture(std::string filename);
+        texture<GL_TEXTURE_2D> make_texture(const unsigned char* begin, const unsigned char* end);
         sampler make_sampler();
         framebuffer make_framebuffer();
         renderbuffer make_renderbuffer(int w, int h);

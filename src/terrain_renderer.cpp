@@ -4,7 +4,7 @@
 
 namespace {
     te::gl::buffer<GL_ARRAY_BUFFER> fill_grid(te::gl::context& gl, std::mt19937& rengine, int width, int height) {
-        static std::uniform_int_distribution tile_select {0, 1};
+        static std::uniform_int_distribution tile_select {0, 3};
         struct vertex {
             glm::vec2 pos;
             glm::vec3 col;
@@ -17,7 +17,7 @@ namespace {
         glm::vec3 white {1.0f, 1.0f, 1.0f};
         for (int xi = 0; xi < width; xi++) {
             for (int yi = 0; yi < height; yi++) {
-                glm::vec2 uv_tl {tile_select(rengine) * 0.5f, tile_select(rengine) * 0.5f};
+                glm::vec2 uv_tl {tile_select(rengine) * 0.25f, tile_select(rengine) * 0.25f};
                 auto cell_tl_pos = grid_tl + static_cast<float>(xi) * glm::vec2{1.0f, 0.0f}
                 + static_cast<float>(yi) * glm::vec2{0.0f, 1.0f};
                 vertex cell_tl {cell_tl_pos + glm::vec2{0.0f, 0.0f}, white, uv_tl + glm::vec2(0.0f, 0.0f)};
@@ -47,7 +47,7 @@ te::terrain_renderer::terrain_renderer(gl::context& ogl, std::mt19937& rengine, 
     view_uniform(program.uniform("view")),
     proj_uniform(program.uniform("projection")),
     sampler(gl.make_sampler()),
-    texture(gl.image_texture("grass_tiles.png"))
+    texture(gl.make_texture("tiles.png"))
 {
     glUseProgram(*program.hnd);
     glGenVertexArrays(1, &vao);
