@@ -12,6 +12,7 @@
 #include <chrono>
 #include <complex>
 #include <entt/entt.hpp>
+#include <unordered_set>
 
 template<typename T = float, typename Clock = std::chrono::high_resolution_clock>
 struct phasor {
@@ -45,6 +46,19 @@ namespace {
     }
 }
 
+struct position {
+    glm::mat4 model;
+};
+
+struct render_mesh {
+    te::mesh* mesh;
+};
+
+struct pickable_mesh {
+    te::mesh* mesh;
+    std::uint32_t id;
+};
+
 struct client {
     std::random_device seed_device;
     std::mt19937 rengine;
@@ -54,8 +68,9 @@ struct client {
     te::terrain_renderer terrain_renderer;
     te::mesh_renderer mesh_renderer;
     te::colour_picker colour_picker;
-    te::mesh fish_mesh;
+    te::mesh house_mesh;
     entt::registry entities;
+    std::optional<entt::registry::entity_type> entity_under_cursor;
 
     client() :
         win {glfw.make_window(1024, 768, "Hello, World!")},
@@ -67,12 +82,13 @@ struct client {
         terrain_renderer(win.gl, rengine, 80, 80),
         mesh_renderer(win.gl),
         colour_picker(win),
-        fish_mesh(te::load_mesh(win.gl, "house.glb", te::gl::common_attribute_locations))
+        house_mesh(te::load_mesh(win.gl, "house.glb", te::gl::common_attribute_locations))
         {
         win.on_key.connect([&](int key, int scancode, int action, int mods){ on_key(key, scancode, action, mods); });
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
+        for (int i = 0; i < 200; i++) append_house();
     }
 
     void on_key(int key, int scancode, int action, int mods) {
@@ -84,19 +100,43 @@ struct client {
         }
     }
 
-    glm::mat4 model(float factor) {
+    glm::mat4 make_house_model_matrix() {
+        static std::uniform_int_distribution tile_pos_select {-40, 40};
+        //static std::unordered_set<glm::vec2> taken_positions;
+        static std::uniform_int_distribution rotation_select {0, 3};
         using namespace glm;
         mat4 resize {1.0f};
         // gltf convention says y+ is up, so rotate such that z+ is up
-        quat rotate = rotation_between_units(vec3{0.0f, 1.0f, 0.0f}, vec3{0.0f, 0.0f, 1.0f});
-        mat4 move = translate(mat4{1.0f}, vec3{-0.5f, -0.5f, 0.0f});
-        return move * mat4_cast(rotate) * resize;
+        quat rotate_zup = rotation_between_units(vec3{0.0f, 1.0f, 0.0f}, vec3{0.0f, 0.0f, 1.0f});
+        quat rotate_variation = normalize( quat (
+            glm::half_pi<float>() * static_cast<float>(rotation_select(rengine)),
+            glm::vec3 {0.0f, 0.0f, 1.0f}
+        ));
+        mat4 move = translate(
+            mat4 {1.0f},
+            vec3 {-0.5f + static_cast<float>(tile_pos_select(rengine)),
+                  -0.5f + static_cast<float>(tile_pos_select(rengine)),
+                   0.0f}
+        );
+        return move * mat4_cast(rotate_variation * rotate_zup) * resize;
+    }
+
+    void append_house() {
+        static std::uint32_t house_id = 1;
+        auto house = entities.create();
+        entities.assign<position>(house, make_house_model_matrix());
+        entities.assign<render_mesh>(house, &house_mesh);
+        entities.assign<pickable_mesh>(house, &house_mesh, house_id++);
     }
 
     void draw() {
         colour_picker.colour_fbuffer.bind();
-        colour_picker.draw(fish_mesh, model(1.0f),  0xff00ffff, cam);
-        colour_picker.draw(fish_mesh, model(-1.0f), 0xffff00ff, cam);
+        glClear(GL_COLOR_BUFFER_BIT);
+        entities.view<position, pickable_mesh>().each(
+            [&](auto& pos, auto& pick) {
+                colour_picker.draw(*pick.mesh, pos.model, pick.id, cam);
+            }
+        );
         glFlush();
         glFinish();
         double mouse_x; double mouse_y;
@@ -105,19 +145,33 @@ struct client {
         int under_mouse_y = win.height - mouse_y;
         std::uint32_t id_under_cursor;
         win.gl.toggle_perf_warnings(false);
-        glReadPixels(under_mouse_x, under_mouse_y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &id_under_cursor);
-        glClear(GL_COLOR_BUFFER_BIT);
+        glReadPixels(under_mouse_x, under_mouse_y, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, &id_under_cursor);
         win.gl.toggle_perf_warnings(true);
-        if (id_under_cursor == 0xff00ffff) {
-            spdlog::debug("Fish 1 under cursor");
-        } else if (id_under_cursor == 0xffff00ff) {
-            spdlog::debug("Fish 2 under cursor");
+        auto pickable_entities = entities.view<pickable_mesh>();
+        auto entity_it = std::find_if (
+            pickable_entities.begin(),
+            pickable_entities.end(),
+            [&,id_under_cursor](auto entity) {
+                return (pickable_entities.get<pickable_mesh>(entity)).id == id_under_cursor;
+            }
+        );
+        if (entity_it != pickable_entities.end()) {
+            if (!entity_under_cursor || *entity_it != *entity_under_cursor) {
+                spdlog::debug("Under cursor: {}", id_under_cursor);
+                entity_under_cursor = *entity_it;
+            }
+        } else {
+            entity_under_cursor.reset();
         }
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         terrain_renderer.render(cam);
-        mesh_renderer.draw(fish_mesh, model(1.0f), cam);
-        mesh_renderer.draw(fish_mesh, model(-1.0f), cam);
+        entities.view<position, render_mesh>().each (
+            [&](auto& pos, auto& rmesh) {
+                mesh_renderer.draw(*rmesh.mesh, pos.model, cam);
+            }
+        );
     }
 
     void tick() {
@@ -144,7 +198,6 @@ struct client {
         int frames = 0;
         while (!glfwWindowShouldClose(win.hnd.get())) {
             tick();
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             draw();
             glfwSwapBuffers(win.hnd.get());
             glfwPollEvents();
