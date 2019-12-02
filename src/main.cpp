@@ -50,6 +50,15 @@ namespace {
     }
 }
 
+struct commodity {
+    std::string name;
+    te::gl::texture2d* tex;
+};
+
+struct demands {
+    std::unordered_map<entt::registry::entity_type, double> demand;
+};
+
 struct position {
     glm::mat4 model;
 };
@@ -88,8 +97,11 @@ struct client {
     te::mesh_renderer mesh_renderer;
     te::colour_picker colour_picker;
     te::mesh house_mesh;
+    te::gl::texture<GL_TEXTURE_2D> wheat_tex;
     entt::registry entities;
     std::optional<entt::registry::entity_type> entity_under_cursor;
+    entt::registry::entity_type wheat;
+    entt::registry::entity_type barley;
 
     client() :
         win {glfw.make_window(1024, 768, "Hello, World!")},
@@ -102,12 +114,17 @@ struct client {
         terrain_renderer(win.gl, rengine, 80, 80),
         mesh_renderer(win.gl),
         colour_picker(win),
-        house_mesh(te::load_mesh(win.gl, "house.glb", te::gl::common_attribute_locations))
+        house_mesh(te::load_mesh(win.gl, "house.glb", te::gl::common_attribute_locations)),
+        wheat_tex(win.gl.make_texture("media/wheat.png")),
+        wheat{entities.create()},
+        barley{entities.create()}
         {
         win.on_key.connect([&](int key, int scancode, int action, int mods){ on_key(key, scancode, action, mods); });
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
+        entities.assign<commodity>(wheat, commodity{"Wheat", &wheat_tex});
+        entities.assign<commodity>(barley, commodity{"Barley", &wheat_tex});
         for (int i = 0; i < 200; i++) append_house();
     }
 
@@ -143,10 +160,17 @@ struct client {
 
     void append_house() {
         static std::uint32_t house_id = 1;
+        static std::bernoulli_distribution coin;
         auto house = entities.create();
         entities.assign<position>(house, make_house_model_matrix());
         entities.assign<render_mesh>(house, &house_mesh);
         entities.assign<pickable_mesh>(house, &house_mesh, house_id++);
+        std::unordered_map<entt::registry::entity_type, double> demand;
+        demand[wheat] = 42.0f;
+        if (coin(rengine)) {
+            demand[barley] = 10.0f;
+        }
+        entities.assign<demands>(house, demands{demand});
     }
 
     void render_colourpick() {
@@ -202,9 +226,19 @@ struct client {
         ImGui::Text("FPS: %f", fps);
         if (entity_under_cursor) {
             ImGui::Text("Pick ID under cursor: %d", entities.get<pickable_mesh>(*entity_under_cursor).id);
+            if (auto the_demands = entities.try_get<demands>(*entity_under_cursor); the_demands) {
+                ImGui::Separator();
+                for (auto [demanded_entt, demand_level] : the_demands->demand) {
+                    commodity& the_commodity = entities.get<commodity>(demanded_entt);
+                    ImGui::Image((void*)(*the_commodity.tex->hnd), ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{0, 0, 0, 1});
+                    ImGui::SameLine();
+                    ImGui::Text("%s: %f", the_commodity.name.c_str(), demand_level);
+                }
+            }
         } else {
             ImGui::Text("Pick ID under cursor: ");
         }
+        ImGui::Separator();
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     }

@@ -77,6 +77,7 @@ namespace te::gl {
             bind();
         }
     };
+    using texture2d = texture<GL_TEXTURE_2D>;
 
     struct framebuffer_deleter {
         void operator()(GLuint) const;
