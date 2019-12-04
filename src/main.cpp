@@ -17,6 +17,9 @@
 #include <imgui.h>
 #include <examples/imgui_impl_glfw.h>
 #include <examples/imgui_impl_opengl3.h>
+#include <te/sim.hpp>
+#include <te/gl.hpp>
+#include <te/util.hpp>
 
 namespace {
     glm::quat rotation_between(const glm::vec3& from, const glm::vec3& to) {
@@ -32,60 +35,6 @@ namespace {
         const float w = 1.0 + dot(from, to);
         return normalize(quat{w, xyz});
     }
-}
-struct commodity {
-    std::string name;
-    te::gl::texture2d* tex;
-};
-struct demands {
-    std::unordered_map<commodity*, double> demand;
-};
-struct generator {
-    commodity* output;
-    double rate;
-    double progress;
-};
-struct map_placement {
-    glm::ivec2 position;
-    float rotation;
-    glm::ivec2 dimensions;
-};
-struct render_mesh {
-    te::mesh* mesh;
-};
-struct pickable_mesh {
-    te::mesh* mesh;
-    std::uint32_t id;
-    std::string name;
-};
-struct blueprint {
-    std::string name;
-    te::mesh mesh;
-    glm::ivec2 plan;
-    std::optional<generator> maybe_generator; 
-};
-
-#include <functional>
-namespace std {
-    template<>
-    struct hash<glm::vec2> {
-        std::size_t operator()(glm::vec2 xy) const {
-            std::size_t hash_x = std::hash<float>{}(xy.x);
-            std::size_t hash_y = std::hash<float>{}(xy.y);
-            return hash_x ^ (hash_y << 1);
-        }
-    };
-    template<>
-    struct hash<glm::ivec2> {
-        std::size_t operator()(glm::vec2 xy) const {
-            std::size_t hash_x = std::hash<int>{}(xy.x);
-            std::size_t hash_y = std::hash<int>{}(xy.y);
-            return hash_x ^ (hash_y << 1);
-        }
-    };
-}
-
-namespace {
     ImGuiIO& setup_imgui(te::window& win) {
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
@@ -97,59 +46,121 @@ namespace {
     }
 }
 
+//TODO: get rid of
+using namespace te;
+
+// Client Components
+struct render_tex {
+    te::gl::texture2d* texture;
+};
+struct render_mesh {
+    te::mesh* mesh;
+};
+struct pickable_mesh {
+    te::mesh* mesh;
+    std::uint32_t id;
+};
+
 double fps = 0.0;
 
-struct client {
+struct sim {
     std::random_device seed_device;
     std::default_random_engine rengine;
+    entt::registry entities;
+    std::vector<entt::registry::entity_type> commodities;
+    std::vector<entt::registry::entity_type> site_blueprints;
+    std::unordered_map<glm::ivec2, entt::registry::entity_type> map;
+};
+
+struct client {
+    // Sim
+    std::random_device seed_device;
+    std::default_random_engine rengine;
+    entt::registry entities;
+    std::vector<entt::registry::entity_type> commodities;
+    std::vector<entt::registry::entity_type> site_blueprints;
+    std::unordered_map<glm::ivec2, entt::registry::entity_type> map;
+
+    // Render
     te::glfw_context glfw;
     te::window win;
     ImGuiIO& imgui_io;
+    std::vector<te::gl::texture2d> textures;
+    std::vector<te::mesh> meshes;
+    std::unordered_map<commodity*, te::gl::texture2d> commodity_texture;
+    std::unordered_map<site_blueprint*, te::mesh> site_blueprint_meshes;
     te::camera cam;
     te::terrain_renderer terrain_renderer;
     te::mesh_renderer mesh_renderer;
     te::colour_picker colour_picker;
-    te::gl::texture2d cereal_tex;
+    std::uint32_t pick_id = 1;
     
-    entt::registry entities;
     std::optional<entt::registry::entity_type> entity_under_cursor;
-    std::unordered_map<glm::ivec2, entt::registry::entity_type> map;
-
-    std::vector<blueprint> blueprints;
-    commodity wheat;
-    commodity barley;
     
     client() :
         rengine { seed_device() },
-        win {glfw.make_window(1024, 768, "Hello, World!")},
-        imgui_io {setup_imgui(win)},
+        win { glfw.make_window(1024, 768, "Hello, World!")},
+        imgui_io { setup_imgui(win) },
         cam {
             {0.0f, 0.0f, 0.0f},
             {-0.7f, -0.7f, 1.0f},
             8.0f
         },
-        terrain_renderer(win.gl, rengine, 20, 20),
-        mesh_renderer(win.gl),
-        colour_picker(win),
-        cereal_tex(win.gl.make_texture("media/wheat.png")),
-        wheat{"Wheat", &cereal_tex},
-        barley{"Barley", &cereal_tex}
+        terrain_renderer{win.gl, rengine, 20, 20},
+        mesh_renderer{win.gl},
+        colour_picker{win}
         {
+        init_blueprints();
+        generate_map();
         win.on_key.connect([&](int key, int scancode, int action, int mods){ on_key(key, scancode, action, mods); });
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
+    }
+    
+    void init_blueprints() {
+        textures.reserve(42);
+        meshes.reserve(42);
+        auto wheat = commodities.emplace_back(entities.create());
+        entities.assign<commodity>(wheat, "Wheat", 15.0f);
+        entities.assign<render_tex>(wheat, &textures.emplace_back(win.gl.make_texture("media/wheat.png")));
+        
+        auto barley = commodities.emplace_back(entities.create());
+        entities.assign<commodity>(barley, "Barley", 10.0f);
+        entities.assign<render_tex>(barley, &textures.emplace_back(win.gl.make_texture("media/wheat.png")));
+        
+        auto wheat_field = site_blueprints.emplace_back(entities.create());
+        entities.assign<site_blueprint>(wheat_field, "Wheat Field", glm::ivec2{2,2});
+        entities.assign<generator>(wheat_field, wheat, 0.05);
+        entities.assign<render_mesh>(wheat_field, &meshes.emplace_back(te::load_mesh(win.gl, "media/wheat.glb", te::gl::common_attribute_locations)));
+        entities.assign<pickable_mesh>(wheat_field, &meshes.back());
 
-        blueprints.push_back(blueprint{"Wheat Field",  te::load_mesh(win.gl, "media/wheat.glb",    te::gl::common_attribute_locations), glm::ivec2{2, 2},
-                                       generator { &wheat, 0.0025, 0.0}});
-        blueprints.push_back(blueprint{"Barley Field", te::load_mesh(win.gl, "media/wheat.glb",    te::gl::common_attribute_locations), glm::ivec2{2, 2},
-                                       generator { &barley, 0.005, 0.0}});
-        blueprints.push_back(blueprint{"Dwelling",     te::load_mesh(win.gl, "media/dwelling.glb", te::gl::common_attribute_locations), glm::ivec2{1, 1}});
-        blueprints.push_back(blueprint{"Market",       te::load_mesh(win.gl, "media/market.glb",   te::gl::common_attribute_locations), glm::ivec2{2, 2}});
-        std::discrete_distribution<std::size_t> select_blueprint {5, 5, 22, 1};
-        for (int i = 0; i < 50; i++) spawn(blueprints[select_blueprint(rengine)]);
+        auto barley_field = site_blueprints.emplace_back(entities.create());
+        entities.assign<site_blueprint>(barley_field, "Barley Field", glm::ivec2{2,2});
+        entities.assign<generator>(barley_field, barley, 0.01);
+        entities.assign<render_mesh>(barley_field, &meshes.emplace_back(te::load_mesh(win.gl, "media/wheat.glb", te::gl::common_attribute_locations)));
+        entities.assign<pickable_mesh>(barley_field, &meshes.back());
+
+        auto dwelling = site_blueprints.emplace_back(entities.create());
+        entities.assign<site_blueprint>(dwelling, "Dwelling", glm::ivec2{1,1});
+        demander& dwelling_demands = entities.assign<demander>(dwelling);
+        dwelling_demands.demand[wheat] = 50.0f;
+        dwelling_demands.demand[barley] = 10.0f;
+        entities.assign<render_mesh>(dwelling, &meshes.emplace_back(te::load_mesh(win.gl, "media/dwelling.glb", te::gl::common_attribute_locations)));
+        entities.assign<pickable_mesh>(dwelling, &meshes.back());
+
+        auto market = site_blueprints.emplace_back(entities.create());
+        entities.assign<site_blueprint>(market, "Market", glm::ivec2{2,2});
+        entities.assign<te::market>(market);
+        entities.assign<render_mesh>(market, &meshes.emplace_back(te::load_mesh(win.gl, "media/market.glb", te::gl::common_attribute_locations)));
+        entities.assign<pickable_mesh>(market, &meshes.back());
     }
 
+    void generate_map() {
+        std::discrete_distribution<std::size_t> select_blueprint {5, 5, 22, 1};
+        for (int i = 0; i < 50; i++) spawn(site_blueprints[select_blueprint(rengine)]);
+    }
+    
     void on_key(int key, int scancode, int action, int mods) {
         if (key == GLFW_KEY_Q && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
             cam.offset = glm::rotate(cam.offset, -glm::half_pi<float>()/4.0f, glm::vec3{0.0f, 0.0f, 1.0f});
@@ -165,17 +176,17 @@ struct client {
         return world_pos;
     }
 
-    glm::vec3 to_world(map_placement place) {
+    glm::vec3 to_world(site place, site_blueprint print) {
         glm::vec3 world_position = to_world(place.position);
         glm::vec3 world_dimensions {
-            static_cast<float>(place.dimensions.x),
-            static_cast<float>(place.dimensions.y),
+            static_cast<float>(print.dimensions.x),
+            static_cast<float>(print.dimensions.y),
             0.0f
         };
         return (2.0f * world_position + world_dimensions) / 2.0f;
     }
 
-    glm::mat4 map_to_model_matrix(map_placement place) {
+    glm::mat4 map_to_model_matrix(site place, site_blueprint print) {
         using namespace glm;
         mat4 resize { 1.0f };
         quat rotate_zup = rotation_between_units (
@@ -186,46 +197,68 @@ struct client {
             glm::half_pi<float>() * place.rotation,
             glm::vec3 {0.0f, 0.0f, 1.0f}
         );
-        mat4 move = translate (mat4 {1.0f}, to_world(place));
+        mat4 move = translate (mat4 {1.0f}, to_world(place, print));
         return move * mat4_cast(rotate_variation) * resize * mat4_cast(rotate_zup);
     }
 
-    bool can_place(const blueprint& what, glm::ivec2 where) {
-        for (int x = 0; x < what.plan.x; x++)
-            for (int y = 0; y < what.plan.y; y++)
-                if (map.find({where.x + x, where.y + y}) != map.end())
-                    return false;
+    bool in_market(site question_site, site market_site, market the_market) {
+        return glm::length(glm::vec2{question_site.position - market_site.position}) <= the_market.radius;
+    }
+
+    bool can_place(entt::registry::entity_type entity, glm::ivec2 where) {
+        {
+            auto& blueprint = entities.get<site_blueprint>(entity);
+            for (int x = 0; x < blueprint.dimensions.x; x++)
+                for (int y = 0; y < blueprint.dimensions.y; y++)
+                    if (map.find({where.x + x, where.y + y}) != map.end())
+                        return false;
+        }
+        if (auto maybe_market = entities.try_get<market>(entity); maybe_market) {
+            auto other_markets = entities.view<site, market>();
+            const bool conflict = std::any_of (
+                other_markets.begin(),
+                other_markets.end(),
+                [&] (auto other) {
+                    const auto& [other_site, other_market] = other_markets.get<site, market>(other);
+                    return glm::length(glm::vec2{where - other_site.position})
+                        <= (maybe_market->radius + other_market.radius);
+                }
+            );
+            if (conflict) return false;
+        }
         return true;
     }
 
-    void place_building(blueprint& what, glm::ivec2 where) {
-        static std::uint32_t bldg_id = 1;
-        auto bldg = entities.create();
-        for (int x = 0; x < what.plan.x; x++)
-            for (int y = 0; y < what.plan.y; y++)
-                map[glm::ivec2{where.x + x, where.y + y}] = bldg;
-        entities.assign<map_placement>(bldg, where, 0.0f, what.plan);
-        entities.assign<render_mesh>(bldg, &what.mesh);
-        entities.assign<pickable_mesh>(bldg, &what.mesh, bldg_id++, what.name);
-        if (what.maybe_generator) entities.assign<generator>(bldg, *what.maybe_generator);
+    void place(entt::registry::entity_type proto, glm::ivec2 where) {
+        auto instantiated = entities.create(proto, entities);
+        entities.assign<site>(instantiated, where, 0.0f);
+        auto& print = entities.get<site_blueprint>(instantiated);
+        for (int x = 0; x < print.dimensions.x; x++) {
+            for (int y = 0; y < print.dimensions.y; y++) {
+                map[{where.x + x, where.y + y}] = instantiated;
+            }
+        }
+        auto& pick = entities.get<pickable_mesh>(instantiated);
+        pick.id = pick_id++;
     }
 
-    void spawn(blueprint& what) {
-        std::uniform_int_distribution select_x_pos {0, terrain_renderer.width - what.plan.x};
-        std::uniform_int_distribution select_y_pos {0, terrain_renderer.height - what.plan.y};
+    void spawn(entt::registry::entity_type proto) {
+        auto print = entities.get<site_blueprint>(proto);
+        std::uniform_int_distribution select_x_pos {0, terrain_renderer.width - print.dimensions.x};
+        std::uniform_int_distribution select_y_pos {0, terrain_renderer.height - print.dimensions.y};
     try_again:
         glm::ivec2 map_pos { select_x_pos(rengine), select_y_pos(rengine) };
-        if (!can_place(what, map_pos))
+        if (!can_place(proto, map_pos))
             goto try_again;
-        place_building(what, map_pos);
+        place(proto, map_pos);
     }
 
     void render_colourpick() {
         colour_picker.colour_fbuffer.bind();
         glClear(GL_COLOR_BUFFER_BIT);
-        entities.view<map_placement, pickable_mesh>().each(
-            [&](auto& map_place, auto& pick) {
-                colour_picker.draw(*pick.mesh, map_to_model_matrix(map_place), pick.id, cam);
+        entities.view<site, site_blueprint, pickable_mesh>().each(
+            [&](auto& map_site, auto& print, auto& pick) {
+                colour_picker.draw(*pick.mesh, map_to_model_matrix(map_site, print), pick.id, cam);
             }
         );
         glFlush();
@@ -259,11 +292,17 @@ struct client {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         terrain_renderer.render(cam);
-        entities.view<map_placement, render_mesh>().each (
-            [&](auto& map_place, auto& rmesh) {
-                mesh_renderer.draw(*rmesh.mesh, map_to_model_matrix(map_place), cam);
-            }
-        );
+        if (entity_under_cursor && entities.has<market, site>(*entity_under_cursor)) {
+            auto [the_market, market_site] = entities.get<market, site>(*entity_under_cursor);
+            entities.view<site, site_blueprint, render_mesh>().each([&](auto& map_site, auto& print, auto& rmesh) {
+                auto tint = in_market(map_site, market_site, the_market) ? glm::vec4{1.0f, 0.0f, 0.0f, 0.0f} : glm::vec4{0.0f};
+                mesh_renderer.draw(*rmesh.mesh, map_to_model_matrix(map_site, print), cam, tint);
+            });
+        } else {
+            entities.view<site, site_blueprint, render_mesh>().each([&](auto& map_site, auto& print, auto& rmesh) {
+                mesh_renderer.draw(*rmesh.mesh, map_to_model_matrix(map_site, print), cam);
+            });
+        }
     }
 
     void render_ui() {
@@ -271,31 +310,33 @@ struct client {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         ImGui::Text("FPS: %f", fps);
-        if (entity_under_cursor) {
+        //TODO: figure out why we need to check if it has a site.
+        if (entity_under_cursor && entities.has<site>(*entity_under_cursor)) {
             ImGui::Separator();
-            auto map_place = entities.get<map_placement>(*entity_under_cursor);
-            ImGui::Text("Map position: (%d, %d)", map_place.position.x, map_place.position.y);
+            auto map_site = entities.get<site>(*entity_under_cursor);
+            ImGui::Text("Map position: (%d, %d)", map_site.position.x, map_site.position.y);
             {
-                auto& pick = entities.get<pickable_mesh>(*entity_under_cursor);
-                std::string building_text = fmt::format("{} (#{})", pick.name, pick.id);
-                //auto text_size = CalcTextSize(building_text.begin(), building_text.end());
-                //auto avail_width = 200;
+                const auto& [pick, print] = entities.get<pickable_mesh, site_blueprint>(*entity_under_cursor);
+                std::string building_text = fmt::format("{} (#{})", print.name, pick.id);
                 ImGui::Text(building_text.c_str());
             }
             if (auto the_generator = entities.try_get<generator>(*entity_under_cursor); the_generator) {
                 ImGui::Separator();
-                ImGui::Image((void*)(*the_generator->output->tex->hnd), ImVec2{24, 24});
+                auto& rendr_tex = entities.get<render_tex>(the_generator->output);
+                ImGui::Image((void*)(*rendr_tex.texture->hnd), ImVec2{24, 24});
                 ImGui::SameLine();
-                ImGui::Text("%s", the_generator->output->name.c_str());
+                auto& output_commodity = entities.get<commodity>(the_generator->output);
+                ImGui::Text("%d/%d×%s", the_generator->stock, the_generator->max_stock, output_commodity.name.c_str());
                 ImGui::SameLine();
                 ImGui::ProgressBar(the_generator->progress);
             }
-            if (auto the_demands = entities.try_get<demands>(*entity_under_cursor); the_demands) {
+            if (auto the_demands = entities.try_get<demander>(*entity_under_cursor); the_demands) {
                 ImGui::Separator();
                 for (auto [demanded, demand_level] : the_demands->demand) {
-                    ImGui::Image((void*)(*demanded->tex->hnd), ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{0, 0, 0, 1});
+                    auto [demanded_commodity, commodity_tex] = entities.get<commodity, render_tex>(demanded);
+                    ImGui::Image((void*)(*commodity_tex.texture->hnd), ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{0, 0, 0, 1});
                     ImGui::SameLine();
-                    ImGui::Text("%s: %f", demanded->name.c_str(), demand_level);
+                    ImGui::Text("%s: %f", demanded_commodity.name.c_str(), demand_level);
                 }
             }
         }
@@ -304,26 +345,11 @@ struct client {
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     }
 
-    void draw() {
-        render_colourpick();
-        render_scene();
-        render_ui();
-    }
-
-    void tick() {
+    void input() {
         if (win.key(GLFW_KEY_ESCAPE) == GLFW_PRESS) {
             win.close();
             return;
         };
-
-        entities.view<generator>().each (
-            [&](auto& generator) {
-                generator.progress += generator.rate;
-                if (generator.progress >= 1.0f) {
-                    generator.progress = 0.0f;
-                }
-            }
-        );
 
         glm::vec3 forward = -cam.offset;
         forward.z = 0.0f;
@@ -338,10 +364,33 @@ struct client {
         cam.use_ortho = win.key(GLFW_KEY_SPACE) != GLFW_PRESS;
     }
 
+    void tick() {
+        entities.view<generator>().each (
+            [&](auto& generator) {
+                if (generator.progress >= 1.0f) {
+                    generator.stock++;
+                }
+                if (generator.progress > 1.0f) {
+                    generator.progress -= 1.0f;
+                }
+                if (generator.stock < generator.max_stock) {
+                    generator.progress += generator.rate;
+                }
+            }
+        );
+    }
+
+    void draw() {
+        render_colourpick();
+        render_scene();
+        render_ui();
+    }
+
     void run() {
         auto then = std::chrono::high_resolution_clock::now();
         int frames = 0;
         while (!glfwWindowShouldClose(win.hnd.get())) {
+            input();
             tick();
             draw();
             glfwSwapBuffers(win.hnd.get());

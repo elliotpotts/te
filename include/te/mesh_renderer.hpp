@@ -29,10 +29,11 @@ namespace te {
         GLint model_uniform;
         GLint view_uniform;
         GLint proj_uniform;
+        GLint tint_uniform;
         GLint sampler_uniform;
         
         mesh_renderer(gl::context&);
-        void draw(mesh& themesh, const glm::mat4& model, const te::camera& cam);
+        void draw(mesh& themesh, const glm::mat4& model, const te::camera& cam, glm::vec4 tint_colour = glm::vec4 { 0.0f });
     };
 }
 #endif
