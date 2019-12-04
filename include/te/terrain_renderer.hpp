@@ -5,12 +5,11 @@
 #include <te/camera.hpp>
 #include <te/gl.hpp>
 #include <random>
+#include <glm/glm.hpp>
 
 namespace te {
     class terrain_renderer {
         gl::context& gl;
-        int width;
-        int height;
         gl::buffer<GL_ARRAY_BUFFER> vbo;
         gl::program program;
         GLint model_uniform;
@@ -20,7 +19,10 @@ namespace te {
         gl::texture<GL_TEXTURE_2D> texture;
         GLuint vao;
     public:
-        terrain_renderer(gl::context& gl, std::mt19937& rengine, int width, int height);
+        const int width;
+        const int height;
+        const glm::vec3 grid_topleft;
+        terrain_renderer(gl::context& gl, std::default_random_engine& rengine, int width, int height);
         void render(const te::camera& cam);
     };
 }

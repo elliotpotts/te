@@ -6,33 +6,17 @@
 #include <glad/glad.h>
 #include <chrono>
 #include <glm/gtx/rotate_vector.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <spdlog/spdlog.h>
-#include <glm/gtc/matrix_transform.hpp>
 #include <chrono>
-#include <complex>
 #include <entt/entt.hpp>
-#include <unordered_set>
-
+#include <fmt/format.h>
 #include <imgui.h>
 #include <examples/imgui_impl_glfw.h>
 #include <examples/imgui_impl_opengl3.h>
-
-template<typename T = float, typename Clock = std::chrono::high_resolution_clock>
-struct phasor {
-    const Clock::time_point birth;
-    const T A;
-    const T omega;
-    const T phi;
-    phasor(Clock::time_point birth, T A, T omega, T phi) : birth(birth), A(A), omega(omega), phi(phi) {
-    }
-    phasor(T A, T omega, T phi) : birth(Clock::now()), A(A), omega(omega), phi(phi) {
-    }
-    template<typename dt = std::chrono::milliseconds>
-    std::complex<T> operator()(Clock::time_point t = Clock::now()) {
-        return std::polar(A, omega * std::chrono::duration_cast<dt>(t - birth).count() * (static_cast<T>(dt::period::num) / static_cast<T>(dt::period::den)) + phi);
-    }
-};
 
 namespace {
     glm::quat rotation_between(const glm::vec3& from, const glm::vec3& to) {
@@ -50,27 +34,51 @@ namespace {
     }
 }
 
+struct blueprint {
+    std::string name;
+    te::mesh mesh;
+    glm::ivec2 plan;
+};
 struct commodity {
     std::string name;
     te::gl::texture2d* tex;
 };
-
 struct demands {
     std::unordered_map<entt::registry::entity_type, double> demand;
 };
-
-struct position {
-    glm::mat4 model;
+struct map_placement {
+    glm::ivec2 position;
+    float rotation;
+    glm::ivec2 dimensions;
 };
-
 struct render_mesh {
     te::mesh* mesh;
 };
-
 struct pickable_mesh {
     te::mesh* mesh;
     std::uint32_t id;
+    std::string name;
 };
+
+#include <functional>
+namespace std {
+    template<>
+    struct hash<glm::vec2> {
+        std::size_t operator()(glm::vec2 xy) const {
+            std::size_t hash_x = std::hash<float>{}(xy.x);
+            std::size_t hash_y = std::hash<float>{}(xy.y);
+            return hash_x ^ (hash_y << 1);
+        }
+    };
+    template<>
+    struct hash<glm::ivec2> {
+        std::size_t operator()(glm::vec2 xy) const {
+            std::size_t hash_x = std::hash<int>{}(xy.x);
+            std::size_t hash_y = std::hash<int>{}(xy.y);
+            return hash_x ^ (hash_y << 1);
+        }
+    };
+}
 
 namespace {
     ImGuiIO& setup_imgui(te::window& win) {
@@ -88,7 +96,7 @@ double fps = 0.0;
 
 struct client {
     std::random_device seed_device;
-    std::mt19937 rengine;
+    std::default_random_engine rengine;
     te::glfw_context glfw;
     te::window win;
     ImGuiIO& imgui_io;
@@ -96,14 +104,16 @@ struct client {
     te::terrain_renderer terrain_renderer;
     te::mesh_renderer mesh_renderer;
     te::colour_picker colour_picker;
-    te::mesh house_mesh;
+    std::vector<blueprint> blueprints;
     te::gl::texture<GL_TEXTURE_2D> wheat_tex;
     entt::registry entities;
     std::optional<entt::registry::entity_type> entity_under_cursor;
+    std::unordered_map<glm::ivec2, entt::registry::entity_type> map;
     entt::registry::entity_type wheat;
     entt::registry::entity_type barley;
 
     client() :
+        rengine { seed_device() },
         win {glfw.make_window(1024, 768, "Hello, World!")},
         imgui_io {setup_imgui(win)},
         cam {
@@ -111,10 +121,9 @@ struct client {
             {-0.7f, -0.7f, 1.0f},
             8.0f
         },
-        terrain_renderer(win.gl, rengine, 80, 80),
+        terrain_renderer(win.gl, rengine, 20, 20),
         mesh_renderer(win.gl),
         colour_picker(win),
-        house_mesh(te::load_mesh(win.gl, "house.glb", te::gl::common_attribute_locations)),
         wheat_tex(win.gl.make_texture("media/wheat.png")),
         wheat{entities.create()},
         barley{entities.create()}
@@ -123,9 +132,12 @@ struct client {
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
+        blueprints.push_back(blueprint{"Wheat Field", te::load_mesh(win.gl, "media/wheat.glb",    te::gl::common_attribute_locations), glm::ivec2{2, 2}});
+        blueprints.push_back(blueprint{"Dwelling",    te::load_mesh(win.gl, "media/dwelling.glb", te::gl::common_attribute_locations), glm::ivec2{1, 1}});
         entities.assign<commodity>(wheat, commodity{"Wheat", &wheat_tex});
         entities.assign<commodity>(barley, commodity{"Barley", &wheat_tex});
-        for (int i = 0; i < 200; i++) append_house();
+
+        for (int i = 0; i < 100; i++) place_random_building();
     }
 
     void on_key(int key, int scancode, int action, int mods) {
@@ -137,48 +149,82 @@ struct client {
         }
     }
 
-    glm::mat4 make_house_model_matrix() {
-        static std::uniform_int_distribution tile_pos_select {-40, 40};
-        //static std::unordered_set<glm::vec2> taken_positions;
-        static std::uniform_int_distribution rotation_select {0, 3};
-        using namespace glm;
-        mat4 resize {1.0f};
-        // gltf convention says y+ is up, so rotate such that z+ is up
-        quat rotate_zup = rotation_between_units(vec3{0.0f, 1.0f, 0.0f}, vec3{0.0f, 0.0f, 1.0f});
-        quat rotate_variation = normalize( quat (
-            glm::half_pi<float>() * static_cast<float>(rotation_select(rengine)),
-            glm::vec3 {0.0f, 0.0f, 1.0f}
-        ));
-        mat4 move = translate(
-            mat4 {1.0f},
-            vec3 {-0.5f + static_cast<float>(tile_pos_select(rengine)),
-                  -0.5f + static_cast<float>(tile_pos_select(rengine)),
-                   0.0f}
-        );
-        return move * mat4_cast(rotate_variation * rotate_zup) * resize;
+    glm::vec3 to_world(glm::ivec2 map) {
+        glm::vec3 world_pos = glm::vec3{ static_cast<float>(map.x), static_cast<float>(map.y), 0.0f }
+                            + terrain_renderer.grid_topleft;
+        return world_pos;
     }
 
-    void append_house() {
-        static std::uint32_t house_id = 1;
-        static std::bernoulli_distribution coin;
-        auto house = entities.create();
-        entities.assign<position>(house, make_house_model_matrix());
-        entities.assign<render_mesh>(house, &house_mesh);
-        entities.assign<pickable_mesh>(house, &house_mesh, house_id++);
+    glm::vec3 to_world(map_placement place) {
+        glm::vec3 world_position = to_world(place.position);
+        glm::vec3 world_dimensions {
+            static_cast<float>(place.dimensions.x),
+            static_cast<float>(place.dimensions.y),
+            0.0f
+        };
+        return (2.0f * world_position + world_dimensions) / 2.0f;
+    }
+
+    glm::mat4 map_to_model_matrix(map_placement place) {
+        using namespace glm;
+        mat4 resize { 1.0f };
+        quat rotate_zup = rotation_between_units (
+            glm::vec3 {0.0f, 1.0f, 0.0f},
+            glm::vec3 {0.0f, 0.0f, 1.0f}
+        );
+        quat rotate_variation = angleAxis (
+            glm::half_pi<float>() * place.rotation,
+            glm::vec3 {0.0f, 0.0f, 1.0f}
+        );
+        mat4 move = translate (mat4 {1.0f}, to_world(place));
+        return move * mat4_cast(rotate_variation) * resize * mat4_cast(rotate_zup);
+    }
+
+    bool can_place(const blueprint& what, glm::ivec2 where) {
+        for (int x = 0; x < what.plan.x; x++)
+            for (int y = 0; y < what.plan.y; y++)
+                if (map.find({where.x + x, where.y + y}) != map.end())
+                    return false;
+        return true;
+    }
+
+    void place_building(blueprint& what, glm::ivec2 where) {
+        static std::uint32_t bldg_id = 1;
+        auto bldg = entities.create();
+        for (int x = 0; x < what.plan.x; x++)
+            for (int y = 0; y < what.plan.y; y++)
+                map[glm::ivec2{where.x + x, where.y + y}] = bldg;
+        entities.assign<map_placement>(bldg, where, 0.0f, what.plan);
+        entities.assign<render_mesh>(bldg, &what.mesh);
+        entities.assign<pickable_mesh>(bldg, &what.mesh, bldg_id++, what.name);
+        //todo: remove
         std::unordered_map<entt::registry::entity_type, double> demand;
         demand[wheat] = 42.0f;
-        if (coin(rengine)) {
+        static std::bernoulli_distribution flip_coin;
+        if (flip_coin(rengine)) {
             demand[barley] = 10.0f;
         }
-        entities.assign<demands>(house, demands{demand});
+        entities.assign<demands>(bldg, demands{demand});
+    }
+
+    void place_random_building() {
+        std::uniform_int_distribution<std::size_t> select_blueprint {0, blueprints.size() - 1};
+    try_again:
+        auto& blueprint = blueprints[select_blueprint(rengine)];
+        std::uniform_int_distribution select_x_pos {0, terrain_renderer.width - blueprint.plan.x};
+        std::uniform_int_distribution select_y_pos {0, terrain_renderer.height - blueprint.plan.y};
+        glm::ivec2 map_pos { select_x_pos(rengine), select_y_pos(rengine) };
+        if (!can_place(blueprint, map_pos))
+            goto try_again;
+        place_building(blueprint, map_pos);
     }
 
     void render_colourpick() {
         colour_picker.colour_fbuffer.bind();
         glClear(GL_COLOR_BUFFER_BIT);
-        entities.view<position, pickable_mesh>().each(
-            [&](auto& pos, auto& pick) {
-                colour_picker.draw(*pick.mesh, pos.model, pick.id, cam);
+        entities.view<map_placement, pickable_mesh>().each(
+            [&](auto& map_place, auto& pick) {
+                colour_picker.draw(*pick.mesh, map_to_model_matrix(map_place), pick.id, cam);
             }
         );
         glFlush();
@@ -212,9 +258,9 @@ struct client {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         terrain_renderer.render(cam);
-        entities.view<position, render_mesh>().each (
-            [&](auto& pos, auto& rmesh) {
-                mesh_renderer.draw(*rmesh.mesh, pos.model, cam);
+        entities.view<map_placement, render_mesh>().each (
+            [&](auto& map_place, auto& rmesh) {
+                mesh_renderer.draw(*rmesh.mesh, map_to_model_matrix(map_place), cam);
             }
         );
     }
@@ -225,7 +271,16 @@ struct client {
         ImGui::NewFrame();
         ImGui::Text("FPS: %f", fps);
         if (entity_under_cursor) {
-            ImGui::Text("Pick ID under cursor: %d", entities.get<pickable_mesh>(*entity_under_cursor).id);
+            ImGui::Separator();
+            auto map_place = entities.get<map_placement>(*entity_under_cursor);
+            ImGui::Text("Map position: (%d, %d)", map_place.position.x, map_place.position.y);
+            {
+                auto& pick = entities.get<pickable_mesh>(*entity_under_cursor);
+                std::string building_text = fmt::format("{} (#{})", pick.name, pick.id);
+                //auto text_size = CalcTextSize(building_text.begin(), building_text.end());
+                //auto avail_width = 200;
+                ImGui::Text(building_text.c_str());
+            }
             if (auto the_demands = entities.try_get<demands>(*entity_under_cursor); the_demands) {
                 ImGui::Separator();
                 for (auto [demanded_entt, demand_level] : the_demands->demand) {
@@ -235,8 +290,6 @@ struct client {
                     ImGui::Text("%s: %f", the_commodity.name.c_str(), demand_level);
                 }
             }
-        } else {
-            ImGui::Text("Pick ID under cursor: ");
         }
         ImGui::Separator();
         ImGui::Render();
