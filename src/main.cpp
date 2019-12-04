@@ -33,18 +33,17 @@ namespace {
         return normalize(quat{w, xyz});
     }
 }
-
-struct blueprint {
-    std::string name;
-    te::mesh mesh;
-    glm::ivec2 plan;
-};
 struct commodity {
     std::string name;
     te::gl::texture2d* tex;
 };
 struct demands {
-    std::unordered_map<entt::registry::entity_type, double> demand;
+    std::unordered_map<commodity*, double> demand;
+};
+struct generator {
+    commodity* output;
+    double rate;
+    double progress;
 };
 struct map_placement {
     glm::ivec2 position;
@@ -58,6 +57,12 @@ struct pickable_mesh {
     te::mesh* mesh;
     std::uint32_t id;
     std::string name;
+};
+struct blueprint {
+    std::string name;
+    te::mesh mesh;
+    glm::ivec2 plan;
+    std::optional<generator> maybe_generator; 
 };
 
 #include <functional>
@@ -104,14 +109,16 @@ struct client {
     te::terrain_renderer terrain_renderer;
     te::mesh_renderer mesh_renderer;
     te::colour_picker colour_picker;
-    std::vector<blueprint> blueprints;
-    te::gl::texture<GL_TEXTURE_2D> wheat_tex;
+    te::gl::texture2d cereal_tex;
+    
     entt::registry entities;
     std::optional<entt::registry::entity_type> entity_under_cursor;
     std::unordered_map<glm::ivec2, entt::registry::entity_type> map;
-    entt::registry::entity_type wheat;
-    entt::registry::entity_type barley;
 
+    std::vector<blueprint> blueprints;
+    commodity wheat;
+    commodity barley;
+    
     client() :
         rengine { seed_device() },
         win {glfw.make_window(1024, 768, "Hello, World!")},
@@ -124,20 +131,23 @@ struct client {
         terrain_renderer(win.gl, rengine, 20, 20),
         mesh_renderer(win.gl),
         colour_picker(win),
-        wheat_tex(win.gl.make_texture("media/wheat.png")),
-        wheat{entities.create()},
-        barley{entities.create()}
+        cereal_tex(win.gl.make_texture("media/wheat.png")),
+        wheat{"Wheat", &cereal_tex},
+        barley{"Barley", &cereal_tex}
         {
         win.on_key.connect([&](int key, int scancode, int action, int mods){ on_key(key, scancode, action, mods); });
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
-        blueprints.push_back(blueprint{"Wheat Field", te::load_mesh(win.gl, "media/wheat.glb",    te::gl::common_attribute_locations), glm::ivec2{2, 2}});
-        blueprints.push_back(blueprint{"Dwelling",    te::load_mesh(win.gl, "media/dwelling.glb", te::gl::common_attribute_locations), glm::ivec2{1, 1}});
-        entities.assign<commodity>(wheat, commodity{"Wheat", &wheat_tex});
-        entities.assign<commodity>(barley, commodity{"Barley", &wheat_tex});
 
-        for (int i = 0; i < 100; i++) place_random_building();
+        blueprints.push_back(blueprint{"Wheat Field",  te::load_mesh(win.gl, "media/wheat.glb",    te::gl::common_attribute_locations), glm::ivec2{2, 2},
+                                       generator { &wheat, 0.0025, 0.0}});
+        blueprints.push_back(blueprint{"Barley Field", te::load_mesh(win.gl, "media/wheat.glb",    te::gl::common_attribute_locations), glm::ivec2{2, 2},
+                                       generator { &barley, 0.005, 0.0}});
+        blueprints.push_back(blueprint{"Dwelling",     te::load_mesh(win.gl, "media/dwelling.glb", te::gl::common_attribute_locations), glm::ivec2{1, 1}});
+        blueprints.push_back(blueprint{"Market",       te::load_mesh(win.gl, "media/market.glb",   te::gl::common_attribute_locations), glm::ivec2{2, 2}});
+        std::discrete_distribution<std::size_t> select_blueprint {5, 5, 22, 1};
+        for (int i = 0; i < 50; i++) spawn(blueprints[select_blueprint(rengine)]);
     }
 
     void on_key(int key, int scancode, int action, int mods) {
@@ -197,26 +207,17 @@ struct client {
         entities.assign<map_placement>(bldg, where, 0.0f, what.plan);
         entities.assign<render_mesh>(bldg, &what.mesh);
         entities.assign<pickable_mesh>(bldg, &what.mesh, bldg_id++, what.name);
-        //todo: remove
-        std::unordered_map<entt::registry::entity_type, double> demand;
-        demand[wheat] = 42.0f;
-        static std::bernoulli_distribution flip_coin;
-        if (flip_coin(rengine)) {
-            demand[barley] = 10.0f;
-        }
-        entities.assign<demands>(bldg, demands{demand});
+        if (what.maybe_generator) entities.assign<generator>(bldg, *what.maybe_generator);
     }
 
-    void place_random_building() {
-        std::uniform_int_distribution<std::size_t> select_blueprint {0, blueprints.size() - 1};
+    void spawn(blueprint& what) {
+        std::uniform_int_distribution select_x_pos {0, terrain_renderer.width - what.plan.x};
+        std::uniform_int_distribution select_y_pos {0, terrain_renderer.height - what.plan.y};
     try_again:
-        auto& blueprint = blueprints[select_blueprint(rengine)];
-        std::uniform_int_distribution select_x_pos {0, terrain_renderer.width - blueprint.plan.x};
-        std::uniform_int_distribution select_y_pos {0, terrain_renderer.height - blueprint.plan.y};
         glm::ivec2 map_pos { select_x_pos(rengine), select_y_pos(rengine) };
-        if (!can_place(blueprint, map_pos))
+        if (!can_place(what, map_pos))
             goto try_again;
-        place_building(blueprint, map_pos);
+        place_building(what, map_pos);
     }
 
     void render_colourpick() {
@@ -281,13 +282,20 @@ struct client {
                 //auto avail_width = 200;
                 ImGui::Text(building_text.c_str());
             }
+            if (auto the_generator = entities.try_get<generator>(*entity_under_cursor); the_generator) {
+                ImGui::Separator();
+                ImGui::Image((void*)(*the_generator->output->tex->hnd), ImVec2{24, 24});
+                ImGui::SameLine();
+                ImGui::Text("%s", the_generator->output->name.c_str());
+                ImGui::SameLine();
+                ImGui::ProgressBar(the_generator->progress);
+            }
             if (auto the_demands = entities.try_get<demands>(*entity_under_cursor); the_demands) {
                 ImGui::Separator();
-                for (auto [demanded_entt, demand_level] : the_demands->demand) {
-                    commodity& the_commodity = entities.get<commodity>(demanded_entt);
-                    ImGui::Image((void*)(*the_commodity.tex->hnd), ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{0, 0, 0, 1});
+                for (auto [demanded, demand_level] : the_demands->demand) {
+                    ImGui::Image((void*)(*demanded->tex->hnd), ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{0, 0, 0, 1});
                     ImGui::SameLine();
-                    ImGui::Text("%s: %f", the_commodity.name.c_str(), demand_level);
+                    ImGui::Text("%s: %f", demanded->name.c_str(), demand_level);
                 }
             }
         }
@@ -307,6 +315,15 @@ struct client {
             win.close();
             return;
         };
+
+        entities.view<generator>().each (
+            [&](auto& generator) {
+                generator.progress += generator.rate;
+                if (generator.progress >= 1.0f) {
+                    generator.progress = 0.0f;
+                }
+            }
+        );
 
         glm::vec3 forward = -cam.offset;
         forward.z = 0.0f;

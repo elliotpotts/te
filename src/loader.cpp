@@ -63,11 +63,11 @@ te::mesh te::load_mesh(te::gl::context& gl, std::string filename, const gl::attr
     const fx::gltf::Document doc = fx::gltf::LoadFromBinary(filename);
     buffer_cache<GL_ARRAY_BUFFER> loaded_attribute_buffers;
     buffer_cache<GL_ELEMENT_ARRAY_BUFFER> loaded_element_buffers;
-    spdlog::info("Loading mesh 1/{}", doc.meshes.size());
+    spdlog::info("  Loading mesh 1/{}", doc.meshes.size());
     // we're only going to load the first mesh for now.
     const fx::gltf::Mesh& docmesh = doc.meshes[0];
     for (std::size_t primitive_ix = 0; primitive_ix < docmesh.primitives.size(); primitive_ix++) {
-        spdlog::info("Loading primitive {}/{}", primitive_ix + 1, docmesh.primitives.size());
+        spdlog::info("    Loading primitive {}/{}", primitive_ix + 1, docmesh.primitives.size());
         const fx::gltf::Primitive& primitive = docmesh.primitives[primitive_ix];
         GLuint vao;
         glGenVertexArrays(1, &vao);
@@ -76,13 +76,15 @@ te::mesh te::load_mesh(te::gl::context& gl, std::string filename, const gl::attr
             auto attrib_it = std::find_if(attribute_locations.begin(), attribute_locations.end(),
                                           [&] (const auto& pair) { return pair.first == attribute_name; });
             if (attrib_it == attribute_locations.end()) {
-                spdlog::info("Unused attribute {}", attribute_name);
+                spdlog::info("      Unused attribute {}", attribute_name);
                 continue;
             } else {
-                spdlog::info("Mapping attribute {} to location {}", attribute_name, attrib_it->second);
+                spdlog::info("      Mapping attribute {} to location {}", attribute_name, attrib_it->second);
             }
             const fx::gltf::Accessor& accessor = doc.accessors[accessor_ix];
-            spdlog::info("Min/max extents are ({}), ({})", stringise_extents(accessor.min), stringise_extents(accessor.max));
+            if (accessor.min.size() > 0 && accessor.max.size() > 0) {
+                spdlog::info("        Min/max extents are ({}), ({})", stringise_extents(accessor.min), stringise_extents(accessor.max));
+            }
             const fx::gltf::BufferView& view = doc.bufferViews[accessor.bufferView];
             te::gl::buffer<GL_ARRAY_BUFFER>& gl_buffer = get_gl_buffer(gl, out.attribute_buffers, loaded_attribute_buffers, view, doc.buffers);
             // Bind the buffer and associate the attribute with our vao
