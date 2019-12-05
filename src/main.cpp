@@ -70,8 +70,8 @@ struct model {
     entt::registry entities;
     std::vector<entt::registry::entity_type> site_blueprints;
 
-    const int map_width = 20;
-    const int map_height = 20;
+    const int map_width = 40;
+    const int map_height = 40;
     std::unordered_map<glm::ivec2, entt::registry::entity_type> map;
 
     model() : rengine { seed_device() } {
@@ -97,7 +97,7 @@ struct model {
         // Buildings
         auto wheat_field = site_blueprints.emplace_back(entities.create());
         entities.assign<site_blueprint>(wheat_field, "Wheat Field", glm::ivec2{2,2});
-        entities.assign<generator>(wheat_field, wheat, 0.01);
+        entities.assign<generator>(wheat_field, wheat, 0.004);
         entities.assign<render_mesh>(wheat_field, "media/wheat.glb");
         entities.assign<pickable>(wheat_field);
 
@@ -111,7 +111,7 @@ struct model {
         entities.assign<site_blueprint>(dwelling, "Dwelling", glm::ivec2{1,1});
         demander& dwelling_demands = entities.assign<demander>(dwelling);
         dwelling_demands.demand[wheat] = 0.0005f;
-        dwelling_demands.demand[barley] = 0.0001f;
+        dwelling_demands.demand[barley] = 0.0004f;
         entities.assign<render_mesh>(dwelling, "media/dwelling.glb");
         entities.assign<pickable>(dwelling);
 
@@ -123,8 +123,8 @@ struct model {
     }
 
     void generate_map() {
-        std::discrete_distribution<std::size_t> select_blueprint {5, 5, 22, 1};
-        for (int i = 0; i < 50; i++) spawn(site_blueprints[select_blueprint(rengine)]);
+        std::discrete_distribution<std::size_t> select_blueprint {5, 3, 50, 2};
+        for (int i = 0; i < 200; i++) spawn(site_blueprints[select_blueprint(rengine)]);
     }
 
     bool in_market(site question_site, site market_site, market the_market) {
@@ -202,13 +202,11 @@ struct model {
                 entities.view<generator, site>().each (
                     [&](auto& generator, auto& generator_site) {
                         if (in_market(generator_site, market_site, market)) {
-                            if (generator.progress >= 1.0f) {
-                                generator.progress -= 1.0f;
-                                generator.stock++;
-                                market.stock[generator.output]++;
-                            }
-                            if (generator.stock < generator.max_stock) {
+                            if (generator.progress < 1.0f) {
                                 generator.progress += generator.rate;
+                            } else if (generator.progress >= 1.0f && market.stock[generator.output] < 10) {
+                                market.stock[generator.output]++;
+                                generator.progress -= 1.0f;
                             }
                         }
                     }
@@ -220,6 +218,16 @@ struct model {
                                 market.demand[commodity_e] += commodity_demand;
                             }
                         }
+                    }
+                );
+                entities.view<commodity>().each (
+                    [&](entt::entity commodity_e, auto& commodity) {
+                        int curr_stock = market.stock[commodity_e];
+                        double curr_demand = market.demand[commodity_e];
+                        int demand_units = static_cast<int>(curr_demand);
+                        int movement = std::min(curr_stock, demand_units);
+                        market.stock[commodity_e] = curr_stock - movement;
+                        market.demand[commodity_e] = curr_demand - static_cast<double>(movement);
                     }
                 );
             }
@@ -372,7 +380,7 @@ struct client {
                 ImGui::Image(*resources.lazy_load<te::gl::texture2d>(rendr_tex.filename).hnd, ImVec2{24, 24});
                 ImGui::SameLine();
                 auto& output_commodity = sim.entities.get<commodity>(the_generator->output);
-                ImGui::Text("%d/%d×%s", the_generator->stock, the_generator->max_stock, output_commodity.name.c_str());
+                ImGui::Text(fmt::format("{} @ {}/s", output_commodity.name, the_generator->rate).c_str());
                 ImGui::SameLine();
                 ImGui::ProgressBar(the_generator->progress);
             }
@@ -404,7 +412,6 @@ struct client {
                 width_available -= 300;
                 ImGui::NextColumn();
 
-                ImGui::Text("");
                 ImGui::NextColumn();
 
                 ImGui::Text("Demand");
@@ -454,18 +461,8 @@ struct client {
                     }
                     ImGui::NextColumn();
 
-                    ImGui::Text(fmt::format("{:.0f}x", commodity_demand).c_str());
+                    ImGui::Text(fmt::format("{}x", static_cast<int>(commodity_demand)).c_str());
                     ImGui::NextColumn();
-
-                    // ImGui::Image(*resources.lazy_load<te::gl::texture2d>(commodity_tex.filename).hnd, ImVec2{24, 24});
-                    // ImGui::SameLine();
-                    // ImGui::Text(fmt::format("{}: ¤{:.2f}", the_commodity.name, price).c_str());
-                    // static const auto blue = ImColor(ImVec4{0.0f, 200.0f / 255.0f, 1.0f, 1.0f});
-                    // ImDrawList* draw_list = ImGui::GetWindowDrawList();
-                    // ImVec2 pos {ImGui::GetCursorScreenPos()};
-                    // draw_list->AddRectFilled(ImVec2(pos.x,                                       pos.y),
-                    //                          ImVec2(pos.x + ImGui::GetContentRegionAvailWidth(), pos.y + 16.0), blue, 0, 1.0f);
-                    // ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 18.0);
                 }
                 ImGui::Columns();
             }

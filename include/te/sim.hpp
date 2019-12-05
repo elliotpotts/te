@@ -34,8 +34,6 @@ namespace te {
         entt::entity output;
         double rate;
         double progress = 0.0;
-        int stock = 0;
-        int max_stock = 4;
     };
 
     struct market {
