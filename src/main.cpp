@@ -84,7 +84,7 @@ struct model {
         auto wheat = entities.create();
         entities.assign<commodity>(wheat, "Wheat", 15.0f);
         entities.assign<render_tex>(wheat, "media/wheat.png");
-        
+
         auto barley = entities.create();
         entities.assign<commodity>(barley, "Barley", 10.0f);
         entities.assign<render_tex>(barley, "media/wheat.png");
@@ -222,7 +222,7 @@ struct model {
                         }
                     }
                 );
-            }      
+            }
         );
     }
 };
@@ -239,7 +239,7 @@ struct client {
     te::mesh_renderer mesh_renderer;
     te::colour_picker colour_picker;
     std::optional<entt::registry::entity_type> entity_under_cursor;
-   
+
     client(model& sim) :
         rengine { seed_device() },
         sim { sim },
@@ -260,7 +260,7 @@ struct client {
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
     }
-    
+
     void on_key(int key, int scancode, int action, int mods) {
         if (key == GLFW_KEY_Q && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
             cam.offset = glm::rotate(cam.offset, -glm::half_pi<float>()/4.0f, glm::vec3{0.0f, 0.0f, 1.0f});
@@ -300,7 +300,7 @@ struct client {
         mat4 move = translate (mat4 {1.0f}, to_world(place, print));
         return move * mat4_cast(rotate_variation) * resize * mat4_cast(rotate_zup);
     }
-    
+
     void render_colourpick() {
         colour_picker.colour_fbuffer.bind();
         glClear(GL_COLOR_BUFFER_BIT);
@@ -389,24 +389,24 @@ struct client {
                 ImGui::Separator();
                 ImGui::Columns(5);
                 float width_available = ImGui::GetWindowContentRegionWidth();
-                
+
                 ImGui::Text("Stock");
                 ImGui::SetColumnWidth(0, 80);
                 width_available -= 80;
                 ImGui::NextColumn();
-                
+
                 ImGui::SetColumnWidth(1, 50);
                 width_available -= 50;
                 ImGui::NextColumn();
-                
+
                 ImGui::Text("Commodity");
                 ImGui::SetColumnWidth(2, 300);
                 width_available -= 300;
                 ImGui::NextColumn();
-                
+
                 ImGui::Text("");
                 ImGui::NextColumn();
-                
+
                 ImGui::Text("Demand");
                 ImGui::SetColumnWidth(4, 100);
                 width_available -= 100;
@@ -417,10 +417,10 @@ struct client {
                     auto [the_commodity, commodity_tex] = sim.entities.get<commodity, render_tex>(commodity_entity);
                     ImGui::Text(fmt::format("{}", the_market->stock[commodity_entity]).c_str());
                     ImGui::NextColumn();
-                    
+
                     ImGui::Image(*resources.lazy_load<te::gl::texture2d>(commodity_tex.filename).hnd, ImVec2{24, 24});
                     ImGui::NextColumn();
-                    
+
                     ImGui::Text(the_commodity.name.c_str());
                     ImGui::NextColumn();
 
@@ -453,7 +453,7 @@ struct client {
                         );
                     }
                     ImGui::NextColumn();
-                    
+
                     ImGui::Text(fmt::format("{:.0f}x", commodity_demand).c_str());
                     ImGui::NextColumn();
 
