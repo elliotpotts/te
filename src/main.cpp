@@ -22,6 +22,7 @@
 #include <te/util.hpp>
 #include <te/unique_any.hpp>
 #include <te/loader.hpp>
+#include <cmath>
 
 namespace {
     glm::quat rotation_between(const glm::vec3& from, const glm::vec3& to) {
@@ -67,7 +68,6 @@ double fps = 0.0;
 struct model {
     std::default_random_engine rengine;
     entt::registry entities;
-    std::vector<entt::registry::entity_type> commodities;
     std::vector<entt::registry::entity_type> site_blueprints;
 
     const int map_width = 20;
@@ -80,14 +80,21 @@ struct model {
     }
 
     void init_blueprints() {
-        auto wheat = commodities.emplace_back(entities.create());
+        // Commodities
+        auto wheat = entities.create();
         entities.assign<commodity>(wheat, "Wheat", 15.0f);
         entities.assign<render_tex>(wheat, "media/wheat.png");
         
-        auto barley = commodities.emplace_back(entities.create());
+        auto barley = entities.create();
         entities.assign<commodity>(barley, "Barley", 10.0f);
         entities.assign<render_tex>(barley, "media/wheat.png");
-        
+
+        std::unordered_map<entt::entity, double> base_market_prices;
+        entities.view<commodity>().each([&](const entt::entity e, commodity& comm) {
+            base_market_prices[e] = comm.base_price;
+        });
+
+        // Buildings
         auto wheat_field = site_blueprints.emplace_back(entities.create());
         entities.assign<site_blueprint>(wheat_field, "Wheat Field", glm::ivec2{2,2});
         entities.assign<generator>(wheat_field, wheat, 0.01);
@@ -103,14 +110,14 @@ struct model {
         auto dwelling = site_blueprints.emplace_back(entities.create());
         entities.assign<site_blueprint>(dwelling, "Dwelling", glm::ivec2{1,1});
         demander& dwelling_demands = entities.assign<demander>(dwelling);
-        dwelling_demands.demand[wheat] = 50.0f;
-        dwelling_demands.demand[barley] = 10.0f;
+        dwelling_demands.demand[wheat] = 0.0005f;
+        dwelling_demands.demand[barley] = 0.0001f;
         entities.assign<render_mesh>(dwelling, "media/dwelling.glb");
         entities.assign<pickable>(dwelling);
 
         auto market = site_blueprints.emplace_back(entities.create());
         entities.assign<site_blueprint>(market, "Market", glm::ivec2{2,2});
-        entities.assign<te::market>(market);
+        entities.assign<te::market>(market, base_market_prices);
         entities.assign<render_mesh>(market, "media/market.glb");
         entities.assign<pickable>(market);
     }
@@ -188,21 +195,34 @@ struct model {
         };
     }
 
+
     void tick() {
-        entities.view<generator, site>().each (
-            [&](auto& generator, auto& generator_site) {
-                if (generator.progress >= 1.0f) {
-                    generator.progress -= 1.0f;
-                    generator.stock++;
-                    if (market* the_market = market_at(generator_site.position); the_market) {
-                        auto& output_commodity = entities.get<commodity>(generator.output);
-                        the_market->bids.push_back({generator.output, output_commodity.base_price});
+        entities.view<market, site>().each (
+            [&](auto& market, auto& market_site) {
+                entities.view<generator, site>().each (
+                    [&](auto& generator, auto& generator_site) {
+                        if (in_market(generator_site, market_site, market)) {
+                            if (generator.progress >= 1.0f) {
+                                generator.progress -= 1.0f;
+                                generator.stock++;
+                                market.stock[generator.output]++;
+                            }
+                            if (generator.stock < generator.max_stock) {
+                                generator.progress += generator.rate;
+                            }
+                        }
                     }
-                }
-                if (generator.stock < generator.max_stock) {
-                    generator.progress += generator.rate;
-                }
-            }
+                );
+                entities.view<demander, site>().each (
+                    [&](auto& demander, auto& demander_site) {
+                        if (in_market(demander_site, market_site, market)) {
+                            for (auto [commodity_e, commodity_demand] : demander.demand) {
+                                market.demand[commodity_e] += commodity_demand;
+                            }
+                        }
+                    }
+                );
+            }      
         );
     }
 };
@@ -324,7 +344,17 @@ struct client {
         }
     }
 
+    void render_ui_demo() {
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+        ImGui::ShowDemoWindow();
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    }
+
     void render_ui() {
+        //render_ui_demo(); return;
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
@@ -357,12 +387,87 @@ struct client {
             }
             if (auto the_market = sim.entities.try_get<market>(*entity_under_cursor); the_market) {
                 ImGui::Separator();
-                for (auto bid : the_market->bids) {
-                    auto [bid_commodity, commodity_tex] = sim.entities.get<commodity, render_tex>(bid.good);
+                ImGui::Columns(5);
+                float width_available = ImGui::GetWindowContentRegionWidth();
+                
+                ImGui::Text("Stock");
+                ImGui::SetColumnWidth(0, 80);
+                width_available -= 80;
+                ImGui::NextColumn();
+                
+                ImGui::SetColumnWidth(1, 50);
+                width_available -= 50;
+                ImGui::NextColumn();
+                
+                ImGui::Text("Commodity");
+                ImGui::SetColumnWidth(2, 300);
+                width_available -= 300;
+                ImGui::NextColumn();
+                
+                ImGui::Text("");
+                ImGui::NextColumn();
+                
+                ImGui::Text("Demand");
+                ImGui::SetColumnWidth(4, 100);
+                width_available -= 100;
+                ImGui::NextColumn();
+
+                ImGui::SetColumnWidth(3, width_available);
+                for (auto [commodity_entity, price] : the_market->prices) {
+                    auto [the_commodity, commodity_tex] = sim.entities.get<commodity, render_tex>(commodity_entity);
+                    ImGui::Text(fmt::format("{}", the_market->stock[commodity_entity]).c_str());
+                    ImGui::NextColumn();
+                    
                     ImGui::Image(*resources.lazy_load<te::gl::texture2d>(commodity_tex.filename).hnd, ImVec2{24, 24});
-                    ImGui::SameLine();
-                    ImGui::Text("Buy %s at %f", bid_commodity.name.c_str(), bid.price);
+                    ImGui::NextColumn();
+                    
+                    ImGui::Text(the_commodity.name.c_str());
+                    ImGui::NextColumn();
+
+                    ImDrawList* draw = ImGui::GetWindowDrawList();
+                    static const auto light_blue = ImColor(ImVec4{22.9/100.0, 60.7/100.0, 85.9/100.0, 1.0f});
+                    static const auto dark_blue = ImColor(ImVec4{22.9/255.0, 60.7/255.0, 85.9/255.0, 1.0f});
+                    static const auto white = ImColor(ImVec4{1.0, 1.0, 1.0, 1.0});
+                    ImVec2 pos {ImGui::GetCursorScreenPos()};
+                    float commodity_demand = static_cast<float>(the_market->demand[commodity_entity]);
+                    float bar_left = pos.x;
+                    float bar_width = width_available - 16;
+                    float bar_right = pos.x + bar_width;
+                    draw->AddRectFilled (
+                        pos,
+                        ImVec2{bar_left + bar_width * std::min(commodity_demand, 1.0f), pos.y + 16.0f},
+                        light_blue, 0, 0.0f
+                    );
+                    draw->AddRectFilled (
+                        ImVec2{bar_right - bar_width * (std::max(1.0f - commodity_demand, 0.0f)), pos.y},
+                        ImVec2{bar_right, pos.y + 16.0f},
+                        dark_blue, 0, 0.0f
+                    );
+                    int marker_count = static_cast<int>(commodity_demand);
+                    float gap_size = ((std::floor(commodity_demand) / commodity_demand) * bar_width) / static_cast<float>(marker_count);
+                    for (int i = 0; i < marker_count; i++) {
+                        draw->AddRectFilled (
+                            ImVec2{bar_left + (i + 1) * gap_size - 2.0f, pos.y},
+                            ImVec2{bar_left + (i + 1) * gap_size + 2.0f, pos.y + 16.0f},
+                            white, 0, 0.0f
+                        );
+                    }
+                    ImGui::NextColumn();
+                    
+                    ImGui::Text(fmt::format("{:.0f}x", commodity_demand).c_str());
+                    ImGui::NextColumn();
+
+                    // ImGui::Image(*resources.lazy_load<te::gl::texture2d>(commodity_tex.filename).hnd, ImVec2{24, 24});
+                    // ImGui::SameLine();
+                    // ImGui::Text(fmt::format("{}: ¤{:.2f}", the_commodity.name, price).c_str());
+                    // static const auto blue = ImColor(ImVec4{0.0f, 200.0f / 255.0f, 1.0f, 1.0f});
+                    // ImDrawList* draw_list = ImGui::GetWindowDrawList();
+                    // ImVec2 pos {ImGui::GetCursorScreenPos()};
+                    // draw_list->AddRectFilled(ImVec2(pos.x,                                       pos.y),
+                    //                          ImVec2(pos.x + ImGui::GetContentRegionAvailWidth(), pos.y + 16.0), blue, 0, 1.0f);
+                    // ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 18.0);
                 }
+                ImGui::Columns();
             }
         }
         ImGui::Separator();

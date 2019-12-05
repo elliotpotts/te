@@ -27,24 +27,21 @@ namespace te {
     };
 
     struct demander {
-        std::unordered_map<entt::registry::entity_type, double> demand;
+        std::unordered_map<entt::entity, double> demand;
     };
     
     struct generator {
-        entt::registry::entity_type output;
+        entt::entity output;
         double rate;
         double progress = 0.0;
         int stock = 0;
         int max_stock = 4;
     };
-    
-    struct bid {
-        entt::registry::entity_type good;
-        double price;
-    };
 
     struct market {
-        std::vector<bid> bids;
+        std::unordered_map<entt::entity, double> prices;
+        std::unordered_map<entt::entity, int> stock;
+        std::unordered_map<entt::entity, double> demand;
         float radius = 5.0f;
     };
     
