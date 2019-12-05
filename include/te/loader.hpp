@@ -4,10 +4,16 @@
 #include <string>
 #include <te/unique_any.hpp>
 #include <te/gl.hpp>
+#include <te/mesh_renderer.hpp>
 #include <spdlog/spdlog.h>
 namespace te {
     template<typename T>
     T load_from_file(te::gl::context& gl, std::string name);
+
+    template<>
+    gl::texture2d load_from_file(te::gl::context& gl, std::string name);
+    template<>
+    mesh load_from_file(te::gl::context& gl, std::string name);
     
     class loader {
         gl::context& gl;

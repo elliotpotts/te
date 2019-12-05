@@ -2,6 +2,7 @@
 #define TE_UNIQUE_ANY_HPP_INCLUDED
 
 #include <memory>
+#include <functional>
 
 namespace te {
     class unique_any {

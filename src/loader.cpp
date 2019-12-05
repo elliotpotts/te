@@ -1,3 +1,4 @@
+#include <te/loader.hpp>
 #include <te/gl.hpp>
 #include <glad/glad.h>
 #include <te/mesh_renderer.hpp>
@@ -138,4 +139,14 @@ te::mesh te::load_mesh(te::gl::context& gl, std::string filename, const gl::attr
         glBindVertexArray(0);
     }
     return out;
+}
+
+template<>
+te::gl::texture2d te::load_from_file(te::gl::context& gl, std::string name) {
+    return gl.make_texture(name);
+}
+
+template<>
+te::mesh te::load_from_file(te::gl::context& gl, std::string name) {
+    return te::load_mesh(gl, name, te::gl::common_attribute_locations);
 }
