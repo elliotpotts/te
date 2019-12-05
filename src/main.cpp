@@ -246,7 +246,7 @@ struct client {
     te::terrain_renderer terrain_renderer;
     te::mesh_renderer mesh_renderer;
     te::colour_picker colour_picker;
-    std::optional<entt::registry::entity_type> entity_under_cursor;
+    std::optional<entt::registry::entity_type> inspected;
 
     client(model& sim) :
         rengine { seed_device() },
@@ -264,6 +264,7 @@ struct client {
         colour_picker{win}
         {
         win.on_key.connect([&](int key, int scancode, int action, int mods){ on_key(key, scancode, action, mods); });
+        win.on_mouse_button.connect([&](int button, int action, int mods) { on_mouse_button(button, action, mods); });
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
@@ -275,6 +276,38 @@ struct client {
         }
         if (key == GLFW_KEY_E && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
             cam.offset = glm::rotate(cam.offset, glm::half_pi<float>()/4.0f, glm::vec3{0.0f, 0.0f, 1.0f});
+        }
+    }
+
+    void on_mouse_button(int button, int action, int mods) {
+        if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+            mouse_pick();
+        }
+    }
+
+    void mouse_pick() {
+        colour_picker.colour_fbuffer.bind();
+        glClear(GL_COLOR_BUFFER_BIT);
+        sim.entities.view<site, site_blueprint, pickable, render_mesh>().each (
+            [&](const entt::entity& entity, auto& map_site, auto& print, auto pick, auto& mesh) {
+                auto pick_colour = *reinterpret_cast<const std::uint32_t*>(&entity);
+                colour_picker.draw(resources.lazy_load<te::mesh>(mesh.filename), map_to_model_matrix(map_site, print), pick_colour, cam);
+            }
+        );
+        glFlush();
+        glFinish();
+        double mouse_x; double mouse_y;
+        glfwGetCursorPos(win.hnd.get(), &mouse_x, &mouse_y);
+        int under_mouse_x = static_cast<int>(mouse_x);
+        int under_mouse_y = win.height - mouse_y;
+        entt::entity under_cursor;
+        win.gl.toggle_perf_warnings(false);
+        glReadPixels(under_mouse_x, under_mouse_y, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, &under_cursor);
+        win.gl.toggle_perf_warnings(true);
+        if (sim.entities.valid(under_cursor) && sim.entities.has<pickable>(under_cursor)) {
+            inspected = under_cursor;
+        } else {
+            inspected.reset();
         }
     }
 
@@ -309,38 +342,12 @@ struct client {
         return move * mat4_cast(rotate_variation) * resize * mat4_cast(rotate_zup);
     }
 
-    void render_colourpick() {
-        colour_picker.colour_fbuffer.bind();
-        glClear(GL_COLOR_BUFFER_BIT);
-        sim.entities.view<site, site_blueprint, pickable, render_mesh>().each(
-            [&](const entt::entity& entity, auto& map_site, auto& print, auto pick, auto& mesh) {
-                auto pick_colour = *reinterpret_cast<const std::uint32_t*>(&entity);
-                colour_picker.draw(resources.lazy_load<te::mesh>(mesh.filename), map_to_model_matrix(map_site, print), pick_colour, cam);
-            }
-        );
-        glFlush();
-        glFinish();
-        double mouse_x; double mouse_y;
-        glfwGetCursorPos(win.hnd.get(), &mouse_x, &mouse_y);
-        int under_mouse_x = static_cast<int>(mouse_x);
-        int under_mouse_y = win.height - mouse_y;
-        entt::entity under_cursor;
-        win.gl.toggle_perf_warnings(false);
-        glReadPixels(under_mouse_x, under_mouse_y, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, &under_cursor);
-        win.gl.toggle_perf_warnings(true);
-        if (sim.entities.valid(under_cursor) && sim.entities.has<pickable>(under_cursor)) {
-            entity_under_cursor = under_cursor;
-        } else {
-            entity_under_cursor.reset();
-        }
-    }
-
     void render_scene() {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         terrain_renderer.render(cam);
-        if (entity_under_cursor && sim.entities.has<market, site>(*entity_under_cursor)) {
-            auto [the_market, market_site] = sim.entities.get<market, site>(*entity_under_cursor);
+        if (inspected && sim.entities.has<market, site>(*inspected)) {
+            auto [the_market, market_site] = sim.entities.get<market, site>(*inspected);
             sim.entities.view<site, site_blueprint, render_mesh>().each([&](auto& map_site, auto& print, auto& rmesh) {
                 auto tint = sim.in_market(map_site, market_site, the_market) ? glm::vec4{1.0f, 0.0f, 0.0f, 0.0f} : glm::vec4{0.0f};
                 mesh_renderer.draw(resources.lazy_load<te::mesh>(rmesh.filename), map_to_model_matrix(map_site, print), cam, tint);
@@ -367,14 +374,14 @@ struct client {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         ImGui::Text("FPS: %f", fps);
-        if (entity_under_cursor) {
-            auto id_string = fmt::format("{}", *reinterpret_cast<std::uint32_t*>(&*entity_under_cursor));
+        if (inspected) {
+            auto id_string = fmt::format("{}", *reinterpret_cast<std::uint32_t*>(&*inspected));
             ImGui::Separator();
-            if (auto [maybe_site, maybe_print] = sim.entities.try_get<site, site_blueprint>(*entity_under_cursor); maybe_site && maybe_print) {
+            if (auto [maybe_site, maybe_print] = sim.entities.try_get<site, site_blueprint>(*inspected); maybe_site && maybe_print) {
                 ImGui::Text("Map position: (%d, %d)", maybe_site->position.x, maybe_site->position.y);
                 ImGui::Text("%s (#%s)", maybe_print->name.c_str(), id_string.c_str());
             }
-            if (auto the_generator = sim.entities.try_get<generator>(*entity_under_cursor); the_generator) {
+            if (auto the_generator = sim.entities.try_get<generator>(*inspected); the_generator) {
                 ImGui::Separator();
                 auto& rendr_tex = sim.entities.get<render_tex>(the_generator->output);
                 ImGui::Image(*resources.lazy_load<te::gl::texture2d>(rendr_tex.filename).hnd, ImVec2{24, 24});
@@ -384,7 +391,7 @@ struct client {
                 ImGui::SameLine();
                 ImGui::ProgressBar(the_generator->progress);
             }
-            if (auto the_demands = sim.entities.try_get<demander>(*entity_under_cursor); the_demands) {
+            if (auto the_demands = sim.entities.try_get<demander>(*inspected); the_demands) {
                 ImGui::Separator();
                 for (auto [demanded, demand_level] : the_demands->demand) {
                     auto [demanded_commodity, commodity_tex] = sim.entities.get<commodity, render_tex>(demanded);
@@ -393,7 +400,7 @@ struct client {
                     ImGui::Text("%s: %f", demanded_commodity.name.c_str(), demand_level);
                 }
             }
-            if (auto the_market = sim.entities.try_get<market>(*entity_under_cursor); the_market) {
+            if (auto the_market = sim.entities.try_get<market>(*inspected); the_market) {
                 ImGui::Separator();
                 ImGui::Columns(5);
                 float width_available = ImGui::GetWindowContentRegionWidth();
@@ -492,7 +499,6 @@ struct client {
     }
 
     void draw() {
-        render_colourpick();
         render_scene();
         render_ui();
     }

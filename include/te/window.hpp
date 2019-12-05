@@ -20,6 +20,7 @@ namespace te {
         gl::context gl;
         boost::signals2::signal<void(int, int, int, int)> on_key;
         boost::signals2::signal<void(double, double)> on_cursor_move;
+        boost::signals2::signal<void(int, int, int)> on_mouse_button;
         window(glfw_context&, window_hnd, int, int);
         window(const window&&) = delete; //if implemented, glfwuserpointer must be updated
         int key(int) const;

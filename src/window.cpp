@@ -11,6 +11,9 @@ namespace {
     void glfw_dispatch_cursor_pos(GLFWwindow* w, double xpos, double ypos) {
         reinterpret_cast<te::window*>(glfwGetWindowUserPointer(w))->on_cursor_move(xpos, ypos);
     }
+    void glfw_dispatch_mouse_button(GLFWwindow* w, int button, int action, int mods) {
+        reinterpret_cast<te::window*>(glfwGetWindowUserPointer(w))->on_mouse_button(button, action, mods);
+    }
 }
 void te::window_deleter::operator()(GLFWwindow* win) const {
     glfwDestroyWindow(win);
@@ -21,6 +24,7 @@ te::window::window(glfw_context& glfw, window_hnd old_hnd, int w, int h) : glfw(
     glfwSetInputMode(hnd.get(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     glfwSetKeyCallback(hnd.get(), glfw_dispatch_key);
     glfwSetCursorPosCallback(hnd.get(), glfw_dispatch_cursor_pos);
+    glfwSetMouseButtonCallback(hnd.get(), glfw_dispatch_mouse_button);
 }
 int te::window::key(int k) const {
     return glfwGetKey(hnd.get(), k);
