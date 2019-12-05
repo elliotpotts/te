@@ -127,7 +127,7 @@ struct model {
         for (int i = 0; i < 200; i++) spawn(site_blueprints[select_blueprint(rengine)]);
     }
 
-    bool in_market(site question_site, site market_site, market the_market) {
+    bool in_market(const site& question_site, const site& market_site, const market& the_market) {
         return glm::length(glm::vec2{question_site.position - market_site.position}) <= the_market.radius;
     }
 
