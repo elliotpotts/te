@@ -1,4 +1,4 @@
-#include <te/loader.hpp>
+#include <te/gl.hpp>
 #include <glad/glad.h>
 #include <te/mesh_renderer.hpp>
 #include <fx/gltf.h>
@@ -6,6 +6,7 @@
 #include <spdlog/spdlog.h>
 #include <iterator>
 #include <sstream>
+
 namespace {
     std::string stringise_extents(const std::vector<float>& extents) {
         if (extents.size() == 0) { return ""; }
@@ -15,9 +16,7 @@ namespace {
         sstr << extents.back();
         return sstr.str();
     }
-}
-
-namespace {
+    
     GLint component_count(fx::gltf::Accessor::Type type) {
         switch (type) {
         case fx::gltf::Accessor::Type::None: return 0;

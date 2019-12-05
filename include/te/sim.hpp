@@ -39,13 +39,12 @@ namespace te {
     };
     
     struct bid {
-        commodity* good;
+        entt::registry::entity_type good;
         double price;
     };
 
     struct market {
-        std::vector<bid> buys;
-        std::vector<bid> sells;
+        std::vector<bid> bids;
         float radius = 5.0f;
     };
     

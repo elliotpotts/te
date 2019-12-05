@@ -20,6 +20,7 @@
 #include <te/sim.hpp>
 #include <te/gl.hpp>
 #include <te/util.hpp>
+#include <te/unique_any.hpp>
 
 namespace {
     glm::quat rotation_between(const glm::vec3& from, const glm::vec3& to) {
@@ -51,13 +52,12 @@ using namespace te;
 
 // Client Components
 struct render_tex {
-    te::gl::texture2d* texture;
+    std::string filename;
 };
 struct render_mesh {
-    te::mesh* mesh;
+    std::string filename;
 };
-struct pickable_mesh {
-    te::mesh* mesh;
+struct pickable {
     std::uint32_t id;
 };
 
@@ -72,6 +72,16 @@ struct sim {
     std::unordered_map<glm::ivec2, entt::registry::entity_type> map;
 };
 
+#include <te/loader.hpp>
+template<>
+te::gl::texture2d te::load_from_file(te::gl::context& gl, std::string name) {
+    return gl.make_texture(name);
+}
+template<>
+te::mesh te::load_from_file(te::gl::context& gl, std::string name) {
+    return te::load_mesh(gl, name, te::gl::common_attribute_locations);
+}
+
 struct client {
     // Sim
     std::random_device seed_device;
@@ -84,11 +94,8 @@ struct client {
     // Render
     te::glfw_context glfw;
     te::window win;
+    te::loader resources;
     ImGuiIO& imgui_io;
-    std::vector<te::gl::texture2d> textures;
-    std::vector<te::mesh> meshes;
-    std::unordered_map<commodity*, te::gl::texture2d> commodity_texture;
-    std::unordered_map<site_blueprint*, te::mesh> site_blueprint_meshes;
     te::camera cam;
     te::terrain_renderer terrain_renderer;
     te::mesh_renderer mesh_renderer;
@@ -100,6 +107,7 @@ struct client {
     client() :
         rengine { seed_device() },
         win { glfw.make_window(1024, 768, "Hello, World!")},
+        resources { win.gl },
         imgui_io { setup_imgui(win) },
         cam {
             {0.0f, 0.0f, 0.0f},
@@ -119,41 +127,39 @@ struct client {
     }
     
     void init_blueprints() {
-        textures.reserve(42);
-        meshes.reserve(42);
         auto wheat = commodities.emplace_back(entities.create());
         entities.assign<commodity>(wheat, "Wheat", 15.0f);
-        entities.assign<render_tex>(wheat, &textures.emplace_back(win.gl.make_texture("media/wheat.png")));
+        entities.assign<render_tex>(wheat, "media/wheat.png");
         
         auto barley = commodities.emplace_back(entities.create());
         entities.assign<commodity>(barley, "Barley", 10.0f);
-        entities.assign<render_tex>(barley, &textures.emplace_back(win.gl.make_texture("media/wheat.png")));
+        entities.assign<render_tex>(barley, "media/wheat.png");
         
         auto wheat_field = site_blueprints.emplace_back(entities.create());
         entities.assign<site_blueprint>(wheat_field, "Wheat Field", glm::ivec2{2,2});
         entities.assign<generator>(wheat_field, wheat, 0.05);
-        entities.assign<render_mesh>(wheat_field, &meshes.emplace_back(te::load_mesh(win.gl, "media/wheat.glb", te::gl::common_attribute_locations)));
-        entities.assign<pickable_mesh>(wheat_field, &meshes.back());
+        entities.assign<render_mesh>(wheat_field, "media/wheat.glb");
+        entities.assign<pickable>(wheat_field);
 
         auto barley_field = site_blueprints.emplace_back(entities.create());
         entities.assign<site_blueprint>(barley_field, "Barley Field", glm::ivec2{2,2});
         entities.assign<generator>(barley_field, barley, 0.01);
-        entities.assign<render_mesh>(barley_field, &meshes.emplace_back(te::load_mesh(win.gl, "media/wheat.glb", te::gl::common_attribute_locations)));
-        entities.assign<pickable_mesh>(barley_field, &meshes.back());
+        entities.assign<render_mesh>(barley_field, "media/wheat.glb");
+        entities.assign<pickable>(barley_field);
 
         auto dwelling = site_blueprints.emplace_back(entities.create());
         entities.assign<site_blueprint>(dwelling, "Dwelling", glm::ivec2{1,1});
         demander& dwelling_demands = entities.assign<demander>(dwelling);
         dwelling_demands.demand[wheat] = 50.0f;
         dwelling_demands.demand[barley] = 10.0f;
-        entities.assign<render_mesh>(dwelling, &meshes.emplace_back(te::load_mesh(win.gl, "media/dwelling.glb", te::gl::common_attribute_locations)));
-        entities.assign<pickable_mesh>(dwelling, &meshes.back());
+        entities.assign<render_mesh>(dwelling, "media/dwelling.glb");
+        entities.assign<pickable>(dwelling);
 
         auto market = site_blueprints.emplace_back(entities.create());
         entities.assign<site_blueprint>(market, "Market", glm::ivec2{2,2});
         entities.assign<te::market>(market);
-        entities.assign<render_mesh>(market, &meshes.emplace_back(te::load_mesh(win.gl, "media/market.glb", te::gl::common_attribute_locations)));
-        entities.assign<pickable_mesh>(market, &meshes.back());
+        entities.assign<render_mesh>(market, "media/market.glb");
+        entities.assign<pickable>(market);
     }
 
     void generate_map() {
@@ -238,7 +244,7 @@ struct client {
                 map[{where.x + x, where.y + y}] = instantiated;
             }
         }
-        auto& pick = entities.get<pickable_mesh>(instantiated);
+        auto& pick = entities.get<pickable>(instantiated);
         pick.id = pick_id++;
     }
 
@@ -256,9 +262,9 @@ struct client {
     void render_colourpick() {
         colour_picker.colour_fbuffer.bind();
         glClear(GL_COLOR_BUFFER_BIT);
-        entities.view<site, site_blueprint, pickable_mesh>().each(
-            [&](auto& map_site, auto& print, auto& pick) {
-                colour_picker.draw(*pick.mesh, map_to_model_matrix(map_site, print), pick.id, cam);
+        entities.view<site, site_blueprint, pickable, render_mesh>().each(
+            [&](auto& map_site, auto& print, auto& pick, auto& mesh) {
+                colour_picker.draw(resources.lazy_load<te::mesh>(mesh.filename), map_to_model_matrix(map_site, print), pick.id, cam);
             }
         );
         glFlush();
@@ -271,12 +277,12 @@ struct client {
         win.gl.toggle_perf_warnings(false);
         glReadPixels(under_mouse_x, under_mouse_y, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, &id_under_cursor);
         win.gl.toggle_perf_warnings(true);
-        auto pickable_entities = entities.view<pickable_mesh>();
+        auto pickable_entities = entities.view<pickable>();
         auto entity_it = std::find_if (
             pickable_entities.begin(),
             pickable_entities.end(),
             [&,id_under_cursor](auto entity) {
-                return (pickable_entities.get<pickable_mesh>(entity)).id == id_under_cursor;
+                return (pickable_entities.get<pickable>(entity)).id == id_under_cursor;
             }
         );
         if (entity_it != pickable_entities.end()) {
@@ -296,11 +302,11 @@ struct client {
             auto [the_market, market_site] = entities.get<market, site>(*entity_under_cursor);
             entities.view<site, site_blueprint, render_mesh>().each([&](auto& map_site, auto& print, auto& rmesh) {
                 auto tint = in_market(map_site, market_site, the_market) ? glm::vec4{1.0f, 0.0f, 0.0f, 0.0f} : glm::vec4{0.0f};
-                mesh_renderer.draw(*rmesh.mesh, map_to_model_matrix(map_site, print), cam, tint);
+                mesh_renderer.draw(resources.lazy_load<te::mesh>(rmesh.filename), map_to_model_matrix(map_site, print), cam, tint);
             });
         } else {
             entities.view<site, site_blueprint, render_mesh>().each([&](auto& map_site, auto& print, auto& rmesh) {
-                mesh_renderer.draw(*rmesh.mesh, map_to_model_matrix(map_site, print), cam);
+                mesh_renderer.draw(resources.lazy_load<te::mesh>(rmesh.filename), map_to_model_matrix(map_site, print), cam);
             });
         }
     }
@@ -316,14 +322,14 @@ struct client {
             auto map_site = entities.get<site>(*entity_under_cursor);
             ImGui::Text("Map position: (%d, %d)", map_site.position.x, map_site.position.y);
             {
-                const auto& [pick, print] = entities.get<pickable_mesh, site_blueprint>(*entity_under_cursor);
+                const auto& [pick, print] = entities.get<pickable, site_blueprint>(*entity_under_cursor);
                 std::string building_text = fmt::format("{} (#{})", print.name, pick.id);
                 ImGui::Text(building_text.c_str());
             }
             if (auto the_generator = entities.try_get<generator>(*entity_under_cursor); the_generator) {
                 ImGui::Separator();
                 auto& rendr_tex = entities.get<render_tex>(the_generator->output);
-                ImGui::Image((void*)(*rendr_tex.texture->hnd), ImVec2{24, 24});
+                ImGui::Image((void*)(*resources.lazy_load<te::gl::texture2d>(rendr_tex.filename).hnd), ImVec2{24, 24});
                 ImGui::SameLine();
                 auto& output_commodity = entities.get<commodity>(the_generator->output);
                 ImGui::Text("%d/%d×%s", the_generator->stock, the_generator->max_stock, output_commodity.name.c_str());
@@ -334,9 +340,18 @@ struct client {
                 ImGui::Separator();
                 for (auto [demanded, demand_level] : the_demands->demand) {
                     auto [demanded_commodity, commodity_tex] = entities.get<commodity, render_tex>(demanded);
-                    ImGui::Image((void*)(*commodity_tex.texture->hnd), ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{0, 0, 0, 1});
+                    ImGui::Image((void*)(*resources.lazy_load<te::gl::texture2d>(commodity_tex.filename).hnd), ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{0, 0, 0, 1});
                     ImGui::SameLine();
                     ImGui::Text("%s: %f", demanded_commodity.name.c_str(), demand_level);
+                }
+            }
+            if (auto the_market = entities.try_get<market>(*entity_under_cursor); the_market) {
+                ImGui::Separator();
+                for (auto bid : the_market->bids) {
+                    auto [bid_commodity, commodity_tex] = entities.get<commodity, render_tex>(bid.good);
+                    ImGui::Image((void*)(*resources.lazy_load<te::gl::texture2d>(commodity_tex.filename).hnd), ImVec2{24, 24});
+                    ImGui::SameLine();
+                    ImGui::Text("Buy %s at %f", bid_commodity.name.c_str(), bid.price);
                 }
             }
         }
@@ -364,14 +379,34 @@ struct client {
         cam.use_ortho = win.key(GLFW_KEY_SPACE) != GLFW_PRESS;
     }
 
+    market* market_at(glm::ivec2 x) {
+        auto markets = entities.view<market, site>();
+        auto it = std::find_if (
+            markets.begin(),
+            markets.end(),
+            [&](auto& e) {
+                auto& market_site = markets.get<site>(e);
+                auto& the_market = markets.get<market>(e);
+                return glm::length(glm::vec2{markets.get<site>(e).position - x}) <= the_market.radius;
+            }
+        );
+        if (it != markets.end()) {
+            return &markets.get<market>(*it);
+        } else {
+            return nullptr;
+        };
+    }
+
     void tick() {
-        entities.view<generator>().each (
-            [&](auto& generator) {
+        entities.view<generator, site>().each (
+            [&](auto& generator, auto& generator_site) {
                 if (generator.progress >= 1.0f) {
-                    generator.stock++;
-                }
-                if (generator.progress > 1.0f) {
                     generator.progress -= 1.0f;
+                    generator.stock++;
+                    if (market* the_market = market_at(generator_site.position); the_market) {
+                        auto& output_commodity = entities.get<commodity>(generator.output);
+                        the_market->bids.push_back({generator.output, output_commodity.base_price});
+                    }
                 }
                 if (generator.stock < generator.max_stock) {
                     generator.progress += generator.rate;
