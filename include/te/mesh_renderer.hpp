@@ -12,13 +12,13 @@ namespace te {
         GLenum type;
         unsigned count;
         unsigned offset;
-        gl::texture<GL_TEXTURE_2D>* texture;
+        gl::texture2d* texture;
         gl::sampler* sampler;
     };
     struct mesh {
         std::vector<gl::buffer<GL_ARRAY_BUFFER>> attribute_buffers;
         std::vector<gl::buffer<GL_ELEMENT_ARRAY_BUFFER>> element_buffers;
-        std::vector<gl::texture<GL_TEXTURE_2D>> textures;
+        std::vector<gl::texture2d> textures;
         std::vector<gl::sampler> samplers;
         std::vector<primitive> primitives;
     };

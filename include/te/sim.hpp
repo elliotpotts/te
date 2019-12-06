@@ -1,8 +1,13 @@
 #ifndef TE_SIM_HPP_INCLUDED
 #define TE_SIM_HPP_INCLUDED
 
+#include <entt/entt.hpp>
 #include <string>
-#include <entt/entity/view.hpp>
+#include <glm/glm.hpp>
+#include <unordered_map>
+#include <vector>
+#include <random>
+#include <te/util.hpp>
 
 namespace te {
     // Blueprints
@@ -51,6 +56,39 @@ namespace te {
     struct pathway {
     };
 
+    struct sim {
+        std::default_random_engine rengine;
+        entt::registry entities;
+        std::vector<entt::registry::entity_type> site_blueprints;
+
+        const int map_width = 40;
+        const int map_height = 40;
+        std::unordered_map<glm::ivec2, entt::registry::entity_type> map;
+
+        sim(unsigned seed);
+
+        void init_blueprints();
+        void generate_map();
+
+        market* market_at(glm::ivec2 x);
+        bool in_market(const site& question_site, const site& market_site, const market& the_market) const;
+        bool can_place(entt::registry::entity_type entity, glm::ivec2 where);
+
+        void place(entt::registry::entity_type proto, glm::ivec2 where);
+        void spawn(entt::registry::entity_type proto);
+        void tick();
+    };
+
+    //TOOD: put these somewhere else
+    // Client Components
+    struct render_tex {
+        std::string filename;
+    };
+    struct render_mesh {
+        std::string filename;
+    };
+    struct pickable {
+    };
 }
 
 #endif
