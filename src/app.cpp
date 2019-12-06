@@ -28,16 +28,17 @@ te::app::app(te::sim& model, unsigned int seed) :
     model { model },
     rengine { seed },
     win { glfw.make_window(1024, 768, "Hello, World!")},
-    resources { win.gl },
     imgui_io { setup_imgui(win) },
     cam {
         {0.0f, 0.0f, 0.0f},
         {-0.7f, -0.7f, 1.0f},
         8.0f
     },
-    terrain_renderer{win.gl, rengine, model.map_width, model.map_height},
-    mesh_renderer{win.gl},
-    colour_picker{win}
+    terrain_renderer{ win.gl, rengine, model.map_width, model.map_height },
+    mesh_renderer{ win.gl },
+    colour_picker{ win },
+    loader { win.gl, mesh_renderer },
+    resources { loader }
 {
     win.on_key.connect([&](int key, int scancode, int action, int mods){ on_key(key, scancode, action, mods); });
     win.on_mouse_button.connect([&](int button, int action, int mods) { on_mouse_button(button, action, mods); });

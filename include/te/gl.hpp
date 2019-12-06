@@ -98,14 +98,6 @@ namespace te::gl {
         explicit renderbuffer(renderbuffer_hnd hnd);
         void bind() const;
     };
-
-    using attribute_locations = std::vector<std::pair<string, GLuint>>;
-    const attribute_locations common_attribute_locations = {
-        {"POSITION", 0},
-        {"NORMAL", 1},
-        {"TANGENT", 2},
-        {"TEXCOORD_0", 3}
-    };
     
     struct context {
         shader compile(std::string source, GLenum type);
@@ -126,9 +118,7 @@ namespace te::gl {
         }
         template<GLenum target, typename It>
         buffer<target> make_buffer(It begin, It end, GLenum usage_hint = GL_STATIC_DRAW) {
-            GLuint vbo;
-            glGenBuffers(1, &vbo);
-            buffer<target> buffer {buffer_hnd{vbo}};
+            buffer<target> buffer { make_hnd<buffer_hnd>(glGenBuffers) };
             buffer.bind();
             glBufferData(target, reinterpret_cast<const char*>(std::to_address(end)) - reinterpret_cast<const char*>(std::to_address(begin)), std::to_address(begin), usage_hint);
             return buffer;

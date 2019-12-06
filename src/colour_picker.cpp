@@ -3,12 +3,13 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <spdlog/spdlog.h>
 #include <array>
+#include <te/mesh_renderer.hpp>
 
 te::colour_picker::colour_picker(te::window& win):
     win(win),
     program(win.gl.link(win.gl.compile(te::file_contents("shaders/colour_pick_vertex.glsl"), GL_VERTEX_SHADER),
                         win.gl.compile(te::file_contents("shaders/colour_pick_fragment.glsl"), GL_FRAGMENT_SHADER),
-                        te::gl::common_attribute_locations)),
+                        te::mesh_renderer::attribute_locations)),
     model_uniform(program.uniform("model")),
     view_uniform(program.uniform("view")),
     proj_uniform(program.uniform("projection")),

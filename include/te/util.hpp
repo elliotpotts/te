@@ -9,6 +9,10 @@ namespace te {
     std::string file_contents(std::string filename);
 }
 
+template<typename T>
+struct type_tag {
+};
+
 namespace std {
     template<>
     struct hash<glm::vec2> {
