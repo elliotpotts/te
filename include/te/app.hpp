@@ -50,7 +50,6 @@ namespace te {
         void mouse_pick();
         glm::vec3 to_world(glm::ivec2 map);
         glm::vec3 to_world(te::site place, te::site_blueprint print);
-        glm::mat4 map_to_model_matrix(te::site place, te::site_blueprint print);
         void render_scene();
         void render_ui();
         void input();

@@ -69,7 +69,7 @@ void te::app::mouse_pick() {
     model.entities.view<te::site, te::site_blueprint, te::pickable, te::render_mesh>().each (
         [&](const entt::entity& entity, auto& map_site, auto& print, auto pick, auto& mesh) {
             auto pick_colour = *reinterpret_cast<const std::uint32_t*>(&entity);
-            colour_picker.draw(resources.lazy_load<te::mesh>(mesh.filename), map_to_model_matrix(map_site, print), pick_colour, cam);
+            //colour_picker.draw(resources.lazy_load<te::mesh>(mesh.filename), map_to_model_matrix(map_site, print), pick_colour, cam);
         }
     );
     glFlush();
@@ -105,34 +105,23 @@ glm::vec3 te::app::to_world(te::site place, te::site_blueprint print) {
     return (2.0f * world_position + world_dimensions) / 2.0f;
 }
 
-glm::mat4 te::app::map_to_model_matrix(te::site place, te::site_blueprint print) {
-    using namespace glm;
-    mat4 resize { 1.0f };
-    quat rotate_zup = rotation_between_units (
-        glm::vec3 {0.0f, 1.0f, 0.0f},
-        glm::vec3 {0.0f, 0.0f, 1.0f}
-    );
-    quat rotate_variation = angleAxis (
-        glm::half_pi<float>() * place.rotation,
-        glm::vec3 {0.0f, 0.0f, 1.0f}
-    );
-    mat4 move = translate (mat4 {1.0f}, to_world(place, print));
-    return move * mat4_cast(rotate_variation) * resize * mat4_cast(rotate_zup);
-}
+glm::mat4 rotate_zup = glm::mat4_cast(te::rotation_between_units (
+    glm::vec3 {0.0f, 1.0f, 0.0f},
+    glm::vec3 {0.0f, 0.0f, 1.0f}
+));
 
 void te::app::render_scene() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     terrain_renderer.render(cam);
-    auto model_mat = map_to_model_matrix(te::site{glm::vec2{0, 0}, 0.0f}, te::site_blueprint {"foo", glm::vec2{1.0f, 1.0f}});
+
     model.entities.view<te::site, te::site_blueprint, te::render_mesh>().each (
         [&](auto& map_site, auto& print, auto& rmesh) {
             auto& prim = resources.lazy_load<te::instanced_primitive>(rmesh.filename);
             prim.instance_attribute_buffer.bind();
-            glm::vec3 world = to_world(map_site.position);
-            world = glm::vec3{5.0f, 5.0f, 0.0f};
+            glm::vec3 world = to_world(map_site, print);
             glBufferData(GL_ARRAY_BUFFER, sizeof(world), &world, GL_STATIC_READ);
-            instance_renderer.draw(prim, model_mat, cam);
+            instance_renderer.draw(prim, rotate_zup, cam);
         }
     );
 }

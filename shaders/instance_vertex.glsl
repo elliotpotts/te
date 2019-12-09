@@ -8,5 +8,5 @@ uniform mat4 view;
 uniform mat4 projection;
 void main() {
     texcoord = TEXCOORD_0;
-    gl_Position = projection * view * model * vec4(POSITION + INSTANCE_OFFSET, 1.0);
+    gl_Position = projection * view * ((model * vec4(POSITION, 1.0)) + vec4(INSTANCE_OFFSET, 0.0));
 }
