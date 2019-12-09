@@ -8,7 +8,7 @@ namespace te {
     struct unique {
         std::optional<T> storage;
         unique(unique&& other) : storage(std::move(other.storage)) {
-            other.storage.reset();
+            other.release();
         }
         explicit unique(T hnd) : storage(hnd) {
         }

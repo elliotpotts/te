@@ -36,8 +36,9 @@ te::app::app(te::sim& model, unsigned int seed) :
     },
     terrain_renderer{ win.gl, rengine, model.map_width, model.map_height },
     mesh_renderer{ win.gl },
+    instance_renderer { win.gl },
     colour_picker{ win },
-    loader { win.gl, mesh_renderer },
+    loader { win.gl, mesh_renderer, instance_renderer },
     resources { loader }
 {
     win.on_key.connect([&](int key, int scancode, int action, int mods){ on_key(key, scancode, action, mods); });
@@ -123,17 +124,17 @@ void te::app::render_scene() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     terrain_renderer.render(cam);
-    if (inspected && model.entities.has<te::market, te::site>(*inspected)) {
-        auto [the_market, market_site] = model.entities.get<te::market, te::site>(*inspected);
-        model.entities.view<te::site, te::site_blueprint, te::render_mesh>().each([&](auto& map_site, auto& print, auto& rmesh) {
-                                                                                      auto tint = model.in_market(map_site, market_site, the_market) ? glm::vec4{1.0f, 0.0f, 0.0f, 0.0f} : glm::vec4{0.0f};
-                                                                                      mesh_renderer.draw(resources.lazy_load<te::mesh>(rmesh.filename), map_to_model_matrix(map_site, print), cam, tint);
-                                                                                  });
-    } else {
-        model.entities.view<te::site, te::site_blueprint, te::render_mesh>().each([&](auto& map_site, auto& print, auto& rmesh) {
-                                                                                      mesh_renderer.draw(resources.lazy_load<te::mesh>(rmesh.filename), map_to_model_matrix(map_site, print), cam);
-                                                                                  });
-    }
+    auto model_mat = map_to_model_matrix(te::site{glm::vec2{0, 0}, 0.0f}, te::site_blueprint {"foo", glm::vec2{1.0f, 1.0f}});
+    model.entities.view<te::site, te::site_blueprint, te::render_mesh>().each (
+        [&](auto& map_site, auto& print, auto& rmesh) {
+            auto& prim = resources.lazy_load<te::instanced_primitive>(rmesh.filename);
+            prim.instance_attribute_buffer.bind();
+            glm::vec3 world = to_world(map_site.position);
+            world = glm::vec3{5.0f, 5.0f, 0.0f};
+            glBufferData(GL_ARRAY_BUFFER, sizeof(world), &world, GL_STATIC_READ);
+            instance_renderer.draw(prim, model_mat, cam);
+        }
+    );
 }
 
 namespace {
