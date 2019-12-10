@@ -49,8 +49,8 @@ void te::sim::init_blueprints() {
 }
 
 void te::sim::generate_map() {
-    std::discrete_distribution<std::size_t> select_blueprint {1, 1, 0, 1}; //{5, 3, 50, 2};
-    for (int i = 0; i < 20; i++) spawn(site_blueprints[select_blueprint(rengine)]);
+    std::discrete_distribution<std::size_t> select_blueprint {5, 3, 50, 2};
+    for (int i = 0; i < 200; i++) spawn(site_blueprints[select_blueprint(rengine)]);
 }
 
 te::market* te::sim::market_at(glm::vec2 x) {

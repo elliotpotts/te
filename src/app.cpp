@@ -99,7 +99,7 @@ void te::app::render_scene() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     terrain_renderer.render(cam);
 
-    const auto instances = model.entities.group<te::render_mesh, te::site, te::site_blueprint>();
+    auto instances = model.entities.group<render_mesh, site, site_blueprint>();
     instances.sort<te::render_mesh> (
         [](const auto& lhs, const auto& rhs) {
             return lhs.filename < rhs.filename;
@@ -109,37 +109,32 @@ void te::app::render_scene() {
     const auto begin = instances.begin();
     const auto end = instances.end();
     auto it = begin;
+    
     do {
-        auto current_rmesh = instances.get<render_mesh>(*it);
-        auto group_end = std::find_if_not (
-            it, end,
-            [&](const auto& x) {
-                return current_rmesh.filename == instances.get<render_mesh>(x).filename;
-            }
-        );
-        const auto group_count = std::distance(it, group_end);
-        const auto& prim = resources.lazy_load<te::instanced_primitive>(current_rmesh.filename);
-        const auto& print = instances.get<site_blueprint>(*it);
+        std::vector<glm::vec2> positions;
+        const auto& current_rmesh = instances.get<render_mesh>(*it);
+        const auto& current_print = instances.get<site_blueprint>(*it);
+        while (it != end && instances.get<render_mesh>(*it).filename == current_rmesh.filename) {
+            positions.push_back(instances.get<site>(*it).position);
+            it++;
+        }
+        auto& prim = resources.lazy_load<instanced_primitive>(current_rmesh.filename);
         prim.instance_attribute_buffer.bind();
-        //BUG: raw components are not sorted by the above call to sort(), therefore this is broken
         glBufferData (
             GL_ARRAY_BUFFER,
-            group_count * sizeof(glm::vec2),
-            instances.raw<site>() + std::distance(begin, it),
+            positions.size() * sizeof(decltype(positions)::value_type),
+            positions.data(),
             GL_STATIC_READ
         );
         const auto model_mat = glm::translate (
             glm::vec3 {
-                terrain_renderer.grid_topleft.x + print.dimensions.x / 2.0f,
-                terrain_renderer.grid_topleft.y + print.dimensions.y / 2.0f,
+                terrain_renderer.grid_topleft.x + current_print.dimensions.x / 2.0f,
+                terrain_renderer.grid_topleft.y + current_print.dimensions.y / 2.0f,
                 0.0f
             }
         ) * rotate_zup;
-        instance_renderer.draw(prim, model_mat, cam, group_count);
-        // move to next mesh
-        it = group_end;
+        instance_renderer.draw(prim, model_mat, cam, positions.size());
     } while (it != end);
-
 }
 
 namespace {
