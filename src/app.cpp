@@ -89,22 +89,6 @@ void te::app::mouse_pick() {
     }
 }
 
-glm::vec3 te::app::to_world(glm::ivec2 map) {
-    glm::vec3 world_pos = glm::vec3{ static_cast<float>(map.x), static_cast<float>(map.y), 0.0f }
-                                   + terrain_renderer.grid_topleft;
-    return world_pos;
-}
-
-glm::vec3 te::app::to_world(te::site place, te::site_blueprint print) {
-    glm::vec3 world_position = to_world(place.position);
-    glm::vec3 world_dimensions {
-        static_cast<float>(print.dimensions.x),
-        static_cast<float>(print.dimensions.y),
-        0.0f
-    };
-    return (2.0f * world_position + world_dimensions) / 2.0f;
-}
-
 glm::mat4 rotate_zup = glm::mat4_cast(te::rotation_between_units (
     glm::vec3 {0.0f, 1.0f, 0.0f},
     glm::vec3 {0.0f, 0.0f, 1.0f}
@@ -115,15 +99,47 @@ void te::app::render_scene() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     terrain_renderer.render(cam);
 
-    model.entities.view<te::site, te::site_blueprint, te::render_mesh>().each (
-        [&](auto& map_site, auto& print, auto& rmesh) {
-            auto& prim = resources.lazy_load<te::instanced_primitive>(rmesh.filename);
-            prim.instance_attribute_buffer.bind();
-            glm::vec3 world = to_world(map_site, print);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(world), &world, GL_STATIC_READ);
-            instance_renderer.draw(prim, rotate_zup, cam);
+    const auto instances = model.entities.group<te::render_mesh, te::site, te::site_blueprint>();
+    instances.sort<te::render_mesh> (
+        [](const auto& lhs, const auto& rhs) {
+            return lhs.filename < rhs.filename;
         }
     );
+
+    const auto begin = instances.begin();
+    const auto end = instances.end();
+    auto it = begin;
+    do {
+        auto current_rmesh = instances.get<render_mesh>(*it);
+        auto group_end = std::find_if_not (
+            it, end,
+            [&](const auto& x) {
+                return current_rmesh.filename == instances.get<render_mesh>(x).filename;
+            }
+        );
+        const auto group_count = std::distance(it, group_end);
+        const auto& prim = resources.lazy_load<te::instanced_primitive>(current_rmesh.filename);
+        const auto& print = instances.get<site_blueprint>(*it);
+        prim.instance_attribute_buffer.bind();
+        //BUG: raw components are not sorted by the above call to sort(), therefore this is broken
+        glBufferData (
+            GL_ARRAY_BUFFER,
+            group_count * sizeof(glm::vec2),
+            instances.raw<site>() + std::distance(begin, it),
+            GL_STATIC_READ
+        );
+        const auto model_mat = glm::translate (
+            glm::vec3 {
+                terrain_renderer.grid_topleft.x + print.dimensions.x / 2.0f,
+                terrain_renderer.grid_topleft.y + print.dimensions.y / 2.0f,
+                0.0f
+            }
+        ) * rotate_zup;
+        instance_renderer.draw(prim, model_mat, cam, group_count);
+        // move to next mesh
+        it = group_end;
+    } while (it != end);
+
 }
 
 namespace {
@@ -147,7 +163,7 @@ void te::app::render_ui() {
         auto id_string = fmt::format("{}", *reinterpret_cast<std::uint32_t*>(&*inspected));
         ImGui::Separator();
         if (auto [maybe_site, maybe_print] = model.entities.try_get<te::site, te::site_blueprint>(*inspected); maybe_site && maybe_print) {
-            ImGui::Text("Map position: (%d, %d)", maybe_site->position.x, maybe_site->position.y);
+            ImGui::Text("Map position: (%f, %f)", maybe_site->position.x, maybe_site->position.y);
             ImGui::Text("%s (#%s)", maybe_print->name.c_str(), id_string.c_str());
         }
         if (auto the_generator = model.entities.try_get<te::generator>(*inspected); the_generator) {

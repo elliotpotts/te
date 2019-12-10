@@ -1,13 +1,13 @@
 #ifndef TE_SIM_HPP_INCLUDED
 #define TE_SIM_HPP_INCLUDED
 
-#include <entt/entt.hpp>
-#include <string>
-#include <glm/glm.hpp>
+#include <te/util.hpp>
 #include <unordered_map>
 #include <vector>
 #include <random>
-#include <te/util.hpp>
+#include <string>
+#include <glm/vec2.hpp>
+#include <entt/entt.hpp>
 
 namespace te {
     // Blueprints
@@ -18,7 +18,7 @@ namespace te {
     
     struct site_blueprint {
         std::string name;
-        glm::ivec2 dimensions;
+        glm::vec2 dimensions;
     };
     
     struct transport_method {
@@ -26,9 +26,9 @@ namespace te {
     };
 
     // Sim
+    // location of the centre of the entity
     struct site {
-        glm::ivec2 position;
-        float rotation;
+        glm::vec2 position;
     };
 
     struct demander {
@@ -59,23 +59,23 @@ namespace te {
     struct sim {
         std::default_random_engine rengine;
         entt::registry entities;
-        std::vector<entt::registry::entity_type> site_blueprints;
+        std::vector<entt::entity> site_blueprints;
 
         const int map_width = 40;
         const int map_height = 40;
-        std::unordered_map<glm::ivec2, entt::registry::entity_type> map;
+        std::unordered_map<glm::ivec2, entt::entity> grid;
 
         sim(unsigned seed);
 
         void init_blueprints();
         void generate_map();
 
-        market* market_at(glm::ivec2 x);
+        market* market_at(glm::vec2 x);
         bool in_market(const site& question_site, const site& market_site, const market& the_market) const;
-        bool can_place(entt::registry::entity_type entity, glm::ivec2 where);
+        bool can_place(entt::entity entity, glm::vec2 where);
 
-        void place(entt::registry::entity_type proto, glm::ivec2 where);
-        void spawn(entt::registry::entity_type proto);
+        void place(entt::entity proto, glm::vec2 where);
+        void spawn(entt::entity proto);
         void tick();
     };
 

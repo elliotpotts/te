@@ -133,7 +133,7 @@ te::instanced_primitive te::instance_renderer::load_from_file(std::string filena
     glEnableVertexAttribArray(4);
     glVertexAttribPointer (
         4, // attribute location. TODO: un-hardcode this location
-        3, // component count. TODO: un-hardcode this component count
+        2, // component count. TODO: un-hardcode this component count
         GL_FLOAT, // component type.
         GL_FALSE, // normalise
         0, // stride
@@ -159,7 +159,7 @@ te::instanced_primitive te::instance_renderer::load_from_file(std::string filena
         std::move(gl_sampler)
     };
 };
-void te::instance_renderer::draw(te::instanced_primitive& prim, const glm::mat4& model_mat, const te::camera& cam) {
+void te::instance_renderer::draw(te::instanced_primitive& prim, const glm::mat4& model_mat, const te::camera& cam, int count) {
     glUseProgram(*program.hnd);
     glUniformMatrix4fv(view, 1, GL_FALSE, glm::value_ptr(cam.view()));
     glUniformMatrix4fv(proj, 1, GL_FALSE, glm::value_ptr(cam.projection()));
@@ -168,5 +168,5 @@ void te::instance_renderer::draw(te::instanced_primitive& prim, const glm::mat4&
     prim.sampler.bind(0);
     prim.texture.activate(0);
     glBindVertexArray(prim.vao);
-    glDrawElementsInstanced(prim.element_mode, prim.element_count, prim.element_type, reinterpret_cast<void*>(prim.element_offset), 1);
+    glDrawElementsInstanced(prim.element_mode, prim.element_count, prim.element_type, reinterpret_cast<void*>(prim.element_offset), count);
 }

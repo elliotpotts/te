@@ -98,6 +98,16 @@ namespace te::gl {
         explicit renderbuffer(renderbuffer_hnd hnd);
         void bind() const;
     };
+
+    struct input_description_deleter {
+        void operator()(GLuint) const;
+    };
+    using input_description_hnd = unique<GLuint, input_description_deleter>;
+    struct input_description {
+        input_description_hnd hnd;
+        explicit input_description(input_description_hnd hnd);
+        void bind() const;
+    };
     
     struct context {
         shader compile(std::string source, GLenum type);

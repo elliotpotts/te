@@ -33,7 +33,7 @@ namespace te {
     public:
         instance_renderer(gl::context&);
         instanced_primitive load_from_file(std::string filename, int howmany);
-        void draw(instanced_primitive& prim, const glm::mat4& model, const te::camera& cam);
+        void draw(instanced_primitive& prim, const glm::mat4& model, const te::camera& cam, int count);
     };
 }
 #endif

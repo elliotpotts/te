@@ -48,8 +48,6 @@ namespace te {
         void on_mouse_button(int button, int action, int mods);
         
         void mouse_pick();
-        glm::vec3 to_world(glm::ivec2 map);
-        glm::vec3 to_world(te::site place, te::site_blueprint print);
         void render_scene();
         void render_ui();
         void input();
