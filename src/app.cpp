@@ -27,7 +27,7 @@ namespace {
 te::app::app(te::sim& model, unsigned int seed) :
     model { model },
     rengine { seed },
-    win { glfw.make_window(1024, 768, "Hello, World!")},
+    win { glfw.make_window(1920, 1080, "Hello, World!")},
     imgui_io { setup_imgui(win) },
     cam {
         {0.0f, 0.0f, 0.0f},
@@ -71,7 +71,7 @@ void te::app::mouse_pick() {
     colour_picker.colour_fbuffer.bind();
     glClear(GL_COLOR_BUFFER_BIT);
 
-    auto instances = model.entities.group<render_mesh, site, site_blueprint, pickable>();
+    auto instances = model.entities.group<render_mesh, site, site_blueprint>();
     instances.sort<te::render_mesh> (
         [](const auto& lhs, const auto& rhs) {
             return lhs.filename < rhs.filename;
@@ -146,12 +146,11 @@ void te::app::render_scene() {
     terrain_renderer.render(cam);
 
     auto instances = model.entities.group<render_mesh, site, site_blueprint>();
-    //TODO: figure out why this breaks
-    /*instances.sort<te::render_mesh> (
+    instances.sort<te::render_mesh> (
         [](const auto& lhs, const auto& rhs) {
             return lhs.filename < rhs.filename;
         }
-    );*/
+    );
 
     const auto begin = instances.begin();
     const auto end = instances.end();

@@ -46,7 +46,7 @@ te::window te::glfw_context::make_window(int width, int height, const char* titl
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
-    auto window = window_hnd{glfwCreateWindow(width, height, title, nullptr, nullptr)};
+    auto window = window_hnd{glfwCreateWindow(width, height, title, glfwGetPrimaryMonitor(), nullptr)};
     if (!window) {
         window.reset();
         throw std::runtime_error("Could not create opengl window");
