@@ -87,7 +87,7 @@ namespace te {
     struct render_mesh {
         std::string filename;
     };
-    struct pickable {
+    struct pickable { 
     };
 }
 

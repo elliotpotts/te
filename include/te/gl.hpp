@@ -35,12 +35,22 @@ namespace te::gl {
         GLint uniform(const char* name) const;
         std::optional<GLint> find_attribute(const char* name) const;
     };
-    inline const std::vector<std::pair<te::gl::string, GLuint>> common_attribute_locations = {
-        {"POSITION", 0},
-        {"NORMAL", 1},
-        {"TANGENT", 2},
-        {"TEXCOORD_0", 3},
-        {"INSTANCE_OFFSET", 4},
+
+    enum common_attribute_locations : GLuint{
+        POSITION,
+        NORMAL,
+        TANGENT,
+        TEXCOORD_0,
+        INSTANCE_OFFSET,
+        INSTANCE_COLOUR
+    };
+    inline const std::vector<std::pair<te::gl::string, GLuint>> common_attribute_names = {
+        {"POSITION", POSITION},
+        {"NORMAL", NORMAL},
+        {"TANGENT", TANGENT},
+        {"TEXCOORD_0", TEXCOORD_0},
+        {"INSTANCE_OFFSET", INSTANCE_OFFSET},
+        {"INSTANCE_COLOUR", INSTANCE_COLOUR}
     };
 
     struct buffer_deleter {

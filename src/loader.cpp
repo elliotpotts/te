@@ -104,13 +104,13 @@ namespace {
             std::list<te::attribute_source> attributes;
             for (auto [attrib_name, accessor_ix] : doc_primitive.attributes) {
                 auto attrib_loc_it = std::find_if (
-                    te::gl::common_attribute_locations.begin(),
-                    te::gl::common_attribute_locations.end(),
+                    te::gl::common_attribute_names.begin(),
+                    te::gl::common_attribute_names.end(),
                     [&] (const auto& pair) {
                         return pair.first == attrib_name;
                     }
                 );
-                if (attrib_loc_it == te::gl::common_attribute_locations.end()) {
+                if (attrib_loc_it == te::gl::common_attribute_names.end()) {
                     spdlog::info("      Unused attribute {}", attrib_name);
                     continue;
                 } else {

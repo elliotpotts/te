@@ -5,7 +5,7 @@
 #include <te/cache.hpp>
 #include <te/camera.hpp>
 #include <te/terrain_renderer.hpp>
-#include <te/instance_renderer.hpp>
+#include <te/mesh_renderer.hpp>
 #include <te/colour_picker.hpp>
 #include <te/util.hpp>
 #include <unordered_map>
@@ -13,7 +13,6 @@
 #include <imgui.h>
 namespace te {
     struct app {
-        friend class app_loader;
         te::sim& model;
         std::default_random_engine rengine;
         te::glfw_context glfw;
@@ -21,7 +20,7 @@ namespace te {
         ImGuiIO& imgui_io;
         te::camera cam;
         te::terrain_renderer terrain_renderer;
-        te::instance_renderer instance_renderer;
+        te::mesh_renderer mesh_renderer;
         te::colour_picker colour_picker;
         te::asset_loader loader;
         te::cache<asset_loader> resources;
