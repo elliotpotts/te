@@ -35,10 +35,9 @@ te::app::app(te::sim& model, unsigned int seed) :
         8.0f
     },
     terrain_renderer{ win.gl, rengine, model.map_width, model.map_height },
-    mesh_renderer{ win.gl },
     instance_renderer { win.gl },
     colour_picker{ win },
-    loader { win.gl, mesh_renderer, instance_renderer },
+    loader { win.gl },
     resources { loader }
 {
     win.on_key.connect([&](int key, int scancode, int action, int mods){ on_key(key, scancode, action, mods); });
@@ -63,13 +62,29 @@ void te::app::on_mouse_button(int button, int action, int mods) {
     }
 }
 
+
+glm::mat4 rotate_zup = glm::mat4_cast(te::rotation_between_units (
+    glm::vec3 {0.0f, 1.0f, 0.0f},
+    glm::vec3 {0.0f, 0.0f, 1.0f}
+));
+
 void te::app::mouse_pick() {
     colour_picker.colour_fbuffer.bind();
     glClear(GL_COLOR_BUFFER_BIT);
     model.entities.view<te::site, te::site_blueprint, te::pickable, te::render_mesh>().each (
         [&](const entt::entity& entity, auto& map_site, auto& print, auto pick, auto& mesh) {
+            auto& doc = resources.lazy_load<te::gltf>(mesh.filename);
+            auto& current_print = model.entities.get<te::site_blueprint>(entity);
+            auto& current_site = model.entities.get<te::site>(entity);
+            const auto model_mat = glm::translate (
+                glm::vec3 {
+                    terrain_renderer.grid_topleft.x + current_site.position.x + current_print.dimensions.x / 2.0f,
+                    terrain_renderer.grid_topleft.y + current_site.position.y + current_print.dimensions.y / 2.0f,
+                    0.0f
+                }
+            ) * rotate_zup;
             auto pick_colour = *reinterpret_cast<const std::uint32_t*>(&entity);
-            //colour_picker.draw(resources.lazy_load<te::mesh>(mesh.filename), map_to_model_matrix(map_site, print), pick_colour, cam);
+            colour_picker.draw(*doc.primitives.begin(), model_mat, pick_colour, cam);
         }
     );
     glFlush();
@@ -88,11 +103,6 @@ void te::app::mouse_pick() {
         inspected.reset();
     }
 }
-
-glm::mat4 rotate_zup = glm::mat4_cast(te::rotation_between_units (
-    glm::vec3 {0.0f, 1.0f, 0.0f},
-    glm::vec3 {0.0f, 0.0f, 1.0f}
-));
 
 void te::app::render_scene() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -118,8 +128,9 @@ void te::app::render_scene() {
             positions.push_back(instances.get<site>(*it).position);
             it++;
         }
-        auto& prim = resources.lazy_load<instanced_primitive>(current_rmesh.filename);
-        prim.instance_attribute_buffer.bind();
+        auto& doc = resources.lazy_load<gltf>(current_rmesh.filename);
+        auto& instanced = instance_renderer.instance(*doc.primitives.begin());
+        instanced.instance_attribute_buffer.bind();
         glBufferData (
             GL_ARRAY_BUFFER,
             positions.size() * sizeof(decltype(positions)::value_type),
@@ -133,7 +144,7 @@ void te::app::render_scene() {
                 0.0f
             }
         ) * rotate_zup;
-        instance_renderer.draw(prim, model_mat, cam, positions.size());
+        instance_renderer.draw(instanced, model_mat, cam, positions.size());
     } while (it != end);
 }
 

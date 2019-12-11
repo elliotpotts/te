@@ -1,31 +1,17 @@
 #ifndef TE_APP_HPP_INCLUDED
 #define TE_APP_HPP_INCLUDED
 #include <te/sim.hpp>
-#include <random>
 #include <te/window.hpp>
 #include <te/cache.hpp>
-#include <imgui.h>
 #include <te/camera.hpp>
 #include <te/terrain_renderer.hpp>
-#include <te/mesh_renderer.hpp>
 #include <te/instance_renderer.hpp>
 #include <te/colour_picker.hpp>
 #include <te/util.hpp>
+#include <unordered_map>
+#include <random>
+#include <imgui.h>
 namespace te {
-    struct asset_loader {
-        te::gl::context& gl;
-        te::mesh_renderer& mesh_renderer;
-        te::instance_renderer& instance_renderer;
-        inline te::mesh operator()(type_tag<te::mesh>, const std::string& filename) {
-            return mesh_renderer.load_from_file(filename);
-        }
-        inline te::gl::texture2d operator()(type_tag<te::gl::texture2d>, const std::string& filename) {
-            return gl.make_texture(filename);
-        }
-        inline te::instanced_primitive operator()(type_tag<te::instanced_primitive>, const std::string& filename) {
-            return instance_renderer.load_from_file(filename, 200);
-        }
-    };
     struct app {
         friend class app_loader;
         te::sim& model;
@@ -35,10 +21,9 @@ namespace te {
         ImGuiIO& imgui_io;
         te::camera cam;
         te::terrain_renderer terrain_renderer;
-        te::mesh_renderer mesh_renderer;
         te::instance_renderer instance_renderer;
         te::colour_picker colour_picker;
-        asset_loader loader;
+        te::asset_loader loader;
         te::cache<asset_loader> resources;
         std::optional<entt::registry::entity_type> inspected;
 

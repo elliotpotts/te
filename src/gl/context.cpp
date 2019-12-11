@@ -1,4 +1,5 @@
 #include <te/gl.hpp>
+#include <te/mesh.hpp>
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
 #include <fmt/format.h>
@@ -285,4 +286,31 @@ void te::gl::context::attach(te::gl::renderbuffer& rbuf, te::gl::framebuffer& fb
     rbuf.bind();
     fbuf.bind();
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, *rbuf.hnd);
+}
+
+void te::gl::vao_deleter::operator()(GLuint vao) const {
+    glDeleteVertexArrays(1, &vao);
+}
+te::gl::vao::vao(vao_hnd hnd) : hnd(std::move(hnd)) {
+}
+void te::gl::vao::bind() const {
+    glBindVertexArray(*hnd);
+}
+te::gl::vao te::gl::context::make_vertex_array(const te::input_description& inputs) {
+    vao array { make_hnd<vao_hnd>(glGenVertexArrays) };
+    array.bind();
+    inputs.elements.bind();
+    for (auto& attribute_input : inputs.attributes) {
+        attribute_input.source.bind();
+        glEnableVertexAttribArray(attribute_input.location);
+        glVertexAttribPointer (
+            attribute_input.location,
+            attribute_input.size,
+            attribute_input.type,
+            attribute_input.normalized,
+            attribute_input.stride,
+            attribute_input.offset
+        );
+    }
+    return array;
 }

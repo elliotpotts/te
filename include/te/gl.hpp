@@ -9,6 +9,10 @@
 
 struct FIBITMAP;
 
+namespace te {
+    struct input_description;
+}
+
 namespace te::gl {
     using string = std::basic_string<GLchar>;
     
@@ -31,11 +35,18 @@ namespace te::gl {
         GLint uniform(const char* name) const;
         std::optional<GLint> find_attribute(const char* name) const;
     };
+    inline const std::vector<std::pair<te::gl::string, GLuint>> common_attribute_locations = {
+        {"POSITION", 0},
+        {"NORMAL", 1},
+        {"TANGENT", 2},
+        {"TEXCOORD_0", 3},
+        {"INSTANCE_OFFSET", 4},
+    };
 
     struct buffer_deleter {
         void operator()(GLuint) const;
     };
-    using buffer_hnd = unique<GLuint, buffer_deleter>;
+    using buffer_hnd = unique<GLuint, buffer_deleter>;    
     template<GLenum target>
     struct buffer {
         buffer_hnd hnd;
@@ -99,13 +110,13 @@ namespace te::gl {
         void bind() const;
     };
 
-    struct input_description_deleter {
+    struct vao_deleter {
         void operator()(GLuint) const;
     };
-    using input_description_hnd = unique<GLuint, input_description_deleter>;
-    struct input_description {
-        input_description_hnd hnd;
-        explicit input_description(input_description_hnd hnd);
+    using vao_hnd = unique<GLuint, vao_deleter>;
+    struct vao {
+        vao_hnd hnd;
+        explicit vao(vao_hnd hnd);
         void bind() const;
     };
     
@@ -126,13 +137,19 @@ namespace te::gl {
             //TODO: typecheck 
             return T{hnd};
         }
-        template<GLenum target, typename It>
-        buffer<target> make_buffer(It begin, It end, GLenum usage_hint = GL_STATIC_DRAW) {
+        template<GLenum target>
+        buffer<target> make_buffer() {
             buffer<target> buffer { make_hnd<buffer_hnd>(glGenBuffers) };
             buffer.bind();
+            return buffer;
+        }
+        template<GLenum target, typename It>
+        buffer<target> make_buffer(It begin, It end, GLenum usage_hint = GL_STATIC_DRAW) {
+            auto buffer = make_buffer<target>();
             glBufferData(target, reinterpret_cast<const char*>(std::to_address(end)) - reinterpret_cast<const char*>(std::to_address(begin)), std::to_address(begin), usage_hint);
             return buffer;
         }
+        vao make_vertex_array(const te::input_description& inputs);
         explicit context();
         void toggle_perf_warnings(bool enabled);
     };

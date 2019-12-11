@@ -2,12 +2,18 @@
 #define TE_CACHE_HPP_INCLUDED
 #include <unordered_map>
 #include <string>
+#include <type_traits>
 #include <te/util.hpp>
 #include <te/unique_any.hpp>
+#include <te/util.hpp>
+#include <te/mesh.hpp>
+#include <utility>
 #include <spdlog/spdlog.h>
 namespace te {
-    template<typename T>
-    class cached {
+    struct asset_loader {
+        te::gl::context& gl;
+        te::gl::texture2d operator()(type_tag<te::gl::texture2d>, const std::string& filename);
+        te::gltf operator()(type_tag<te::gltf>, const std::string& filename);
     };
     
     template<typename F>
@@ -26,7 +32,7 @@ namespace te {
                 std::make_tuple(filename),
                 std::forward_as_tuple (
                     std::in_place_type_t<T>{},
-                    std::forward<T>(loader.operator()(type_tag<T>{}, filename))
+                    loader.operator()(type_tag<T>{}, filename)
                 )
             );
             return it->second.template get<T>();

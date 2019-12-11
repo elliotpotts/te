@@ -4,7 +4,7 @@
 #include <te/window.hpp>
 #include <te/camera.hpp>
 #include <glm/glm.hpp>
-#include <te/mesh_renderer.hpp>
+#include <te/mesh.hpp>
 namespace te {
     struct colour_picker {
         te::window& win;
@@ -16,7 +16,7 @@ namespace te {
         gl::framebuffer colour_fbuffer;
         gl::renderbuffer attachment;
         colour_picker(te::window& win);
-        void draw(mesh& themesh, const glm::mat4& model, std::uint32_t id, const te::camera& cam);
+        void draw(te::primitive& themesh, const glm::mat4& model, std::uint32_t id, const te::camera& cam);
     };
 }
 #endif

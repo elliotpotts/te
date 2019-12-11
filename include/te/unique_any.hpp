@@ -17,6 +17,15 @@ namespace te {
                        std::default_delete<T>{}(static_cast<T*>(object));
                    }} {
             }
+
+        template<typename T>
+        unique_any(T* pointer) :
+            contained_type { typeid(T) },
+            store { pointer,
+                    [](void* object) {
+                        std::default_delete<T>{}(static_cast<T*>(object));
+                    }} {
+            }
     
         template<typename T>
         T& get() {
