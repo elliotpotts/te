@@ -1,4 +1,5 @@
 #include <te/sim.hpp>
+#include <spdlog/spdlog.h>
 
 te::sim::sim(unsigned int seed) : rengine { seed } {
     init_blueprints();
@@ -30,7 +31,7 @@ void te::sim::init_blueprints() {
     auto barley_field = site_blueprints.emplace_back(entities.create());
     entities.assign<site_blueprint>(barley_field, "Barley Field", glm::vec2{2.0f,2.0f});
     entities.assign<generator>(barley_field, barley, 0.005);
-    entities.assign<render_mesh>(barley_field, "media/wheat.glb");
+    entities.assign<render_mesh>(barley_field, "media/barley.glb");
     entities.assign<pickable>(barley_field);
 
     auto dwelling = site_blueprints.emplace_back(entities.create());
@@ -51,6 +52,21 @@ void te::sim::init_blueprints() {
 void te::sim::generate_map() {
     std::discrete_distribution<std::size_t> select_blueprint {5, 3, 50, 2};
     for (int i = 0; i < 200; i++) spawn(site_blueprints[select_blueprint(rengine)]);
+    // create a roaming merchant
+    auto merchant_e = entities.create();
+    entities.assign<site>(merchant_e, glm::vec2{0.0f, 0.0f});
+    entities.assign<site_blueprint>(merchant_e, "Merchant", glm::vec2{1.0f, 1.0f});
+    entities.assign<render_mesh>(merchant_e, "media/merchant.glb");
+    entities.assign<pickable>(merchant_e);
+    std::vector<te::stop> salesman;
+    for (auto market : entities.view<site, market>()) {
+        salesman.push_back(te::stop { market });
+    }
+    entities.assign<merchant> (
+        merchant_e,
+        route { salesman },
+        salesman.size() - 1
+    );
 }
 
 te::market* te::sim::market_at(glm::vec2 x) {
@@ -121,6 +137,23 @@ try_again:
 }
 
 void te::sim::tick() {
+    entities.view<merchant, site>().each (
+        [&](auto& merchant, auto& merchant_site) {
+            std::size_t next_stop_ix = (merchant.last_stop + 1) % merchant.route.stops.size();
+            auto next_site = entities.get<site>(merchant.route.stops[next_stop_ix].where);
+            auto to_go = next_site.position - merchant_site.position;
+            auto distance_to_next_stop = glm::length(to_go);
+            // if he's close enough, advance to next part of route and recalculate
+            if (distance_to_next_stop <= 2.0f) {
+                merchant.last_stop = next_stop_ix;
+                next_stop_ix = (next_stop_ix + 1) % merchant.route.stops.size();
+                next_site = entities.get<site>(merchant.route.stops[next_stop_ix].where);
+                distance_to_next_stop = glm::length(merchant_site.position - next_site.position);
+            }
+            // move him a bit closer
+            merchant_site.position += glm::normalize(to_go) * 0.05f;
+        }
+    );
     entities.view<market, site>().each (
         [&](auto& market, auto& market_site) {
             entities.view<generator, site>().each (

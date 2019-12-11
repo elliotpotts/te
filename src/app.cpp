@@ -32,7 +32,7 @@ te::app::app(te::sim& model, unsigned int seed) :
     cam {
         {0.0f, 0.0f, 0.0f},
         {-0.7f, -0.7f, 1.0f},
-        8.0f
+        14.0f
     },
     terrain_renderer{ win.gl, rengine, model.map_width, model.map_height },
     mesh_renderer { win.gl },
@@ -66,6 +66,16 @@ glm::mat4 rotate_zup = glm::mat4_cast(te::rotation_between_units (
     glm::vec3 {0.0f, 1.0f, 0.0f},
     glm::vec3 {0.0f, 0.0f, 1.0f}
 ));
+
+glm::mat4 te::app::model_tfm(te::site_blueprint print) const {
+    return glm::translate (
+        glm::vec3 {
+            terrain_renderer.grid_topleft.x + print.dimensions.x / 2.0f,
+            terrain_renderer.grid_topleft.y + print.dimensions.y / 2.0f,
+            0.0f
+        }
+    ) * rotate_zup;    
+}
 
 void te::app::mouse_pick() {
     colour_picker.colour_fbuffer.bind();
@@ -113,13 +123,7 @@ void te::app::mouse_pick() {
             instance_attrs.data(),
             GL_STATIC_READ
         );
-        const auto model_mat = glm::translate (
-            glm::vec3 {
-                terrain_renderer.grid_topleft.x + current_print.dimensions.x / 2.0f,
-                terrain_renderer.grid_topleft.y + current_print.dimensions.y / 2.0f,
-                0.0f
-            }
-        ) * rotate_zup;
+        const auto model_mat = model_tfm(current_print);
         colour_picker.draw(instanced, model_mat, cam, instance_attrs.size());
     } while (it != end);
     
@@ -173,13 +177,7 @@ void te::app::render_scene() {
             positions.data(),
             GL_STATIC_READ
         );
-        const auto model_mat = glm::translate (
-            glm::vec3 {
-                terrain_renderer.grid_topleft.x + current_print.dimensions.x / 2.0f,
-                terrain_renderer.grid_topleft.y + current_print.dimensions.y / 2.0f,
-                0.0f
-            }
-        ) * rotate_zup;
+        const auto model_mat = model_tfm(current_print);
         mesh_renderer.draw(instanced, model_mat, cam, positions.size());
     } while (it != end);
 }

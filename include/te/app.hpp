@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <random>
 #include <imgui.h>
+#include <glm/glm.hpp>
 namespace te {
     struct app {
         te::sim& model;
@@ -25,6 +26,8 @@ namespace te {
         te::asset_loader loader;
         te::cache<asset_loader> resources;
         std::optional<entt::registry::entity_type> inspected;
+
+        glm::mat4 model_tfm(te::site_blueprint) const;
 
         app(te::sim& model, unsigned int seed);
 

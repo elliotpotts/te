@@ -56,10 +56,26 @@ namespace te {
     struct pathway {
     };
 
+    struct stop {
+        entt::entity where;
+        std::unordered_map<entt::entity, int> leave_with;
+    };
+    
+    struct route {
+        std::vector<stop> stops;
+    };
+
+    struct merchant {
+        te::route route;
+        std::size_t last_stop;
+        std::unordered_map<entt::entity, int> inventory;
+    };
+
     struct sim {
         std::default_random_engine rengine;
         entt::registry entities;
         std::vector<entt::entity> site_blueprints;
+        entt::entity merchant_blueprint;
 
         const int map_width = 40;
         const int map_height = 40;
