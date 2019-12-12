@@ -24,6 +24,10 @@ namespace te {
         GLint sampler;
         std::unordered_map<primitive*, instanced> instances;
     public:
+        struct instance_attributes {
+            glm::vec2 offset;
+            glm::vec3 tint;
+        };
         mesh_renderer(gl::context&);
         instanced& instance(te::primitive& primitive);
         void draw(instanced& prim, const glm::mat4& model, const te::camera& cam, int count);

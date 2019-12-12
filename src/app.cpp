@@ -159,13 +159,26 @@ void te::app::render_scene() {
     const auto begin = instances.begin();
     const auto end = instances.end();
     auto it = begin;
+
+    const te::market* market = nullptr;
+    const te::site* market_site = nullptr;
+    if (inspected) {
+        market = model.entities.try_get<te::market>(*inspected);
+        market_site = model.entities.try_get<te::site>(*inspected);
+    }
     
     do {
-        std::vector<glm::vec2> positions;
+        std::vector<te::mesh_renderer::instance_attributes> instance_attributes;
         const auto& current_rmesh = instances.get<render_mesh>(*it);
         const auto& current_print = instances.get<site_blueprint>(*it);
         while (it != end && instances.get<render_mesh>(*it).filename == current_rmesh.filename) {
-            positions.push_back(instances.get<site>(*it).position);
+            bool tinted = market && market_site && model.in_market(instances.get<site>(*it), *market_site, *market);
+            instance_attributes.push_back (
+                te::mesh_renderer::instance_attributes {
+                    instances.get<site>(*it).position,
+                    tinted ? glm::vec3(1.0f, 0.0f, 0.0f) : glm::vec3(0.0f)
+                }
+            );
             it++;
         }
         auto& doc = resources.lazy_load<gltf>(current_rmesh.filename);
@@ -173,12 +186,12 @@ void te::app::render_scene() {
         instanced.instance_attribute_buffer.bind();
         glBufferData (
             GL_ARRAY_BUFFER,
-            positions.size() * sizeof(decltype(positions)::value_type),
-            positions.data(),
+            instance_attributes.size() * sizeof(decltype(instance_attributes)::value_type),
+            instance_attributes.data(),
             GL_STATIC_READ
         );
         const auto model_mat = model_tfm(current_print);
-        mesh_renderer.draw(instanced, model_mat, cam, positions.size());
+        mesh_renderer.draw(instanced, model_mat, cam, instance_attributes.size());
     } while (it != end);
 }
 

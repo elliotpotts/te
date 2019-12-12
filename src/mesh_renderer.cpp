@@ -28,8 +28,17 @@ te::mesh_renderer::instanced& te::mesh_renderer::instance(te::primitive& primiti
         2,
         GL_FLOAT,
         GL_FALSE,
-        0,
+        sizeof(glm::vec2) + sizeof(glm::vec3),
         reinterpret_cast<void*>(0)
+    });
+    inputs.attributes.emplace_back ( te::attribute_source {
+        instance_attribute_buffer,
+        te::gl::INSTANCE_COLOUR,
+        3,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(glm::vec2) + sizeof(glm::vec3),
+        reinterpret_cast<void*>(sizeof(glm::vec2))
     });
     auto [it, emplaced] = instances.emplace (
         &primitive,
@@ -40,6 +49,7 @@ te::mesh_renderer::instanced& te::mesh_renderer::instance(te::primitive& primiti
         }
     );
     glVertexAttribDivisor(te::gl::INSTANCE_OFFSET, 1);
+    glVertexAttribDivisor(te::gl::INSTANCE_COLOUR, 1);
     glBindVertexArray(0);
     return it->second;
 }
