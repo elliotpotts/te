@@ -26,10 +26,12 @@ namespace te {
         glm::vec2 position;
     };
 
-    struct living {
+    struct dweller {
+        // -1.0 = they will stay despite high food cost
+        //  1.0 = they will leave quickly if food is expensive
+        double volatility = 0.0;
         //TODO: programmatically represent requirements of living
         // i.e. dwellings need 2 of 3 food types in abundance
-        bool dummy = false;
     };
 
     // A demander stores the rate of increase of demand of entities
@@ -58,6 +60,7 @@ namespace te {
         std::unordered_map<entt::entity, double> prices;
         std::unordered_map<entt::entity, double> demand;
         float radius = 5.0f;
+        int population = 0;
     };
 
     struct stop {

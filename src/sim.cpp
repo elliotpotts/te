@@ -27,14 +27,14 @@ void te::sim::init_blueprints() {
     auto wheat_field = site_blueprints.emplace_back(entities.create());
     entities.assign<named>(wheat_field, "Wheat Field");
     entities.assign<site_blueprint>(wheat_field, glm::vec2{2.0f,2.0f});
-    entities.assign<generator>(wheat_field, wheat, 0.004);
+    entities.assign<generator>(wheat_field, wheat, 0.001);
     entities.assign<render_mesh>(wheat_field, "media/wheat.glb");
     entities.assign<pickable>(wheat_field);
 
     auto barley_field = site_blueprints.emplace_back(entities.create());
     entities.assign<named>(barley_field, "Barley Field");
     entities.assign<site_blueprint>(barley_field, glm::vec2{2.0f,2.0f});
-    entities.assign<generator>(barley_field, barley, 0.005);
+    entities.assign<generator>(barley_field, barley, 0.002);
     entities.assign<render_mesh>(barley_field, "media/barley.glb");
     entities.assign<pickable>(barley_field);
 
@@ -42,10 +42,10 @@ void te::sim::init_blueprints() {
     entities.assign<named>(dwelling, "Dwelling");
     entities.assign<site_blueprint>(dwelling, glm::vec2{1.0f,1.0f});
     demander& dwelling_demander = entities.assign<demander>(dwelling);
-    dwelling_demander.rate[wheat] = 0.0005f;
-    dwelling_demander.rate[barley] = 0.0004f;
+    dwelling_demander.rate[wheat] = 0.001f;
+    dwelling_demander.rate[barley] = 0.0008f;
     entities.assign<trader>(dwelling);
-    entities.assign<living>(dwelling);
+    entities.assign<dweller>(dwelling);
     entities.assign<render_mesh>(dwelling, "media/dwelling.glb");
     entities.assign<pickable>(dwelling);
 
@@ -157,12 +157,19 @@ void te::sim::spawn_dwelling(entt::entity market_e) {
         static_cast<int>(market_site.position.y - market.radius),
         static_cast<int>(market_site.position.y + market.radius)
     };
+    static std::uniform_real_distribution select_volatility{-1.0, 1.0};
+    //TODO: un-hardcode this
+    auto dwelling_blueprint = site_blueprints[2];
     int attempts = 0;
 try_again:
     glm::vec2 map_pos { select_x_pos(rengine), select_y_pos(rengine) };
-    if (!can_place(site_blueprints[2], map_pos) && attempts++ >= 5)
+    if (!can_place(dwelling_blueprint, map_pos) && attempts++ <= 5) {
         goto try_again;
-    place(site_blueprints[2], map_pos);
+    } else {
+        entities.get<dweller>(dwelling_blueprint).volatility = select_volatility(rengine);
+        place(dwelling_blueprint, map_pos);
+        entities.get<te::market>(market_e).population++;
+    }
 }
 
 void te::sim::tick() {
@@ -258,37 +265,49 @@ void te::sim::tick() {
                 }
             );
             // calculate market population
-            int population = 0;
-            entities.view<living, site>().each (
+            market.population = 0;
+            entities.view<dweller, site>().each (
                 [&](auto& trader, auto& dwelling_site) {
                     if (in_market(dwelling_site, market_site, market)) {
-                        population++;
+                        market.population++;
                     }
                 }
             );
             // create/destroy dwellings
-            entities.view<commodity>().each (
-                [&](entt::entity commodity_e, auto& commodity) {
-                    const double current_price = market.prices[commodity_e];
-                    const double base_price = commodity.base_price;
-                    const double markup = current_price / base_price;
-                    const double demand = market.demand[commodity_e];
-                    const int stock = inventory.stock[commodity_e];
-                    const double disparity = static_cast<int>(demand) - stock;
-                    if (disparity > (population * 2) && markup > 1.1) {
-                        auto dwellings = entities.view<living, site>();
-                        for (auto dwelling : dwellings) {
-                            auto& dwelling_site = entities.get<site>(dwelling);
-                            if (in_market(dwelling_site, market_site, market)) {
-                                entities.destroy(dwelling);
-                                break;
-                            }
-                        }
-                    } else if (disparity < (population * 2) && markup < 0.9) {
-                        spawn_dwelling(market_e);
+            //TODO: there needs to be a temporal aspect
+
+            auto commodity_e = market.prices.begin()->first;
+            auto& commodity = entities.get<te::commodity>(commodity_e);
+            
+            const double current_price = market.prices[commodity_e];
+            const double base_price = commodity.base_price;
+            const double markup = current_price / base_price;
+            const double demand = market.demand[commodity_e];
+            const int stock = inventory.stock[commodity_e];
+            const double disparity = static_cast<int>(demand) - stock;
+            entities.view<site, dweller>().each (
+                [&](entt::entity dwelling, auto& dwelling_site, auto& dweller) {
+                    if (disparity > (market.population * (2 + dweller.volatility))) {
+                        entities.destroy(dwelling);
+                        market.population--;
                     }
                 }
             );
+            /*
+              if (disparity > (population * 2) && markup > 1.1) {
+              auto dwellings = entities.view<dweller, site>();
+              for (auto dwelling : dwellings) {
+              auto& dwelling_site = entities.get<site>(dwelling);
+              if (in_market(dwelling_site, market_site, market)) {
+              entities.destroy(dwelling);
+              break;
+              }
+              }
+              } else*/
+            if (stock > market.population * 1.1 && markup < 0.9) {
+                spawn_dwelling(market_e);
+            }
+
         }
     );
 }

@@ -238,6 +238,7 @@ void te::app::render_ui() {
         ImGui::Separator();
     }
     if (auto [the_market, the_inventory] = model.entities.try_get<te::market, te::inventory>(*inspected); the_market && the_inventory) {
+        ImGui::Text(fmt::format("Population: {}", the_market->population).c_str());
         ImGui::Columns(5);
         float width_available = ImGui::GetWindowContentRegionWidth();
 
