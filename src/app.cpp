@@ -199,107 +199,130 @@ void te::app::render_ui() {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
     ImGui::Text("FPS: %f", fps);
-    if (inspected) {
-        auto id_string = fmt::format("{}", *reinterpret_cast<std::uint32_t*>(&*inspected));
-        ImGui::Separator();
-        if (auto [maybe_site, maybe_print] = model.entities.try_get<te::site, te::site_blueprint>(*inspected); maybe_site && maybe_print) {
-            ImGui::Text("Map position: (%f, %f)", maybe_site->position.x, maybe_site->position.y);
-            ImGui::Text("%s (#%s)", maybe_print->name.c_str(), id_string.c_str());
-        }
-        if (auto the_generator = model.entities.try_get<te::generator>(*inspected); the_generator) {
-            ImGui::Separator();
-            auto& rendr_tex = model.entities.get<te::render_tex>(the_generator->output);
-            ImGui::Image(*resources.lazy_load<te::gl::texture2d>(rendr_tex.filename).hnd, ImVec2{24, 24});
-            ImGui::SameLine();
-            auto& output_commodity = model.entities.get<te::commodity>(the_generator->output);
-            ImGui::Text(fmt::format("{} @ {}/s", output_commodity.name, the_generator->rate).c_str());
-            ImGui::SameLine();
-            ImGui::ProgressBar(the_generator->progress);
-        }
-        if (auto the_demands = model.entities.try_get<te::demander>(*inspected); the_demands) {
-            ImGui::Separator();
-            for (auto [demanded, demand_level] : the_demands->demand) {
-                auto [demanded_commodity, commodity_tex] = model.entities.get<te::commodity, te::render_tex>(demanded);
-                ImGui::Image(*resources.lazy_load<te::gl::texture2d>(commodity_tex.filename).hnd, ImVec2{24, 24});
-                ImGui::SameLine();
-                ImGui::Text("%s: %f", demanded_commodity.name.c_str(), demand_level);
-            }
-        }
-        if (auto the_market = model.entities.try_get<te::market>(*inspected); the_market) {
-            ImGui::Separator();
-            ImGui::Columns(5);
-            float width_available = ImGui::GetWindowContentRegionWidth();
-
-            ImGui::Text("Stock");
-            ImGui::SetColumnWidth(0, 80);
-            width_available -= 80;
-            ImGui::NextColumn();
-
-            ImGui::SetColumnWidth(1, 50);
-            width_available -= 50;
-            ImGui::NextColumn();
-
-            ImGui::Text("Commodity");
-            ImGui::SetColumnWidth(2, 300);
-            width_available -= 300;
-            ImGui::NextColumn();
-
-            ImGui::NextColumn();
-
-            ImGui::Text("Demand");
-            ImGui::SetColumnWidth(4, 100);
-            width_available -= 100;
-            ImGui::NextColumn();
-
-            ImGui::SetColumnWidth(3, width_available);
-            for (auto [commodity_entity, price] : the_market->prices) {
-                auto [the_commodity, commodity_tex] = model.entities.get<te::commodity, te::render_tex>(commodity_entity);
-                ImGui::Text(fmt::format("{}", the_market->stock[commodity_entity]).c_str());
-                ImGui::NextColumn();
-
-                ImGui::Image(*resources.lazy_load<te::gl::texture2d>(commodity_tex.filename).hnd, ImVec2{24, 24});
-                ImGui::NextColumn();
-
-                ImGui::Text(the_commodity.name.c_str());
-                ImGui::NextColumn();
-
-                ImDrawList* draw = ImGui::GetWindowDrawList();
-                static const auto light_blue = ImColor(ImVec4{22.9/100.0, 60.7/100.0, 85.9/100.0, 1.0f});
-                static const auto dark_blue = ImColor(ImVec4{22.9/255.0, 60.7/255.0, 85.9/255.0, 1.0f});
-                static const auto white = ImColor(ImVec4{1.0, 1.0, 1.0, 1.0});
-                ImVec2 pos {ImGui::GetCursorScreenPos()};
-                float commodity_demand = static_cast<float>(the_market->demand[commodity_entity]);
-                float bar_left = pos.x;
-                float bar_width = width_available - 16;
-                float bar_right = pos.x + bar_width;
-                draw->AddRectFilled (
-                    pos,
-                    ImVec2{bar_left + bar_width * std::min(commodity_demand, 1.0f), pos.y + 16.0f},
-                    light_blue, 0, 0.0f
-                );
-                draw->AddRectFilled (
-                    ImVec2{bar_right - bar_width * (std::max(1.0f - commodity_demand, 0.0f)), pos.y},
-                    ImVec2{bar_right, pos.y + 16.0f},
-                    dark_blue, 0, 0.0f
-                );
-                int marker_count = static_cast<int>(commodity_demand);
-                float gap_size = ((std::floor(commodity_demand) / commodity_demand) * bar_width) / static_cast<float>(marker_count);
-                for (int i = 0; i < marker_count; i++) {
-                    draw->AddRectFilled (
-                        ImVec2{bar_left + (i + 1) * gap_size - 2.0f, pos.y},
-                        ImVec2{bar_left + (i + 1) * gap_size + 2.0f, pos.y + 16.0f},
-                        white, 0, 0.0f
-                    );
-                }
-                ImGui::NextColumn();
-
-                ImGui::Text(fmt::format("{}x", static_cast<int>(commodity_demand)).c_str());
-                ImGui::NextColumn();
-            }
-            ImGui::Columns();
-        }
-    }
     ImGui::Separator();
+    if (!inspected) {
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        return;
+    }
+    if (auto [maybe_site, maybe_named] = model.entities.try_get<te::site, te::named>(*inspected); maybe_site && maybe_named) {
+        ImGui::Text("Map position: (%f, %f)", maybe_site->position.x, maybe_site->position.y);
+        auto id_string = fmt::format("{}", *reinterpret_cast<std::uint32_t*>(&*inspected));
+        ImGui::Text("%s (#%s)", maybe_named->name.c_str(), id_string.c_str());
+        ImGui::Separator();
+    }
+    if (auto the_generator = model.entities.try_get<te::generator>(*inspected); the_generator) {
+        auto& rendr_tex = model.entities.get<te::render_tex>(the_generator->output);
+        ImGui::Image(*resources.lazy_load<te::gl::texture2d>(rendr_tex.filename).hnd, ImVec2{24, 24});
+        ImGui::SameLine();
+        const auto& [output_commodity, output_commodity_name] = model.entities.get<te::commodity, te::named>(the_generator->output);
+        ImGui::Text(fmt::format("{} @ {}/s", output_commodity_name.name, the_generator->rate).c_str());
+        ImGui::SameLine();
+        ImGui::ProgressBar(the_generator->progress);
+        ImGui::Separator();
+    }
+    if (auto demander = model.entities.try_get<te::demander>(*inspected); demander) {
+        for (auto [demanded, rate] : demander->rate) {
+            auto [name, tex] = model.entities.get<te::named, te::render_tex>(demanded);
+            ImGui::Image(*resources.lazy_load<te::gl::texture2d>(tex.filename).hnd, ImVec2{24, 24});
+            ImGui::SameLine();
+            ImGui::Text(fmt::format("{} @ {}/s", name.name, rate).c_str());
+        }
+        ImGui::Separator();
+    }
+    if (auto inventory = model.entities.try_get<te::inventory>(*inspected); inventory && !inventory->stock.empty()) {
+        for (auto [commodity_entity, stock] : inventory->stock) {
+            auto& name = model.entities.get<te::named>(commodity_entity);
+            ImGui::Text(fmt::format("{}x {}", stock, name.name).c_str());
+        }
+        ImGui::Separator();
+    }
+    if (auto [the_market, the_inventory] = model.entities.try_get<te::market, te::inventory>(*inspected); the_market && the_inventory) {
+        ImGui::Columns(5);
+        float width_available = ImGui::GetWindowContentRegionWidth();
+
+        ImGui::Text("Stock");
+        ImGui::SetColumnWidth(0, 80);
+        width_available -= 80;
+        ImGui::NextColumn();
+
+        ImGui::SetColumnWidth(1, 50);
+        width_available -= 50;
+        ImGui::NextColumn();
+
+        ImGui::Text("Commodity");
+        ImGui::SetColumnWidth(2, 300);
+        width_available -= 300;
+        ImGui::NextColumn();
+
+        ImGui::NextColumn();
+
+        ImGui::Text("Demand");
+        ImGui::SetColumnWidth(4, 100);
+        width_available -= 100;
+        ImGui::NextColumn();
+
+        ImGui::SetColumnWidth(3, width_available);
+        for (auto [commodity_entity, price] : the_market->prices) {
+            auto [the_commodity, commodity_name, commodity_tex] = model.entities.get<te::commodity, te::named, te::render_tex>(commodity_entity);
+            ImGui::Text(fmt::format("{}", the_inventory->stock[commodity_entity]).c_str());
+            ImGui::NextColumn();
+
+            ImGui::Image(*resources.lazy_load<te::gl::texture2d>(commodity_tex.filename).hnd, ImVec2{24, 24});
+            ImGui::NextColumn();
+
+            ImGui::Text(commodity_name.name.c_str());
+            ImGui::NextColumn();
+
+            double commodity_demand = the_market->demand[commodity_entity];
+            double commodity_price = the_market->prices[commodity_entity];
+            ImDrawList* draw = ImGui::GetWindowDrawList();
+            static const auto light_blue = ImColor(ImVec4{22.9/100.0, 60.7/100.0, 85.9/100.0, 1.0f});
+            static const auto dark_blue = ImColor(ImVec4{22.9/255.0, 60.7/255.0, 85.9/255.0, 1.0f});
+            static const auto white = ImColor(ImVec4{1.0, 1.0, 1.0, 1.0});
+            const ImVec2 cursor_pos {ImGui::GetCursorScreenPos()};
+            const float bar_bottom = cursor_pos.y + 20.0f;
+            const float bar_height = 10.0f;
+            const float bar_top = bar_bottom - bar_height;
+            const float bar_left = cursor_pos.x;
+            const float bar_width = width_available - 16;
+            const float bar_right = cursor_pos.x + bar_width;
+            const float bar_centre = (bar_left + bar_right) / 2.0;
+            draw->AddRectFilled (
+                ImVec2{bar_left, bar_top},
+                ImVec2{bar_left + bar_width * std::min(static_cast<float>(commodity_demand), 1.0f), bar_bottom},
+                light_blue, 0, 0.0f
+            );
+            draw->AddRectFilled (
+                ImVec2{bar_right - bar_width * (std::max(1.0f - static_cast<float>(commodity_demand), 0.0f)), bar_top},
+                ImVec2{bar_right, bar_bottom},
+                dark_blue, 0, 0.0f
+            );
+            
+            std::string price_string = fmt::format("{:.1f}", commodity_price);
+            const char* price_string_begin = std::to_address(price_string.begin());
+            const char* price_string_end = std::to_address(price_string.end());
+            ImVec2 price_text_size = ImGui::CalcTextSize(price_string_begin, price_string_end);
+            const float text_left = bar_centre - price_text_size.x / 2.0f;
+            draw->AddText(ImVec2{text_left, cursor_pos.y}, white, price_string_begin, price_string_end);
+                        
+            int marker_count = static_cast<int>(commodity_demand);
+            float gap_size = ((std::floor(commodity_demand) / commodity_demand) * bar_width) / static_cast<float>(marker_count);
+            for (int i = 0; i < marker_count; i++) {
+                draw->AddRectFilled (
+                    ImVec2{bar_left + (i + 1) * gap_size - 2.0f, bar_top - 1.0f},
+                    ImVec2{bar_left + (i + 1) * gap_size + 2.0f, bar_bottom + 1.0f},
+                    white, 0, 0.0f
+                );
+            }
+            ImGui::NextColumn();
+
+            ImGui::Text(fmt::format("{}x", static_cast<int>(commodity_demand)).c_str());
+            ImGui::NextColumn();
+        }
+        ImGui::Separator();
+        ImGui::Columns();
+    }
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
