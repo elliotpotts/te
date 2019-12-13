@@ -184,12 +184,7 @@ void te::app::render_scene() {
         auto& doc = resources.lazy_load<gltf>(current_rmesh.filename);
         auto& instanced = mesh_renderer.instance(*doc.primitives.begin());
         instanced.instance_attribute_buffer.bind();
-        glBufferData (
-            GL_ARRAY_BUFFER,
-            instance_attributes.size() * sizeof(decltype(instance_attributes)::value_type),
-            instance_attributes.data(),
-            GL_STATIC_READ
-        );
+        instanced.instance_attribute_buffer.upload(instance_attributes.begin(), instance_attributes.end());
         const auto model_mat = model_tfm(current_print);
         mesh_renderer.draw(instanced, model_mat, cam, instance_attributes.size());
     } while (it != end);
@@ -252,6 +247,11 @@ void te::app::render_ui() {
     }
     if (auto [the_market, the_inventory] = model.entities.try_get<te::market, te::inventory>(*inspected); the_market && the_inventory) {
         ImGui::Text(fmt::format("Population: {}", the_market->population).c_str());
+        ImGui::Text(fmt::format("Growth rate: {}", the_market->growth_rate).c_str());
+        ImGui::Text("Growth: ");
+        ImGui::SameLine();
+        ImGui::ProgressBar((glm::clamp(the_market->growth, -1.0, 1.0) + 1.0) / 2.0);
+
         ImGui::Columns(5);
         float width_available = ImGui::GetWindowContentRegionWidth();
 

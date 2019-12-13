@@ -42,8 +42,8 @@ void te::sim::init_blueprints() {
     entities.assign<named>(dwelling, "Dwelling");
     entities.assign<site_blueprint>(dwelling, glm::vec2{1.0f,1.0f});
     demander& dwelling_demander = entities.assign<demander>(dwelling);
-    dwelling_demander.rate[wheat] = 0.001f;
-    dwelling_demander.rate[barley] = 0.0008f;
+    dwelling_demander.rate[wheat] = 0.0005f;
+    dwelling_demander.rate[barley] = 0.0004f;
     entities.assign<trader>(dwelling);
     entities.assign<dweller>(dwelling);
     entities.assign<render_mesh>(dwelling, "media/dwelling.glb");
@@ -147,7 +147,7 @@ try_again:
     place(proto, map_pos);
 }
 
-void te::sim::spawn_dwelling(entt::entity market_e) {
+bool te::sim::spawn_dwelling(entt::entity market_e) {
     const auto& [market_site, market] = entities.get<site, te::market>(market_e);
     std::uniform_int_distribution select_x_pos {
         static_cast<int>(market_site.position.x - market.radius),
@@ -157,18 +157,21 @@ void te::sim::spawn_dwelling(entt::entity market_e) {
         static_cast<int>(market_site.position.y - market.radius),
         static_cast<int>(market_site.position.y + market.radius)
     };
-    static std::uniform_real_distribution select_volatility{-1.0, 1.0};
     //TODO: un-hardcode this
     auto dwelling_blueprint = site_blueprints[2];
     int attempts = 0;
 try_again:
     glm::vec2 map_pos { select_x_pos(rengine), select_y_pos(rengine) };
-    if (!can_place(dwelling_blueprint, map_pos) && attempts++ <= 5) {
-        goto try_again;
+    if (!can_place(dwelling_blueprint, map_pos)) {
+        if (attempts++ >= 5) {
+            return false;
+        } else {
+            goto try_again;
+        }
     } else {
-        entities.get<dweller>(dwelling_blueprint).volatility = select_volatility(rengine);
         place(dwelling_blueprint, map_pos);
         entities.get<te::market>(market_e).population++;
+        return true;
     }
 }
 
@@ -273,41 +276,33 @@ void te::sim::tick() {
                     }
                 }
             );
-            // create/destroy dwellings
-            //TODO: there needs to be a temporal aspect
 
-            auto commodity_e = market.prices.begin()->first;
-            auto& commodity = entities.get<te::commodity>(commodity_e);
-            
-            const double current_price = market.prices[commodity_e];
-            const double base_price = commodity.base_price;
-            const double markup = current_price / base_price;
-            const double demand = market.demand[commodity_e];
-            const int stock = inventory.stock[commodity_e];
-            const double disparity = static_cast<int>(demand) - stock;
-            entities.view<site, dweller>().each (
-                [&](entt::entity dwelling, auto& dwelling_site, auto& dweller) {
-                    if (disparity > (market.population * (2 + dweller.volatility))) {
-                        entities.destroy(dwelling);
-                        market.population--;
-                    }
+            // calculate market growth rate
+            market.growth_rate = 0.0;
+            entities.view<commodity>().each (
+                [&] (auto& commodity_e, auto& commodity) {
+                    market.growth_rate += ((commodity.base_price - market.prices[commodity_e]) / commodity.base_price) * 0.01;
                 }
             );
-            /*
-              if (disparity > (population * 2) && markup > 1.1) {
-              auto dwellings = entities.view<dweller, site>();
-              for (auto dwelling : dwellings) {
-              auto& dwelling_site = entities.get<site>(dwelling);
-              if (in_market(dwelling_site, market_site, market)) {
-              entities.destroy(dwelling);
-              break;
-              }
-              }
-              } else*/
-            if (stock > market.population * 1.1 && markup < 0.9) {
-                spawn_dwelling(market_e);
-            }
+            market.growth_rate = glm::clamp(market.growth_rate, -0.01, 0.01);
 
+            // grow
+            market.growth += market.growth_rate;
+
+            // create/destroy dwellings
+            while (static_cast<int>(market.growth) > 0 && spawn_dwelling(market_e)) {
+                market.growth -= 1.0;
+            }
+            while (static_cast<int>(market.growth) < 0) {
+                market.growth += 1.0;
+                for (auto dwelling : entities.view<dweller, site>()) {
+                    auto& dwelling_site = entities.get<site>(dwelling);
+                    if (in_market(dwelling_site, market_site, market)) {
+                        entities.destroy(dwelling);
+                        break;
+                    }
+                }
+            }
         }
     );
 }

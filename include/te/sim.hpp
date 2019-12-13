@@ -27,11 +27,9 @@ namespace te {
     };
 
     struct dweller {
-        // -1.0 = they will stay despite high food cost
-        //  1.0 = they will leave quickly if food is expensive
-        double volatility = 0.0;
         //TODO: programmatically represent requirements of living
         // i.e. dwellings need 2 of 3 food types in abundance
+        bool dummy;
     };
 
     // A demander stores the rate of increase of demand of entities
@@ -59,8 +57,10 @@ namespace te {
     struct market {
         std::unordered_map<entt::entity, double> prices;
         std::unordered_map<entt::entity, double> demand;
-        float radius = 5.0f;
+        double radius = 5.0f;
         int population = 0;
+        double growth_rate = 0.001;
+        double growth = 0.0;
     };
 
     struct stop {
@@ -96,7 +96,7 @@ namespace te {
         market* market_at(glm::vec2 x);
         bool in_market(const site& question_site, const site& market_site, const market& the_market) const;
         bool can_place(entt::entity entity, glm::vec2 where);
-        void spawn_dwelling(entt::entity market);
+        bool spawn_dwelling(entt::entity market);
 
         void place(entt::entity proto, glm::vec2 where);
         void spawn(entt::entity proto);

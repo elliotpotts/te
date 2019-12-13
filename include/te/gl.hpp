@@ -68,6 +68,15 @@ namespace te::gl {
                 throw std::runtime_error("Invalid bind!\n");
             }
         }
+        template <typename It>
+        void upload(const It begin, const It end, GLenum hint = GL_STATIC_READ) {
+            glBufferData (
+                GL_ARRAY_BUFFER,
+                std::distance(begin, end) * sizeof(typename std::iterator_traits<It>::value_type),
+                std::to_address(begin),
+                GL_STATIC_READ
+            );
+        }
     };
 
     struct sampler_deleter {
