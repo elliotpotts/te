@@ -42,6 +42,7 @@ namespace te {
         // +ve bid = buying
         // -ve bid = selling
         std::unordered_map<entt::entity, double> bid;
+        double balance = 0.0;
     };
     
     struct generator {
@@ -54,9 +55,15 @@ namespace te {
         std::unordered_map<entt::entity, int> stock;
     };
 
+    struct account {
+        std::unordered_map<entt::entity, double> stock;
+        double currency;
+    };
+    
     struct market {
         std::unordered_map<entt::entity, double> prices;
         std::unordered_map<entt::entity, double> demand;
+        entt::entity commons;
         double radius = 5.0f;
         int population = 0;
         double growth_rate = 0.001;
@@ -75,7 +82,7 @@ namespace te {
     struct merchant {
         te::route route;
         std::size_t last_stop;
-        std::unordered_map<entt::entity, int> inventory;
+        bool trading = false;
     };
 
     struct sim {
@@ -93,6 +100,15 @@ namespace te {
         void init_blueprints();
         void generate_map();
 
+        // which entities a market has influence over
+        std::unordered_map<entt::entity, std::vector<entt::entity>> market_influencees;
+        // which markets an entity is influenced by
+        std::unordered_map<entt::entity, std::vector<entt::entity>> influencee_markets;
+
+        // total units wanting to be sold
+        int market_stock(entt::entity market_e, entt::entity commodity_e);
+        int market_demand(entt::entity market_e, entt::entity commodity_e);
+        
         market* market_at(glm::vec2 x);
         bool in_market(const site& question_site, const site& market_site, const market& the_market) const;
         bool can_place(entt::entity entity, glm::vec2 where);

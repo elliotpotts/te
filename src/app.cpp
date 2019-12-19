@@ -31,7 +31,7 @@ te::app::app(te::sim& model, unsigned int seed) :
     imgui_io { setup_imgui(win) },
     cam {
         {0.0f, 0.0f, 0.0f},
-        {-0.7f, -0.7f, 1.0f},
+        {-0.6f, -0.6f, 1.0f},
         14.0f
     },
     terrain_renderer{ win.gl, rengine, model.map_width, model.map_height },
@@ -245,12 +245,16 @@ void te::app::render_ui() {
         }
         ImGui::Separator();
     }
-    if (auto [the_market, the_inventory] = model.entities.try_get<te::market, te::inventory>(*inspected); the_market && the_inventory) {
-        ImGui::Text(fmt::format("Population: {}", the_market->population).c_str());
-        ImGui::Text(fmt::format("Growth rate: {}", the_market->growth_rate).c_str());
+    if (auto trader = model.entities.try_get<te::trader>(*inspected); trader) {
+        ImGui::Text(fmt::format("Running balance: {}", trader->balance).c_str());
+        ImGui::Separator();
+    }
+    if (auto market = model.entities.try_get<te::market>(*inspected); market) {
+        ImGui::Text(fmt::format("Population: {}", market->population).c_str());
+        ImGui::Text(fmt::format("Growth rate: {}", market->growth_rate).c_str());
         ImGui::Text("Growth: ");
         ImGui::SameLine();
-        ImGui::ProgressBar((glm::clamp(the_market->growth, -1.0, 1.0) + 1.0) / 2.0);
+        ImGui::ProgressBar((glm::clamp(market->growth, -1.0, 1.0) + 1.0) / 2.0);
 
         ImGui::Columns(5);
         float width_available = ImGui::GetWindowContentRegionWidth();
@@ -277,9 +281,9 @@ void te::app::render_ui() {
         ImGui::NextColumn();
 
         ImGui::SetColumnWidth(3, width_available);
-        for (auto [commodity_entity, price] : the_market->prices) {
+        for (auto [commodity_entity, price] : market->prices) {
             auto [the_commodity, commodity_name, commodity_tex] = model.entities.get<te::commodity, te::named, te::render_tex>(commodity_entity);
-            ImGui::Text(fmt::format("{}", the_inventory->stock[commodity_entity]).c_str());
+            ImGui::Text(fmt::format("{}", model.market_stock(*inspected, commodity_entity)).c_str());
             ImGui::NextColumn();
 
             ImGui::Image(*resources.lazy_load<te::gl::texture2d>(commodity_tex.filename).hnd, ImVec2{24, 24});
@@ -288,8 +292,8 @@ void te::app::render_ui() {
             ImGui::Text(commodity_name.name.c_str());
             ImGui::NextColumn();
 
-            double commodity_demand = the_market->demand[commodity_entity];
-            double commodity_price = the_market->prices[commodity_entity];
+            double commodity_demand = market->demand[commodity_entity];
+            double commodity_price = market->prices[commodity_entity];
             ImDrawList* draw = ImGui::GetWindowDrawList();
             static const auto light_blue = ImColor(ImVec4{22.9/100.0, 60.7/100.0, 85.9/100.0, 1.0f});
             static const auto dark_blue = ImColor(ImVec4{22.9/255.0, 60.7/255.0, 85.9/255.0, 1.0f});

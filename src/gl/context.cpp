@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
 #include <fmt/format.h>
+#include <cassert>
 #include <spdlog/spdlog.h>
 #include <array>
 #include <FreeImage.h>
