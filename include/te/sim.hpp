@@ -51,6 +51,14 @@ namespace te {
         double progress = 0.0;
     };
 
+    struct producer {
+        std::unordered_map<entt::entity, double> inputs;
+        std::unordered_map<entt::entity, double> outputs;
+        double rate = 0.001;
+        bool producing = false;
+        double progress = 0.0;
+    };
+
     struct inventory {
         std::unordered_map<entt::entity, int> stock;
     };

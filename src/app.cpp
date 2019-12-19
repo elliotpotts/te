@@ -249,6 +249,23 @@ void te::app::render_ui() {
         ImGui::Text(fmt::format("Running balance: {}", trader->balance).c_str());
         ImGui::Separator();
     }
+    if (auto [producer, inventory] = model.entities.try_get<te::producer, te::inventory>(*inspected); producer && inventory) {
+        ImGui::Text("Inputs");
+        for (auto& [commodity_e, needed] : producer->inputs) {
+            auto& commodity_tex = model.entities.get<te::render_tex>(commodity_e);
+            ImGui::Image(*resources.lazy_load<te::gl::texture2d>(commodity_tex.filename).hnd, ImVec2{24, 24});
+            ImGui::SameLine();
+            ImGui::Text(fmt::format("{}: {}/{}", model.entities.get<named>(commodity_e).name, inventory->stock[commodity_e], needed).c_str());
+        }
+        ImGui::ProgressBar(producer->progress);
+        ImGui::Text("Outputs");
+        for (auto& [commodity_e, produced] : producer->outputs) {
+            auto& commodity_tex = model.entities.get<te::render_tex>(commodity_e);
+            ImGui::Image(*resources.lazy_load<te::gl::texture2d>(commodity_tex.filename).hnd, ImVec2{24, 24});
+            ImGui::SameLine();
+            ImGui::Text(fmt::format("{}: ×{}", model.entities.get<named>(commodity_e).name, produced).c_str());
+        }
+    }
     if (auto market = model.entities.try_get<te::market>(*inspected); market) {
         ImGui::Text(fmt::format("Population: {}", market->population).c_str());
         ImGui::Text(fmt::format("Growth rate: {}", market->growth_rate).c_str());

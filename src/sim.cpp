@@ -10,15 +10,20 @@ void te::sim::init_blueprints() {
     // Commodities
     auto wheat = entities.create();
     entities.assign<named>(wheat, "Wheat");
-    entities.assign<commodity>(wheat, 15.0f);
+    entities.assign<commodity>(wheat, 15.0);
     entities.assign<render_tex>(wheat, "media/wheat.png");
     //todo:remove
     global_wheat = wheat;
 
     auto barley = entities.create();
     entities.assign<named>(barley, "Barley");
-    entities.assign<commodity>(barley, 10.0f);
+    entities.assign<commodity>(barley, 10.0);
     entities.assign<render_tex>(barley, "media/wheat.png");
+
+    auto flour = entities.create();
+    entities.assign<named>(flour, "Flour");
+    entities.assign<commodity>(flour, 30.0);
+    entities.assign<render_tex>(flour, "media/flour.png");
 
     std::unordered_map<entt::entity, double> base_market_prices;
     entities.view<commodity>().each([&](const entt::entity e, commodity& comm) {
@@ -60,10 +65,23 @@ void te::sim::init_blueprints() {
     entities.assign<te::market>(market, base_market_prices);
     entities.assign<render_mesh>(market, "media/market.glb");
     entities.assign<pickable>(market);
+
+    auto mill = site_blueprints.emplace_back(entities.create());
+    entities.assign<named>(mill, "Flour Mill");
+    entities.assign<site_blueprint>(mill, glm::vec2{1.0f, 1.0f});
+    std::unordered_map<entt::entity, double> inputs;
+    inputs[wheat] = 4.0;
+    std::unordered_map<entt::entity, double> outputs;
+    outputs[flour] = 1.0;
+    entities.assign<inventory>(mill);
+    entities.assign<producer>(mill, inputs, outputs);
+    entities.assign<trader>(mill);
+    entities.assign<render_mesh>(mill, "media/mill.glb");
+    entities.assign<pickable>(mill);
 }
 
 void te::sim::generate_map() {
-    std::discrete_distribution<std::size_t> select_blueprint {7, 7, 0, 1};
+    std::discrete_distribution<std::size_t> select_blueprint {7, 7, 2, 1, 2};
     for (int i = 0; i < 100; i++) spawn(site_blueprints[select_blueprint(rengine)]);
     // create a roaming merchant
     auto merchant_e = entities.create();
@@ -259,6 +277,44 @@ void te::sim::tick() {
                             inventory.stock[generator.output]++;
                             trader.bid[generator.output] -= 1.0;
                             generator.progress -= 1.0;
+                        }
+                    }
+                }
+            );
+
+            // advance producers
+            entities.view<producer, inventory, site, trader>().each (
+                [&](auto& producer, auto& inventory, auto& site, auto& trader) {
+                    if (in_market(site, market_site, market)) {
+                        if (producer.producing) {
+                            producer.progress += producer.rate;
+                            if (producer.progress > 1.0) {
+                                for (auto [commodity, produced] : producer.outputs) {
+                                    inventory.stock[commodity] += produced;
+                                    trader.bid[commodity] -= produced;
+                                }
+                                producer.progress = 0.0;
+                                producer.producing = false;
+                            }
+                        } else {
+                            bool enough = std::all_of (
+                                producer.inputs.begin(),
+                                producer.inputs.end(),
+                                [&](auto pair) {
+                                    auto [commodity, needed] = pair;
+                                    return inventory.stock[commodity] >= needed;
+                                }
+                            );
+                            if (enough) {
+                                for (auto [commodity, needed] : producer.inputs) {
+                                    inventory.stock[commodity] -= needed;
+                                }
+                                producer.producing = true;
+                            } else {
+                                for (auto [commodity, needed] : producer.inputs) {
+                                    trader.bid[commodity] = std::max(0.0, needed - inventory.stock[commodity]);
+                                }
+                            }
                         }
                     }
                 }
