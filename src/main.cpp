@@ -3,6 +3,13 @@
 #include <random>
 #include <sys/resource.h>
 
+/* We have a few things happening:
+ *   rendering
+ *   networing
+ *   simulation
+ * These will run at different framerates
+ */
+
 int main(void) {
     // enable core dump to file
     rlimit core_limits;

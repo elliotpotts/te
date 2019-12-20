@@ -60,7 +60,7 @@ namespace te {
     struct producer {
         std::unordered_map<entt::entity, double> inputs;
         std::unordered_map<entt::entity, double> outputs;
-        double rate = 0.001;
+        double rate;
         bool producing = false;
         double progress = 0.0;
     };
@@ -127,7 +127,7 @@ namespace te {
 
         void place(entt::entity proto, glm::vec2 where);
         void spawn(entt::entity proto);
-        void tick();
+        void tick(double delta_t);
     };
 
     //TOOD: put these somewhere else

@@ -253,7 +253,7 @@ void te::app::render_inspector() {
                 ImGui::Text(fmt::format("{}: {}/{}", model.entities.get<named>(commodity_e).name, inventory->stock[commodity_e], needed).c_str());
             }
             ImGui::ProgressBar(producer->progress);
-            ImGui::Text("Outputs");
+            ImGui::Text(fmt::format("Outputs @{}/s", producer->rate).c_str());
             for (auto& [commodity_e, produced] : producer->outputs) {
                 auto& commodity_tex = model.entities.get<te::render_tex>(commodity_e);
                 ImGui::Image(*resources.lazy_load<te::gl::texture2d>(commodity_tex.filename).hnd, ImVec2{24, 24});
@@ -419,17 +419,17 @@ void te::app::run() {
     int frames = 0;
     while (!glfwWindowShouldClose(win.hnd.get())) {
         input();
-        model.tick();
-        draw();
-        glfwSwapBuffers(win.hnd.get());
-        glfwPollEvents();
-        frames++;
-        auto now = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> secs = now - then;
-        if (secs.count() > 1.0) {
-            fps = frames / secs.count();
+        if (frames == 5) {
+            auto now = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> secs = now - then;
+            fps = static_cast<double>(frames) / secs.count();
+            model.tick(secs.count());
             frames = 0;
             then = std::chrono::high_resolution_clock::now();
         }
+        draw();
+        glfwSwapBuffers(win.hnd.get());
+        frames++;
+        glfwPollEvents();
     }
 }

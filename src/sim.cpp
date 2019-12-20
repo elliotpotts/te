@@ -35,7 +35,7 @@ void te::sim::init_blueprints() {
     auto wheat_field = site_blueprints.emplace_back(entities.create());
     entities.assign<named>(wheat_field, "Wheat Field");
     entities.assign<site_blueprint>(wheat_field, glm::vec2{2.0f,2.0f});
-    entities.assign<generator>(wheat_field, wheat, 0.001);
+    entities.assign<generator>(wheat_field, wheat, 1.0 / 4.0);
     entities.assign<inventory>(wheat_field);
     entities.assign<trader>(wheat_field, 0u);
     entities.assign<render_mesh>(wheat_field, "media/wheat.glb");
@@ -44,7 +44,7 @@ void te::sim::init_blueprints() {
     auto barley_field = site_blueprints.emplace_back(entities.create());
     entities.assign<named>(barley_field, "Barley Field");
     entities.assign<site_blueprint>(barley_field, glm::vec2{2.0f,2.0f});
-    entities.assign<generator>(barley_field, barley, 0.002);
+    entities.assign<generator>(barley_field, barley, 1.0 / 3.0);
     entities.assign<inventory>(barley_field);
     entities.assign<trader>(barley_field, 0u);
     entities.assign<render_mesh>(barley_field, "media/barley.glb");
@@ -75,7 +75,7 @@ void te::sim::init_blueprints() {
     std::unordered_map<entt::entity, double> outputs;
     outputs[flour] = 1.0;
     entities.assign<inventory>(mill);
-    entities.assign<producer>(mill, inputs, outputs);
+    entities.assign<producer>(mill, inputs, outputs, 1.0 / 6.0);
     entities.assign<trader>(mill, 0u);
     entities.assign<render_mesh>(mill, "media/mill.glb");
     entities.assign<pickable>(mill);
@@ -229,7 +229,7 @@ int te::sim::market_stock(entt::entity market_e, entt::entity commodity_e) {
     return tot;
 }
 
-void te::sim::tick() {
+void te::sim::tick(double dt) {
     entities.view<merchant, named, inventory, site>().each (
         [&](entt::entity merchant_e, auto& merchant, auto& name, auto& merchant_inventory, auto& merchant_site) {
             std::size_t dest_stop_ix = (merchant.last_stop + 1) % merchant.route.stops.size();
@@ -262,7 +262,7 @@ void te::sim::tick() {
                 }
             } else {
                 // move him a bit closer
-                merchant_site.position += glm::normalize(course) * 0.05f;
+                merchant_site.position += glm::normalize(course) * static_cast<float>(dt);
             }
         }
     );
@@ -273,7 +273,7 @@ void te::sim::tick() {
                 [&](auto& generator, auto& inventory, auto& trader, auto& generator_site) {
                     if (in_market(generator_site, market_site, market)) {
                         if (generator.progress < 1.0) {
-                            generator.progress += generator.rate;
+                            generator.progress += generator.rate * dt;
                         } else if (generator.progress >= 1.0 && inventory.stock[generator.output] < 10) {
                             inventory.stock[generator.output]++;
                             trader.bid[generator.output] -= 1.0;
@@ -288,7 +288,7 @@ void te::sim::tick() {
                 [&](auto& producer, auto& inventory, auto& site, auto& trader) {
                     if (in_market(site, market_site, market)) {
                         if (producer.producing) {
-                            producer.progress += producer.rate;
+                            producer.progress += producer.rate * dt;
                             if (producer.progress > 1.0) {
                                 for (auto [commodity, produced] : producer.outputs) {
                                     inventory.stock[commodity] += produced;
@@ -326,7 +326,7 @@ void te::sim::tick() {
                 [&](auto& demander, auto& demander_site) {
                     if (in_market(demander_site, market_site, market)) {
                         for (auto [commodity_e, demand_rate] : demander.rate) {
-                            entities.get<trader>(market.commons).bid[commodity_e] += demand_rate;
+                            entities.get<trader>(market.commons).bid[commodity_e] += demand_rate * dt;
                         }
                     }
                 }
@@ -414,10 +414,10 @@ void te::sim::tick() {
                     market.growth_rate += ((commodity.base_price - market.prices[commodity_e]) / commodity.base_price) * 0.01;
                 }
             );
-            market.growth_rate = glm::clamp(market.growth_rate, -0.01, 0.01);
+            market.growth_rate = glm::clamp(market.growth_rate, -0.1, 0.1);
 
             // grow
-            market.growth += market.growth_rate;
+            market.growth += market.growth_rate * dt;
 
             // create/destroy dwellings
             while (static_cast<int>(market.growth) > 0 && spawn_dwelling(market_e)) {
