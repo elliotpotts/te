@@ -25,7 +25,9 @@ namespace te {
         te::colour_picker colour_picker;
         te::asset_loader loader;
         te::cache<asset_loader> resources;
-        std::optional<entt::registry::entity_type> inspected;
+
+        std::optional<entt::entity> inspected;
+        std::optional<entt::entity> ghost;
 
         glm::mat4 model_tfm(te::site_blueprint) const;
 
@@ -33,10 +35,14 @@ namespace te {
 
         void on_key(int key, int scancode, int action, int mods);
         void on_mouse_button(int button, int action, int mods);
-        
+
         void mouse_pick();
         void render_scene();
+
+        void render_inspector();
+        void render_controller();
         void render_ui();
+
         void input();
         void draw();
         void run();

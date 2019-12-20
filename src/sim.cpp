@@ -7,6 +7,7 @@ te::sim::sim(unsigned int seed) : rengine { seed } {
 }
 entt::entity global_wheat;
 void te::sim::init_blueprints() {
+    families.resize(2);
     // Commodities
     auto wheat = entities.create();
     entities.assign<named>(wheat, "Wheat");
@@ -36,7 +37,7 @@ void te::sim::init_blueprints() {
     entities.assign<site_blueprint>(wheat_field, glm::vec2{2.0f,2.0f});
     entities.assign<generator>(wheat_field, wheat, 0.001);
     entities.assign<inventory>(wheat_field);
-    entities.assign<trader>(wheat_field);
+    entities.assign<trader>(wheat_field, 0u);
     entities.assign<render_mesh>(wheat_field, "media/wheat.glb");
     entities.assign<pickable>(wheat_field);
 
@@ -45,7 +46,7 @@ void te::sim::init_blueprints() {
     entities.assign<site_blueprint>(barley_field, glm::vec2{2.0f,2.0f});
     entities.assign<generator>(barley_field, barley, 0.002);
     entities.assign<inventory>(barley_field);
-    entities.assign<trader>(barley_field);
+    entities.assign<trader>(barley_field, 0u);
     entities.assign<render_mesh>(barley_field, "media/barley.glb");
     entities.assign<pickable>(barley_field);
 
@@ -75,7 +76,7 @@ void te::sim::init_blueprints() {
     outputs[flour] = 1.0;
     entities.assign<inventory>(mill);
     entities.assign<producer>(mill, inputs, outputs);
-    entities.assign<trader>(mill);
+    entities.assign<trader>(mill, 0u);
     entities.assign<render_mesh>(mill, "media/mill.glb");
     entities.assign<pickable>(mill);
 }
@@ -90,7 +91,7 @@ void te::sim::generate_map() {
     entities.assign<site_blueprint>(merchant_e, glm::vec2{1.0f, 1.0f});
     entities.assign<render_mesh>(merchant_e, "media/merchant.glb");
     entities.assign<pickable>(merchant_e);
-    entities.assign<trader>(merchant_e);
+    entities.assign<trader>(merchant_e, 1u);
     entities.assign<inventory>(merchant_e);
     std::vector<te::stop> salesman;
     int i = 1;
@@ -161,7 +162,7 @@ void te::sim::place(entt::entity proto, glm::vec2 where) {
     //TODO: remove this horrible junk
     if (auto maybe_market = entities.try_get<te::market>(instantiated); maybe_market) {
         auto commons = entities.create();
-        entities.assign<trader>(commons);
+        entities.assign<trader>(commons, 0u);
         entities.assign<inventory>(commons);
         entities.assign<site>(commons, where);
         maybe_market->commons = commons;
@@ -354,9 +355,11 @@ void te::sim::tick() {
                                                     a_bid -= movement;
                                                     a_stock += movement;
                                                     trader_a.balance -= price;
+                                                    families[trader_a.family_ix].balance -= price;
                                                     b_bid += movement;
                                                     b_stock -= movement;
                                                     trader_b.balance += price;
+                                                    families[trader_b.family_ix].balance += price;
                                                 }
                                             }
                                         }

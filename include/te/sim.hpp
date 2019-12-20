@@ -10,14 +10,18 @@
 #include <entt/entt.hpp>
 
 namespace te {
+    struct family {
+        double balance;
+    };
+
     struct named {
         std::string name;
     };
-    
+
     struct commodity {
         double base_price;
     };
-    
+
     struct site_blueprint {
         glm::vec2 dimensions;
     };
@@ -39,12 +43,14 @@ namespace te {
 
     // A trader stores the current demand of entities
     struct trader {
+        // the index of the family this trader works for
+        unsigned int family_ix;
         // +ve bid = buying
         // -ve bid = selling
         std::unordered_map<entt::entity, double> bid;
         double balance = 0.0;
     };
-    
+
     struct generator {
         entt::entity output;
         double rate;
@@ -63,11 +69,6 @@ namespace te {
         std::unordered_map<entt::entity, int> stock;
     };
 
-    struct account {
-        std::unordered_map<entt::entity, double> stock;
-        double currency;
-    };
-    
     struct market {
         std::unordered_map<entt::entity, double> prices;
         std::unordered_map<entt::entity, double> demand;
@@ -82,7 +83,7 @@ namespace te {
         entt::entity where;
         std::unordered_map<entt::entity, int> leave_with;
     };
-    
+
     struct route {
         std::vector<stop> stops;
     };
@@ -95,7 +96,9 @@ namespace te {
 
     struct sim {
         std::default_random_engine rengine;
+
         entt::registry entities;
+        std::vector<family> families;
         std::vector<entt::entity> site_blueprints;
         entt::entity merchant_blueprint;
 
@@ -116,7 +119,7 @@ namespace te {
         // total units wanting to be sold
         int market_stock(entt::entity market_e, entt::entity commodity_e);
         int market_demand(entt::entity market_e, entt::entity commodity_e);
-        
+
         market* market_at(glm::vec2 x);
         bool in_market(const site& question_site, const site& market_site, const market& the_market) const;
         bool can_place(entt::entity entity, glm::vec2 where);
@@ -135,7 +138,7 @@ namespace te {
     struct render_mesh {
         std::string filename;
     };
-    struct pickable { 
+    struct pickable {
     };
 }
 
