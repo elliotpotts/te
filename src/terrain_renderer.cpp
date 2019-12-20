@@ -15,7 +15,6 @@ namespace {
         std::vector<vertex> data;
         data.reserve(width * height * 6);
         glm::vec2 grid_tl {-width/2.0f, -height/2.0f};
-        spdlog::debug("Topleft is ({}, {})", grid_tl.x, grid_tl.y);
         glm::vec3 white {1.0f, 1.0f, 1.0f};
         for (int xi = 0; xi < width; xi++) {
             for (int yi = 0; yi < height; yi++) {
@@ -26,8 +25,6 @@ namespace {
                 vertex cell_tr {cell_tl_pos + glm::vec2{1.0f, 0.0f}, white, uv_tl + glm::vec2(0.5f, 0.0f)};
                 vertex cell_br {cell_tl_pos + glm::vec2{1.0f, 1.0f}, white, uv_tl + glm::vec2(0.5f, 0.5f)};
                 vertex cell_bl {cell_tl_pos + glm::vec2{0.0f, 1.0f}, white, uv_tl + glm::vec2(0.0f, 0.5f)};
-                glm::vec2 avg = (cell_tl.pos + cell_tr.pos + cell_br.pos + cell_bl.pos) / 4.0f;
-                spdlog::debug("Centre ({}, {}) -> ({}, {})", xi, yi, avg.x, avg.y);
                 data.push_back(cell_tl);
                 data.push_back(cell_tr);
                 data.push_back(cell_br);
