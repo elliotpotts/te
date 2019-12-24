@@ -9,30 +9,29 @@ glm::vec3 te::camera::forward() const {
     return focus - eye();
 }
 
-glm::vec3 te::camera::ray_origin(glm::vec3 ndc) const {
+te::ray te::camera::cast(glm::vec3 ray_ndc) const {
     if (use_ortho) {
-        return eye();
-    } else {
-        return eye();
-    }
-}
-
-glm::vec3 te::camera::ray_direction(glm::vec3 ray_ndc) const {
-    if (use_ortho) {
-        return forward();
+        return te::ray {
+            .origin = eye(),
+            .direction = forward()
+        };
     } else {
         const glm::vec4 ray_clip { ray_ndc.x, ray_ndc.y, -1.0f, 1.0f };
         glm::vec4 ray_eye = inverse(projection()) * ray_clip;
         ray_eye.z = -1.0f;
         ray_eye.w = 0.0f;
         const glm::vec4 ray_world_abnorm = inverse(view()) * ray_eye;
-        return normalize (
+        const glm::vec3 ray_world = normalize (
             glm::vec3 {
                 ray_world_abnorm.x,
                 ray_world_abnorm.y,
                 ray_world_abnorm.z
             }
         );
+        return te::ray {
+            .origin = eye(),
+            .direction = ray_world
+        };
     }
 }
 

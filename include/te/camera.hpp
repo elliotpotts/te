@@ -4,13 +4,16 @@
 #include <glm/glm.hpp>
 
 namespace te {
+    struct ray {
+        glm::vec3 origin;
+        glm::vec3 direction;
+    };
     struct camera {
         glm::vec3 focus;
         glm::vec3 offset;
         glm::vec3 eye() const;
         glm::vec3 forward() const;
-        glm::vec3 ray_origin(glm::vec3 ndc) const;
-        glm::vec3 ray_direction(glm::vec3 ndc) const;
+        ray cast(glm::vec3 ndc) const;
         float zoom_factor;
         void zoom(float delta);
         glm::mat4 view() const;

@@ -452,8 +452,7 @@ glm::vec2 te::app::cast_ray(glm::vec2 ray_screen) const {
         1.0f - (2.0f * ray_screen.y) / win.height,
         1.0f
     };
-    auto ray_origin = cam.ray_origin(ray_ndc);
-    auto ray_direction = cam.ray_direction(ray_ndc);
+    auto [ray_origin, ray_direction] = cam.cast(ray_ndc);
     
     const glm::vec3 ground_normal {0.0f, 0.0f, 1.0f};
     const auto t = -dot(ray_origin, ground_normal) / dot(ray_direction, ground_normal);
