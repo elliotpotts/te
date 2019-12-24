@@ -28,6 +28,7 @@ namespace te {
 
         std::optional<entt::entity> inspected;
         std::optional<entt::entity> ghost;
+        entt::entity marker;
 
         glm::mat4 model_tfm(te::site_blueprint) const;
 
@@ -37,6 +38,7 @@ namespace te {
         void on_mouse_button(int button, int action, int mods);
 
         void mouse_pick();
+        glm::vec2 cast_ray(glm::vec2 screen_space) const;
         void render_scene();
 
         void render_inspector();

@@ -28,7 +28,7 @@ namespace te {
     };
     struct glfw_context {
         explicit glfw_context();
-        window make_window(int w, int h, const char* title);
+        window make_window(int w, int h, const char* title, bool fullscreen);
         ~glfw_context();
     };
 }

@@ -7,7 +7,7 @@ te::sim::sim(unsigned int seed) : rengine { seed } {
 }
 entt::entity global_wheat;
 void te::sim::init_blueprints() {
-    families.resize(2);
+    families.resize(3);
     // Commodities
     auto wheat = entities.create();
     entities.assign<named>(wheat, "Wheat");
@@ -250,14 +250,11 @@ void te::sim::tick(double dt) {
                         // do nothing - wait for trades to finish
                     }
                 } else {
-                    spdlog::debug("{} is has begun trading:", name.name);
                     merchant.trading = true;
                     auto& bids = entities.get<trader>(merchant_e).bid;
                     
                     for (auto [commodity_e, count] : dest_stop.leave_with) {
-                        spdlog::debug("    want to leave with {}, so:", count);
                         bids[commodity_e] = count - merchant_inventory.stock[commodity_e];
-                        spdlog::debug("    bid {} for {}", bids[commodity_e], entities.get<named>(commodity_e).name);
                     }
                 }
             } else {
@@ -351,7 +348,6 @@ void te::sim::tick(double dt) {
                                             if (movement != 0) {
                                                 if (b_stock >= movement) {
                                                     auto price = market.prices[commodity_e];
-                                                    spdlog::debug("movement {}x{} @{}", movement, entities.get<named>(commodity_e).name, price);
                                                     a_bid -= movement;
                                                     a_stock += movement;
                                                     trader_a.balance -= price;
@@ -411,10 +407,10 @@ void te::sim::tick(double dt) {
             market.growth_rate = 0.0;
             entities.view<commodity>().each (
                 [&] (auto& commodity_e, auto& commodity) {
-                    market.growth_rate += ((commodity.base_price - market.prices[commodity_e]) / commodity.base_price) * 0.01;
+                    market.growth_rate += ((commodity.base_price - market.prices[commodity_e]) / commodity.base_price) * 0.1;
                 }
             );
-            market.growth_rate = glm::clamp(market.growth_rate, -0.1, 0.1);
+            market.growth_rate = glm::clamp(market.growth_rate, -1.0, 1.0);
 
             // grow
             market.growth += market.growth_rate * dt;

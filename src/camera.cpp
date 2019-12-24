@@ -1,13 +1,48 @@
 #include <te/camera.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+glm::vec3 te::camera::eye() const {
+    return focus + (offset * zoom_factor);
+}
+
+glm::vec3 te::camera::forward() const {
+    return focus - eye();
+}
+
+glm::vec3 te::camera::ray_origin(glm::vec3 ndc) const {
+    if (use_ortho) {
+        return eye();
+    } else {
+        return eye();
+    }
+}
+
+glm::vec3 te::camera::ray_direction(glm::vec3 ray_ndc) const {
+    if (use_ortho) {
+        return forward();
+    } else {
+        const glm::vec4 ray_clip { ray_ndc.x, ray_ndc.y, -1.0f, 1.0f };
+        glm::vec4 ray_eye = inverse(projection()) * ray_clip;
+        ray_eye.z = -1.0f;
+        ray_eye.w = 0.0f;
+        const glm::vec4 ray_world_abnorm = inverse(view()) * ray_eye;
+        return normalize (
+            glm::vec3 {
+                ray_world_abnorm.x,
+                ray_world_abnorm.y,
+                ray_world_abnorm.z
+            }
+        );
+    }
+}
+
 void te::camera::zoom(float delta) {
     zoom_factor = glm::clamp(zoom_factor + delta, 4.0f, 20.0f);
 }
 
 glm::mat4 te::camera::view() const {
     return glm::lookAt (
-        focus + (offset * zoom_factor),
+        eye(),
         focus,
         glm::vec3{0.0f, 0.0f, 1.0f}
     );

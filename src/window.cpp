@@ -40,13 +40,13 @@ te::glfw_context::glfw_context() {
     }
     glfwSetErrorCallback(glfw_error_callback);
 }
-te::window te::glfw_context::make_window(int width, int height, const char* title) {
+te::window te::glfw_context::make_window(int width, int height, const char* title, bool fullscreen = true) {
     glfwWindowHint(GLFW_RESIZABLE , false);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
-    auto window = window_hnd{glfwCreateWindow(width, height, title, glfwGetPrimaryMonitor(), nullptr)};
+    auto window = window_hnd{glfwCreateWindow(width, height, title, fullscreen ? glfwGetPrimaryMonitor() : nullptr, nullptr)};
     if (!window) {
         window.reset();
         throw std::runtime_error("Could not create opengl window");

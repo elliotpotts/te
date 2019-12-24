@@ -27,7 +27,7 @@ namespace {
 te::app::app(te::sim& model, unsigned int seed) :
     model { model },
     rengine { seed },
-    win { glfw.make_window(1920, 1080, "Hello, World!")},
+    win { glfw.make_window(1920 - 200, 1080 - 200, "Hello, World!", false)},
     imgui_io { setup_imgui(win) },
     cam {
         {0.0f, 0.0f, 0.0f},
@@ -45,6 +45,10 @@ te::app::app(te::sim& model, unsigned int seed) :
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
+
+    marker = model.entities.create();
+    model.entities.assign<render_mesh>(marker, "media/dwelling.glb");
+    model.entities.assign<site_blueprint>(marker, glm::vec2{1.0f, 1.0f});
 }
 
 void te::app::on_key(int key, int scancode, int action, int mods) {
@@ -78,6 +82,14 @@ glm::mat4 te::app::model_tfm(te::site_blueprint print) const {
 }
 
 void te::app::mouse_pick() {
+    {
+        double mouse_x; double mouse_y;
+        glfwGetCursorPos(win.hnd.get(), &mouse_x, &mouse_y);
+        auto world_pos = cast_ray({mouse_x, mouse_y});
+        auto map_pos = -terrain_renderer.grid_topleft + glm::vec3{world_pos.x, world_pos.y, 0.0f};
+        model.entities.assign_or_replace<site>(marker, map_pos);
+    }
+    
     colour_picker.colour_fbuffer.bind();
     glClear(GL_COLOR_BUFFER_BIT);
 
@@ -423,7 +435,7 @@ void te::app::run() {
             auto now = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> secs = now - then;
             fps = static_cast<double>(frames) / secs.count();
-            model.tick(secs.count());
+            model.tick(secs.count() * 3.0);
             frames = 0;
             then = std::chrono::high_resolution_clock::now();
         }
@@ -432,4 +444,19 @@ void te::app::run() {
         frames++;
         glfwPollEvents();
     }
+}
+
+glm::vec2 te::app::cast_ray(glm::vec2 ray_screen) const {
+    const glm::vec3 ray_ndc {
+        (2.0f * ray_screen.x) / win.width - 1.0f,
+        1.0f - (2.0f * ray_screen.y) / win.height,
+        1.0f
+    };
+    auto ray_origin = cam.ray_origin(ray_ndc);
+    auto ray_direction = cam.ray_direction(ray_ndc);
+    
+    const glm::vec3 ground_normal {0.0f, 0.0f, 1.0f};
+    const auto t = -dot(ray_origin, ground_normal) / dot(ray_direction, ground_normal);
+    const glm::vec3 intersection = ray_origin + ray_direction * t;
+    return glm::vec2{intersection.x, intersection.y};
 }
