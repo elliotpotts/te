@@ -32,27 +32,27 @@ void te::sim::init_blueprints() {
                                     });
 
     // Buildings
-    auto wheat_field = site_blueprints.emplace_back(entities.create());
+    auto wheat_field = blueprints.emplace_back(entities.create());
     entities.assign<named>(wheat_field, "Wheat Field");
-    entities.assign<site_blueprint>(wheat_field, glm::vec2{2.0f,2.0f});
+    entities.assign<footprint>(wheat_field, glm::vec2{2.0f,2.0f});
     entities.assign<generator>(wheat_field, wheat, 1.0 / 4.0);
     entities.assign<inventory>(wheat_field);
     entities.assign<trader>(wheat_field, 0u);
     entities.assign<render_mesh>(wheat_field, "media/wheat.glb");
     entities.assign<pickable>(wheat_field);
 
-    auto barley_field = site_blueprints.emplace_back(entities.create());
+    auto barley_field = blueprints.emplace_back(entities.create());
     entities.assign<named>(barley_field, "Barley Field");
-    entities.assign<site_blueprint>(barley_field, glm::vec2{2.0f,2.0f});
+    entities.assign<footprint>(barley_field, glm::vec2{2.0f,2.0f});
     entities.assign<generator>(barley_field, barley, 1.0 / 3.0);
     entities.assign<inventory>(barley_field);
     entities.assign<trader>(barley_field, 0u);
     entities.assign<render_mesh>(barley_field, "media/barley.glb");
     entities.assign<pickable>(barley_field);
 
-    auto dwelling = site_blueprints.emplace_back(entities.create());
+    auto dwelling = blueprints.emplace_back(entities.create());
     entities.assign<named>(dwelling, "Dwelling");
-    entities.assign<site_blueprint>(dwelling, glm::vec2{1.0f,1.0f});
+    entities.assign<footprint>(dwelling, glm::vec2{1.0f,1.0f});
     demander& dwelling_demander = entities.assign<demander>(dwelling);
     dwelling_demander.rate[wheat] = 0.0005f;
     dwelling_demander.rate[barley] = 0.0004f;
@@ -60,16 +60,16 @@ void te::sim::init_blueprints() {
     entities.assign<render_mesh>(dwelling, "media/dwelling.glb");
     entities.assign<pickable>(dwelling);
     
-    auto market = site_blueprints.emplace_back(entities.create());
+    auto market = blueprints.emplace_back(entities.create());
     entities.assign<named>(market, "Market");
-    entities.assign<site_blueprint>(market, glm::vec2{2.0f,2.0f});
+    entities.assign<footprint>(market, glm::vec2{2.0f,2.0f});
     entities.assign<te::market>(market, base_market_prices);
     entities.assign<render_mesh>(market, "media/market.glb");
     entities.assign<pickable>(market);
 
-    auto mill = site_blueprints.emplace_back(entities.create());
+    auto mill = blueprints.emplace_back(entities.create());
     entities.assign<named>(mill, "Flour Mill");
-    entities.assign<site_blueprint>(mill, glm::vec2{1.0f, 1.0f});
+    entities.assign<footprint>(mill, glm::vec2{1.0f, 1.0f});
     std::unordered_map<entt::entity, double> inputs;
     inputs[wheat] = 4.0;
     std::unordered_map<entt::entity, double> outputs;
@@ -83,12 +83,12 @@ void te::sim::init_blueprints() {
 
 void te::sim::generate_map() {
     std::discrete_distribution<std::size_t> select_blueprint {7, 7, 2, 1, 2};
-    for (int i = 0; i < 100; i++) spawn(site_blueprints[select_blueprint(rengine)]);
+    for (int i = 0; i < 100; i++) spawn(blueprints[select_blueprint(rengine)]);
     // create a roaming merchant
     auto merchant_e = entities.create();
     entities.assign<named>(merchant_e, "Merchant Nebuchadnezzar");
     entities.assign<site>(merchant_e, glm::vec2{0.0f, 0.0f});
-    entities.assign<site_blueprint>(merchant_e, glm::vec2{1.0f, 1.0f});
+    entities.assign<footprint>(merchant_e, glm::vec2{1.0f, 1.0f});
     entities.assign<render_mesh>(merchant_e, "media/merchant.glb");
     entities.assign<pickable>(merchant_e);
     entities.assign<trader>(merchant_e, 1u);
@@ -128,16 +128,23 @@ te::market* te::sim::market_at(glm::vec2 x) {
 bool te::sim::in_market(const site& question_site, const site& market_site, const market& the_market) const {
     return glm::length(glm::vec2{question_site.position - market_site.position}) <= the_market.radius;
 }
-bool te::sim::can_place(entt::entity entity, glm::vec2 where) {
-    if (where.x < 0 || where.x > map_width || where.y < 0 || where.y > map_height) {
-        return false;
-    }
+bool te::sim::can_place(entt::entity entity, glm::vec2 centre) {
     {
-        auto& blueprint = entities.get<site_blueprint>(entity);
-        for (int x = 0; x < blueprint.dimensions.x; x++)
-            for (int y = 0; y < blueprint.dimensions.y; y++)
-                if (grid.find({where.x + x, where.y + y}) != grid.end())
+        auto& print = entities.get<footprint>(entity);
+        glm::vec2 topleft = centre - print.dimensions / 2.0f;
+        for (int x = 0; x < print.dimensions.x; x++) {
+            for (int y = 0; y < print.dimensions.y; y++) {
+                if (
+                    grid.find({topleft.x + x, topleft.y + y}) != grid.end()
+                    || centre.x + x >  map_width / 2
+                    || centre.x + x < -map_width / 2
+                    || centre.y + y >  map_height / 2
+                    || centre.y + y < -map_height / 2
+                ) {
                     return false;
+                }
+            }
+        }
     }
     if (auto maybe_market = entities.try_get<market>(entity); maybe_market) {
         auto other_markets = entities.view<site, market>();
@@ -146,7 +153,7 @@ bool te::sim::can_place(entt::entity entity, glm::vec2 where) {
             other_markets.end(),
             [&] (auto other) {
                 const auto& [other_site, other_market] = other_markets.get<site, market>(other);
-                return glm::length(glm::vec2{where - other_site.position})
+                return glm::length(glm::vec2{centre - other_site.position})
                     <= (maybe_market->radius + other_market.radius);
             }
         );
@@ -155,61 +162,75 @@ bool te::sim::can_place(entt::entity entity, glm::vec2 where) {
     return true;
 }
 
-void te::sim::place(entt::entity proto, glm::vec2 where) {
+std::optional<entt::entity> te::sim::try_place(entt::entity proto, glm::vec2 centre) {
+    if (!can_place(proto, centre)) {
+        return {};
+    }
+    
     auto instantiated = entities.create(proto, entities);
-    entities.assign<site>(instantiated, where);
+    entities.assign<site>(instantiated, centre);
     
     //TODO: remove this horrible junk
     if (auto maybe_market = entities.try_get<te::market>(instantiated); maybe_market) {
         auto commons = entities.create();
         entities.assign<trader>(commons, 0u);
         entities.assign<inventory>(commons);
-        entities.assign<site>(commons, where);
+        entities.assign<site>(commons, centre);
         maybe_market->commons = commons;
     }
     
-    auto& print = entities.get<site_blueprint>(instantiated);
+    auto& print = entities.get<footprint>(instantiated);
+    glm::vec2 topleft = centre - print.dimensions / 2.0f;
     for (int x = 0; x < print.dimensions.x; x++) {
         for (int y = 0; y < print.dimensions.y; y++) {
-            grid[{where.x + x, where.y + y}] = instantiated;
+            grid[{topleft.x + x, topleft.y + y}] = instantiated;
         }
     }
+    return instantiated;
 }
 
 void te::sim::spawn(entt::entity proto) {
-    auto print = entities.get<site_blueprint>(proto);
-    std::uniform_int_distribution select_x_pos {0, map_width - static_cast<int>(print.dimensions.x)};
-    std::uniform_int_distribution select_y_pos {0, map_height - static_cast<int>(print.dimensions.y)};
+    const auto print = entities.get<footprint>(proto);
+    const double min_x = -map_width / 2.0;
+    std::uniform_real_distribution select_x_pos {min_x, min_x + map_width};
+    const double min_y = -map_height / 2.0;
+    std::uniform_real_distribution select_y_pos {min_y, min_y + map_height};
 try_again:
-    glm::vec2 map_pos { select_x_pos(rengine), select_y_pos(rengine) };
-    if (!can_place(proto, map_pos))
+    const glm::vec2 topleft {
+        std::round(select_x_pos(rengine)),
+        std::round(select_y_pos(rengine))
+    };
+    const glm::vec2 centre = topleft + print.dimensions / 2.0f;
+    if (!try_place(proto, centre))
         goto try_again;
-    place(proto, map_pos);
 }
 
 bool te::sim::spawn_dwelling(entt::entity market_e) {
     const auto& [market_site, market] = entities.get<site, te::market>(market_e);
-    std::uniform_int_distribution select_x_pos {
-        static_cast<int>(market_site.position.x - market.radius),
-        static_cast<int>(market_site.position.x + market.radius)
+    std::uniform_real_distribution select_x_pos {
+        market_site.position.x - market.radius,
+        market_site.position.x + market.radius
     };
-    std::uniform_int_distribution select_y_pos {
-        static_cast<int>(market_site.position.y - market.radius),
-        static_cast<int>(market_site.position.y + market.radius)
+    std::uniform_real_distribution select_y_pos {
+        market_site.position.y - market.radius,
+        market_site.position.y + market.radius
     };
     //TODO: un-hardcode this
-    auto dwelling_blueprint = site_blueprints[2];
+    auto dwelling_blueprint = blueprints[2];
     int attempts = 0;
 try_again:
-    glm::vec2 map_pos { select_x_pos(rengine), select_y_pos(rengine) };
-    if (!can_place(dwelling_blueprint, map_pos)) {
+    const glm::vec2 topleft {
+        std::round(select_x_pos(rengine)),
+        std::round(select_y_pos(rengine))
+    };
+    const glm::vec2 centre = topleft + glm::vec2{1.0f, 1.0f} / 2.0f;
+    if (!try_place(dwelling_blueprint, centre)) {
         if (attempts++ >= 5) {
             return false;
         } else {
             goto try_again;
         }
     } else {
-        place(dwelling_blueprint, map_pos);
         entities.get<te::market>(market_e).population++;
         return true;
     }

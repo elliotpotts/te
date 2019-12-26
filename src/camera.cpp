@@ -8,10 +8,9 @@ glm::vec3 te::camera::eye() const {
 glm::vec3 te::camera::forward() const {
     return focus - eye();
 }
-#include <spdlog/spdlog.h>
+
 te::ray te::camera::cast(glm::vec3 ray_ndc) const {
     if (use_ortho) {
-        spdlog::debug("zoom factor is {}", zoom_factor);
         auto right = normalize(cross(forward(), glm::vec3{0.0f, 0.0f, 1.0f}));
         auto up = normalize(cross(forward(), right));
         return te::ray {

@@ -33,7 +33,7 @@ te::app::app(te::sim& model, unsigned int seed) :
         {0.0f, 0.0f, 0.0f},
         {-0.6f, -0.6f, 1.0f},
         14.0f,
-        static_cast<double>(win.width()) / win.height()
+        static_cast<float>(win.width()) / win.height()
     },
     terrain_renderer{ win.gl, rengine, model.map_width, model.map_height },
     mesh_renderer { win.gl },
@@ -54,7 +54,7 @@ te::app::app(te::sim& model, unsigned int seed) :
 
     marker = model.entities.create();
     model.entities.assign<render_mesh>(marker, "media/dwelling.glb");
-    model.entities.assign<site_blueprint>(marker, glm::vec2{1.0f, 1.0f});
+    model.entities.assign<footprint>(marker, glm::vec2{1.0f, 1.0f});
 }
 
 void te::app::on_key(int key, int scancode, int action, int mods) {
@@ -77,89 +77,19 @@ glm::mat4 rotate_zup = glm::mat4_cast(te::rotation_between_units (
     glm::vec3 {0.0f, 0.0f, 1.0f}
 ));
 
-glm::mat4 te::app::model_tfm(te::site_blueprint print) const {
-    return glm::translate (
-        glm::vec3 {
-            terrain_renderer.grid_topleft.x + print.dimensions.x / 2.0f,
-            terrain_renderer.grid_topleft.y + print.dimensions.y / 2.0f,
-            0.0f
-        }
-    ) * rotate_zup;
-}
-
 void te::app::mouse_pick() {
-    {
-        double mouse_x; double mouse_y;
-        glfwGetCursorPos(win.hnd.get(), &mouse_x, &mouse_y);
-        auto world_pos = cast_ray({mouse_x, mouse_y});
-        auto map_pos = -terrain_renderer.grid_topleft + glm::vec3{world_pos.x, world_pos.y, 0.0f};
-        model.entities.assign_or_replace<site>(marker, map_pos);
-    }
-    
-    colour_picker.colour_fbuffer.bind();
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    auto instances = model.entities.group<render_mesh, site, site_blueprint>();
-    instances.sort<te::render_mesh> (
-        [](const auto& lhs, const auto& rhs) {
-            return lhs.filename < rhs.filename;
-        }
-    );
-
-    const auto begin = instances.begin();
-    const auto end = instances.end();
-    auto it = begin;
-
-    struct instance {
-        glm::vec2 position;
-        glm::vec3 pick_id;
-    };
-    do {
-        std::vector<instance> instance_attrs;
-        const auto& current_rmesh = instances.get<render_mesh>(*it);
-        const auto& current_print = instances.get<site_blueprint>(*it);
-        while (it != end && instances.get<render_mesh>(*it).filename == current_rmesh.filename) {
-            auto pick_id = *reinterpret_cast<const std::uint32_t*>(&*it);
-            instance_attrs.push_back (
-                instance {
-                    instances.get<site>(*it).position,
-                    glm::vec3 {
-                        (pick_id & 0x000000ff),
-                        (pick_id & 0x0000ff00) >> 8,
-                        (pick_id & 0x00ff0000) >> 16
-                    } / 255.0f
-                }
-            );
-            it++;
-        }
-        auto& doc = resources.lazy_load<gltf>(current_rmesh.filename);
-        auto& instanced = colour_picker.instance(*doc.primitives.begin());
-        instanced.instance_attribute_buffer.bind();
-        glBufferData (
-            GL_ARRAY_BUFFER,
-            instance_attrs.size() * sizeof(decltype(instance_attrs)::value_type),
-            instance_attrs.data(),
-            GL_STATIC_READ
-        );
-        const auto model_mat = model_tfm(current_print);
-        colour_picker.draw(instanced, model_mat, cam, instance_attrs.size());
-    } while (it != end);
-
-    glFlush();
-    glFinish();
     double mouse_x; double mouse_y;
     glfwGetCursorPos(win.hnd.get(), &mouse_x, &mouse_y);
-    int under_mouse_x = static_cast<int>(mouse_x);
-    int under_mouse_y = win.height() - mouse_y;
-    entt::entity under_cursor;
-    win.gl.toggle_perf_warnings(false);
-    glReadPixels(under_mouse_x, under_mouse_y, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, &under_cursor);
-    win.gl.toggle_perf_warnings(true);
-    if (model.entities.valid(under_cursor) && model.entities.has<te::pickable>(under_cursor)) {
-        inspected = under_cursor;
-    } else {
-        inspected.reset();
+    auto world_pos = cast_ray({mouse_x, mouse_y});
+    auto map_entities = model.entities.view<te::site, te::pickable>();
+    for (auto entity : map_entities) {
+        auto& map_site = map_entities.get<te::site>(entity);
+        if (glm::distance(map_site.position, world_pos) <= 1.0f) {
+            inspected = entity;
+            return;
+        }
     }
+    inspected.reset();
 }
 
 void te::app::render_scene() {
@@ -167,7 +97,7 @@ void te::app::render_scene() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     terrain_renderer.render(cam);
 
-    auto instances = model.entities.group<render_mesh, site, site_blueprint>();
+    auto instances = model.entities.group<render_mesh, site, footprint>();
     instances.sort<te::render_mesh> (
         [](const auto& lhs, const auto& rhs) {
             return lhs.filename < rhs.filename;
@@ -188,9 +118,9 @@ void te::app::render_scene() {
     do {
         std::vector<te::mesh_renderer::instance_attributes> instance_attributes;
         const auto& current_rmesh = instances.get<render_mesh>(*it);
-        const auto& current_print = instances.get<site_blueprint>(*it);
         while (it != end && instances.get<render_mesh>(*it).filename == current_rmesh.filename) {
-            bool tinted = market && market_site && model.in_market(instances.get<site>(*it), *market_site, *market);
+            bool tinted = market && market_site && model.in_market(instances.get<site>(*it), *market_site, *market)
+                       || inspected == *it;            
             instance_attributes.push_back (
                 te::mesh_renderer::instance_attributes {
                     instances.get<site>(*it).position,
@@ -203,8 +133,7 @@ void te::app::render_scene() {
         auto& instanced = mesh_renderer.instance(*doc.primitives.begin());
         instanced.instance_attribute_buffer.bind();
         instanced.instance_attribute_buffer.upload(instance_attributes.begin(), instance_attributes.end());
-        const auto model_mat = model_tfm(current_print);
-        mesh_renderer.draw(instanced, model_mat, cam, instance_attributes.size());
+        mesh_renderer.draw(instanced, rotate_zup, cam, instance_attributes.size());
     } while (it != end);
 }
 
@@ -217,8 +146,6 @@ namespace {
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     }
-    bool inspector_active = true;
-    bool build_active = true;
 }
 
 void te::app::render_inspector() {

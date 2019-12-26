@@ -22,7 +22,7 @@ namespace te {
         double base_price;
     };
 
-    struct site_blueprint {
+    struct footprint {
         glm::vec2 dimensions;
     };
 
@@ -99,7 +99,7 @@ namespace te {
 
         entt::registry entities;
         std::vector<family> families;
-        std::vector<entt::entity> site_blueprints;
+        std::vector<entt::entity> blueprints;
         entt::entity merchant_blueprint;
 
         const int map_width = 40;
@@ -122,11 +122,13 @@ namespace te {
 
         market* market_at(glm::vec2 x);
         bool in_market(const site& question_site, const site& market_site, const market& the_market) const;
-        bool can_place(entt::entity entity, glm::vec2 where);
-        bool spawn_dwelling(entt::entity market);
 
-        void place(entt::entity proto, glm::vec2 where);
+        bool can_place(entt::entity entity, glm::vec2 where);
+        std::optional<entt::entity> try_place(entt::entity entity, glm::vec2 where);
+        
+        bool spawn_dwelling(entt::entity market);
         void spawn(entt::entity proto);
+        
         void tick(double delta_t);
     };
 

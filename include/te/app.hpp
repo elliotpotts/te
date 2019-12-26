@@ -30,8 +30,6 @@ namespace te {
         std::optional<entt::entity> ghost;
         entt::entity marker;
 
-        glm::mat4 model_tfm(te::site_blueprint) const;
-
         app(te::sim& model, unsigned int seed);
 
         void on_key(int key, int scancode, int action, int mods);
