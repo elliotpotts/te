@@ -13,7 +13,7 @@ te::colour_picker::colour_picker(te::window& win):
     view_uniform(program.uniform("view")),
     proj_uniform(program.uniform("projection")),
     colour_fbuffer(win.gl.make_framebuffer()),
-    attachment(win.gl.make_renderbuffer(win.width, win.height))
+    attachment(win.gl.make_renderbuffer(win.width(), win.height()))
 {
     colour_fbuffer.bind();
     attachment.bind();

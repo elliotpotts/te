@@ -32,7 +32,8 @@ te::app::app(te::sim& model, unsigned int seed) :
     cam {
         {0.0f, 0.0f, 0.0f},
         {-0.6f, -0.6f, 1.0f},
-        14.0f
+        14.0f,
+        static_cast<double>(win.width()) / win.height()
     },
     terrain_renderer{ win.gl, rengine, model.map_width, model.map_height },
     mesh_renderer { win.gl },
@@ -40,6 +41,11 @@ te::app::app(te::sim& model, unsigned int seed) :
     loader { win.gl },
     resources { loader }
 {
+    win.on_framebuffer_size.connect([&](int width, int height) {
+                                        cam.aspect_ratio = static_cast<float>(width) / height;
+                                        glViewport(0, 0, width, height);
+                                    });
+    win.set_attribute(GLFW_RESIZABLE, GLFW_TRUE);
     win.on_key.connect([&](int key, int scancode, int action, int mods){ on_key(key, scancode, action, mods); });
     win.on_mouse_button.connect([&](int button, int action, int mods) { on_mouse_button(button, action, mods); });
     glEnable(GL_DEPTH_TEST);
@@ -144,7 +150,7 @@ void te::app::mouse_pick() {
     double mouse_x; double mouse_y;
     glfwGetCursorPos(win.hnd.get(), &mouse_x, &mouse_y);
     int under_mouse_x = static_cast<int>(mouse_x);
-    int under_mouse_y = win.height - mouse_y;
+    int under_mouse_y = win.height() - mouse_y;
     entt::entity under_cursor;
     win.gl.toggle_perf_warnings(false);
     glReadPixels(under_mouse_x, under_mouse_y, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, &under_cursor);
@@ -448,8 +454,8 @@ void te::app::run() {
 
 glm::vec2 te::app::cast_ray(glm::vec2 ray_screen) const {
     const glm::vec3 ray_ndc {
-        (2.0f * ray_screen.x) / win.width - 1.0f,
-        1.0f - (2.0f * ray_screen.y) / win.height,
+        (2.0f * ray_screen.x) / win.width() - 1.0f,
+        1.0f - (2.0f * ray_screen.y) / win.height(),
         1.0f
     };
     auto [ray_origin, ray_direction] = cam.cast(ray_ndc);

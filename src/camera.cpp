@@ -8,11 +8,14 @@ glm::vec3 te::camera::eye() const {
 glm::vec3 te::camera::forward() const {
     return focus - eye();
 }
-
+#include <spdlog/spdlog.h>
 te::ray te::camera::cast(glm::vec3 ray_ndc) const {
     if (use_ortho) {
+        spdlog::debug("zoom factor is {}", zoom_factor);
+        auto right = normalize(cross(forward(), glm::vec3{0.0f, 0.0f, 1.0f}));
+        auto up = normalize(cross(forward(), right));
         return te::ray {
-            .origin = eye(),
+            .origin = eye() + (right * ray_ndc.x * zoom_factor) - (up * ray_ndc.y * zoom_factor),
             .direction = forward()
         };
     } else {
@@ -49,8 +52,9 @@ glm::mat4 te::camera::view() const {
 
 glm::mat4 te::camera::projection() const {
     if (use_ortho) {
+        //todo: take aspect ratio into account somehow?
         return glm::ortho(-zoom_factor, zoom_factor, -zoom_factor, zoom_factor, -1000.0f, 1000.0f);
     } else {
-        return glm::perspective(glm::half_pi<float>(), 1024.0f/768.0f, 0.1f, 1000.0f);
+        return glm::perspective(glm::half_pi<float>(), aspect_ratio, 0.1f, 1000.0f);
     }
 }

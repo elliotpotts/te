@@ -16,6 +16,7 @@ namespace te {
         ray cast(glm::vec3 ndc) const;
         float zoom_factor;
         void zoom(float delta);
+        float aspect_ratio;
         glm::mat4 view() const;
         glm::mat4 projection() const;
         bool use_ortho = true;

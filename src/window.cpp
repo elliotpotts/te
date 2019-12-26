@@ -5,6 +5,9 @@ namespace {
     void glfw_error_callback(int error, const char* description) {
         spdlog::error("glfw3 error[{}]: {}", error, description);
     }
+    void glfw_dispatch_framebuffer_size(GLFWwindow* w, int width, int height) {
+        reinterpret_cast<te::window*>(glfwGetWindowUserPointer(w))->on_framebuffer_size(width, height);
+    }
     void glfw_dispatch_key(GLFWwindow* w, int key, int scancode, int action, int mods) {
         reinterpret_cast<te::window*>(glfwGetWindowUserPointer(w))->on_key(key, scancode, action, mods);
     }
@@ -18,13 +21,27 @@ namespace {
 void te::window_deleter::operator()(GLFWwindow* win) const {
     glfwDestroyWindow(win);
 }
-te::window::window(glfw_context& glfw, window_hnd old_hnd, int w, int h) : glfw(glfw), hnd(std::move(old_hnd)), width(w), height(h) {
+te::window::window(glfw_context& glfw, window_hnd old_hnd) : glfw(glfw), hnd(std::move(old_hnd)) {
     glfwSetWindowUserPointer(hnd.get(), this);
     glfwSetInputMode(hnd.get(), GLFW_STICKY_KEYS, 1);
     glfwSetInputMode(hnd.get(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    glfwSetFramebufferSizeCallback(hnd.get(), glfw_dispatch_framebuffer_size);
     glfwSetKeyCallback(hnd.get(), glfw_dispatch_key);
     glfwSetCursorPosCallback(hnd.get(), glfw_dispatch_cursor_pos);
     glfwSetMouseButtonCallback(hnd.get(), glfw_dispatch_mouse_button);
+}
+int te::window::width() const {
+    int width, height;
+    glfwGetWindowSize(hnd.get(), &width, &height);
+    return width;
+}
+int te::window::height() const {
+    int width, height;
+    glfwGetWindowSize(hnd.get(), &width, &height);
+    return height;
+}
+void te::window::set_attribute(int attrib, int value) {
+    glfwSetWindowAttrib(hnd.get(), attrib, value);
 }
 int te::window::key(int k) const {
     return glfwGetKey(hnd.get(), k);
@@ -114,7 +131,7 @@ te::window te::glfw_context::make_window(int width, int height, const char* titl
         spdlog::info(" |     GLFW_CONTEXT_ROBUSTNESS: GLFW_NO_ROBUSTNESS");
         break;
     }
-    return te::window{*this, std::move(window), width, height};
+    return te::window{*this, std::move(window)};
 }
 te::glfw_context::~glfw_context() {
     glfwTerminate();
