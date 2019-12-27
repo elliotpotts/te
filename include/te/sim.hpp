@@ -18,8 +18,8 @@ namespace te {
         std::string name;
     };
 
-    struct commodity {
-        double base_price;
+    struct price {
+        double price;
     };
 
     struct footprint {
@@ -99,6 +99,7 @@ namespace te {
 
         entt::registry entities;
         std::vector<family> families;
+        std::vector<entt::entity> commodities;
         std::vector<entt::entity> blueprints;
         entt::entity merchant_blueprint;
 

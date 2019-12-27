@@ -68,7 +68,21 @@ void te::app::on_key(int key, int scancode, int action, int mods) {
 
 void te::app::on_mouse_button(int button, int action, int mods) {
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
-        mouse_pick();
+        if (ghost) {
+            ghost.reset();
+            return;
+        }
+        if (pos_under_mouse) {
+            auto map_entities = model.entities.view<te::site, te::pickable>();
+            for (auto entity : map_entities) {
+                auto& map_site = map_entities.get<te::site>(entity);
+                if (glm::distance(map_site.position, *pos_under_mouse) <= 1.0f) {
+                    inspected = entity;
+                    return;
+                }
+            }
+        }
+        inspected.reset();
     }
 }
 
@@ -80,16 +94,7 @@ glm::mat4 rotate_zup = glm::mat4_cast(te::rotation_between_units (
 void te::app::mouse_pick() {
     double mouse_x; double mouse_y;
     glfwGetCursorPos(win.hnd.get(), &mouse_x, &mouse_y);
-    auto world_pos = cast_ray({mouse_x, mouse_y});
-    auto map_entities = model.entities.view<te::site, te::pickable>();
-    for (auto entity : map_entities) {
-        auto& map_site = map_entities.get<te::site>(entity);
-        if (glm::distance(map_site.position, world_pos) <= 1.0f) {
-            inspected = entity;
-            return;
-        }
-    }
-    inspected.reset();
+    pos_under_mouse = cast_ray({mouse_x, mouse_y});
 }
 
 void te::app::render_scene() {
@@ -163,7 +168,7 @@ void te::app::render_inspector() {
             auto& rendr_tex = model.entities.get<te::render_tex>(the_generator->output);
             ImGui::Image(*resources.lazy_load<te::gl::texture2d>(rendr_tex.filename).hnd, ImVec2{24, 24});
             ImGui::SameLine();
-            const auto& [output_commodity, output_commodity_name] = model.entities.get<te::commodity, te::named>(the_generator->output);
+            const auto& output_commodity_name = model.entities.get<te::named>(the_generator->output);
             ImGui::Text(fmt::format("{} @ {}/s", output_commodity_name.name, the_generator->rate).c_str());
             ImGui::SameLine();
             ImGui::ProgressBar(the_generator->progress);
@@ -239,7 +244,7 @@ void te::app::render_inspector() {
 
             ImGui::SetColumnWidth(3, width_available);
             for (auto [commodity_entity, price] : market->prices) {
-                auto [the_commodity, commodity_name, commodity_tex] = model.entities.get<te::commodity, te::named, te::render_tex>(commodity_entity);
+                auto [commodity_name, commodity_tex] = model.entities.get<te::named, te::render_tex>(commodity_entity);
                 ImGui::Text(fmt::format("{}", model.market_stock(*inspected, commodity_entity)).c_str());
                 ImGui::NextColumn();
 
@@ -307,8 +312,14 @@ void te::app::render_controller() {
     ImGui::Text(fmt::format("¤{}", model.families[1].balance).c_str());
     ImGui::BeginTabBar("MainTabbar", 0);
     if (ImGui::BeginTabItem("Build")) {
-        if (ImGui::Button("Market: ¤500")) {
-            ImGui::Text("Placing!");
+        for (auto e : model.blueprints) {
+            if (auto [named, price, footprint] = model.entities.try_get<te::named, te::price, te::footprint>(e); named && price && footprint) {
+                if (ImGui::Button(fmt::format("{}: ¤{}", named->name, price->price).c_str())) {
+                    if (!ghost) {
+                        ghost = model.entities.create(e, model.entities);
+                    }
+                }
+            }
         }
         ImGui::EndTabItem();
     }
@@ -340,6 +351,11 @@ void te::app::input() {
         win.close();
         return;
     };
+
+    mouse_pick();
+    if (ghost && pos_under_mouse) {
+        model.entities.assign_or_replace<site>(*ghost, *pos_under_mouse);
+    }
 
     glm::vec3 forward = -cam.offset;
     forward.z = 0.0f;

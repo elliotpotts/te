@@ -5,31 +5,29 @@ te::sim::sim(unsigned int seed) : rengine { seed } {
     init_blueprints();
     generate_map();
 }
-entt::entity global_wheat;
+
 void te::sim::init_blueprints() {
     families.resize(3);
     // Commodities
-    auto wheat = entities.create();
+    auto wheat = commodities.emplace_back(entities.create());
     entities.assign<named>(wheat, "Wheat");
-    entities.assign<commodity>(wheat, 15.0);
+    entities.assign<price>(wheat, 15.0);
     entities.assign<render_tex>(wheat, "media/wheat.png");
-    //todo:remove
-    global_wheat = wheat;
 
-    auto barley = entities.create();
+    auto barley = commodities.emplace_back(entities.create());
     entities.assign<named>(barley, "Barley");
-    entities.assign<commodity>(barley, 10.0);
+    entities.assign<price>(barley, 10.0);
     entities.assign<render_tex>(barley, "media/wheat.png");
 
-    auto flour = entities.create();
+    auto flour = commodities.emplace_back(entities.create());
     entities.assign<named>(flour, "Flour");
-    entities.assign<commodity>(flour, 30.0);
+    entities.assign<price>(flour, 30.0);
     entities.assign<render_tex>(flour, "media/flour.png");
 
     std::unordered_map<entt::entity, double> base_market_prices;
-    entities.view<commodity>().each([&](const entt::entity e, commodity& comm) {
-                                        base_market_prices[e] = comm.base_price;
-                                    });
+    for (auto e : commodities) {
+        base_market_prices[e] = entities.get<price>(e).price;
+    }
 
     // Buildings
     auto wheat_field = blueprints.emplace_back(entities.create());
@@ -77,6 +75,7 @@ void te::sim::init_blueprints() {
     entities.assign<inventory>(mill);
     entities.assign<producer>(mill, inputs, outputs, 1.0 / 6.0);
     entities.assign<trader>(mill, 0u);
+    entities.assign<price>(mill, 550.0);
     entities.assign<render_mesh>(mill, "media/mill.glb");
     entities.assign<pickable>(mill);
 }
@@ -97,7 +96,7 @@ void te::sim::generate_map() {
     int i = 1;
     for (auto market : entities.view<site, market>()) {
         te::stop buy_one_wheat { market };
-        buy_one_wheat.leave_with[global_wheat] = i++ % 2;
+        buy_one_wheat.leave_with[commodities[0]] = i++ % 2;
         salesman.push_back(buy_one_wheat);
     }
     entities.assign<merchant> (
@@ -350,43 +349,41 @@ void te::sim::tick(double dt) {
                 }
             );
 
-            entities.view<commodity>().each (
-                [&](entt::entity commodity_e, auto&) {
-                    //TODO: sort traders here
-                    //TODO: make this not O(N^2)
-                    //TODO: somehow deal with dwellings...
-                    entities.view<inventory, site, trader>().each (
-                        [&](entt::entity trader_a_e, auto& trader_a_inventory, auto& trader_a_site, auto& trader_a) {
-                            entities.view<inventory, site, trader>().each (
-                                [&](entt::entity trader_b_e, auto& trader_b_inventory, auto& trader_b_site, auto& trader_b) {
-                                    if (in_market(trader_a_site, market_site, market) && in_market(trader_b_site, market_site, market)) {
-                                        auto& a_bid = trader_a.bid[commodity_e];
-                                        auto& b_bid = trader_b.bid[commodity_e];
-                                        if (a_bid > 0.0 && b_bid < 0.0) {
-                                            auto movement = static_cast<int>(std::min(a_bid, std::abs(b_bid)));
-                                            auto& a_stock = trader_a_inventory.stock[commodity_e];
-                                            auto& b_stock = trader_b_inventory.stock[commodity_e];
-                                            if (movement != 0) {
-                                                if (b_stock >= movement) {
-                                                    auto price = market.prices[commodity_e];
-                                                    a_bid -= movement;
-                                                    a_stock += movement;
-                                                    trader_a.balance -= price;
-                                                    families[trader_a.family_ix].balance -= price;
-                                                    b_bid += movement;
-                                                    b_stock -= movement;
-                                                    trader_b.balance += price;
-                                                    families[trader_b.family_ix].balance += price;
-                                                }
+            for (auto commodity_e : commodities) {
+                //TODO: sort traders here
+                //TODO: make this not O(N^2)
+                //TODO: somehow deal with dwellings...
+                entities.view<inventory, site, trader>().each (
+                    [&](entt::entity trader_a_e, auto& trader_a_inventory, auto& trader_a_site, auto& trader_a) {
+                        entities.view<inventory, site, trader>().each (
+                            [&](entt::entity trader_b_e, auto& trader_b_inventory, auto& trader_b_site, auto& trader_b) {
+                                if (in_market(trader_a_site, market_site, market) && in_market(trader_b_site, market_site, market)) {
+                                    auto& a_bid = trader_a.bid[commodity_e];
+                                    auto& b_bid = trader_b.bid[commodity_e];
+                                    if (a_bid > 0.0 && b_bid < 0.0) {
+                                        auto movement = static_cast<int>(std::min(a_bid, std::abs(b_bid)));
+                                        auto& a_stock = trader_a_inventory.stock[commodity_e];
+                                        auto& b_stock = trader_b_inventory.stock[commodity_e];
+                                        if (movement != 0) {
+                                            if (b_stock >= movement) {
+                                                auto price = market.prices[commodity_e];
+                                                a_bid -= movement;
+                                                a_stock += movement;
+                                                trader_a.balance -= price;
+                                                families[trader_a.family_ix].balance -= price;
+                                                b_bid += movement;
+                                                b_stock -= movement;
+                                                trader_b.balance += price;
+                                                families[trader_b.family_ix].balance += price;
                                             }
                                         }
                                     }
                                 }
-                            );
-                        }
-                    );
-                }
-            );
+                            }
+                        );
+                    }
+                );
+            }
             
             // market demand is sum of all trader demands
             market.demand = {};
@@ -403,7 +400,7 @@ void te::sim::tick(double dt) {
            
             // calculate market prices
             for (auto& [commodity, price] : market.prices) {
-                const double base_price = entities.get<te::commodity>(commodity).base_price;
+                const double base_price = entities.get<te::price>(commodity).price;
                 const double demand = market.demand[commodity];
                 const int stock = market_stock(market_e, commodity);
                 const double disparity = static_cast<int>(demand) - stock;
@@ -426,11 +423,10 @@ void te::sim::tick(double dt) {
 
             // calculate market growth rate
             market.growth_rate = 0.0;
-            entities.view<commodity>().each (
-                [&] (auto& commodity_e, auto& commodity) {
-                    market.growth_rate += ((commodity.base_price - market.prices[commodity_e]) / commodity.base_price) * 0.1;
-                }
-            );
+            for (auto commodity : commodities) {
+                auto base_price = entities.get<price>(commodity).price;
+                market.growth_rate += ((base_price - market.prices[commodity]) / base_price) * 0.1;
+            }
             market.growth_rate = glm::clamp(market.growth_rate, -1.0, 1.0);
 
             // grow

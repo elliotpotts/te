@@ -35,10 +35,11 @@ namespace te {
         void on_key(int key, int scancode, int action, int mods);
         void on_mouse_button(int button, int action, int mods);
 
+        std::optional<glm::vec2> pos_under_mouse;
         void mouse_pick();
         glm::vec2 cast_ray(glm::vec2 screen_space) const;
+        
         void render_scene();
-
         void render_inspector();
         void render_controller();
         void render_ui();
