@@ -354,7 +354,7 @@ void te::app::input() {
 
     mouse_pick();
     if (ghost && pos_under_mouse) {
-        model.entities.assign_or_replace<site>(*ghost, *pos_under_mouse);
+        model.entities.assign_or_replace<site>(*ghost, model.snap(*pos_under_mouse, glm::vec2{1.0f, 1.0f}));
     }
 
     glm::vec3 forward = -cam.offset;

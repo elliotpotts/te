@@ -188,6 +188,10 @@ std::optional<entt::entity> te::sim::try_place(entt::entity proto, glm::vec2 cen
     return instantiated;
 }
 
+glm::vec2 te::sim::snap(glm::vec2 pos, glm::vec2 print) const {
+    return round(pos - print / 2.0f) + print / 2.0f;
+}
+
 void te::sim::spawn(entt::entity proto) {
     const auto print = entities.get<footprint>(proto);
     const double min_x = -map_width / 2.0;
@@ -265,7 +269,6 @@ void te::sim::tick(double dt) {
                         merchant.trading = false;
                         // start heading to next market
                         merchant.last_stop = dest_stop_ix;
-                        spdlog::debug("{} is en route to {}", name.name, entities.get<named>(dest_stop.where).name);
                     } else {
                         // do nothing - wait for trades to finish
                     }

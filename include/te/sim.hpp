@@ -96,7 +96,7 @@ namespace te {
 
     struct sim {
         std::default_random_engine rengine;
-
+        
         entt::registry entities;
         std::vector<family> families;
         std::vector<entt::entity> commodities;
@@ -106,6 +106,7 @@ namespace te {
         const int map_width = 40;
         const int map_height = 40;
         std::unordered_map<glm::ivec2, entt::entity> grid;
+        glm::vec2 snap(glm::vec2 pos, glm::vec2 print) const;
 
         sim(unsigned seed);
 
