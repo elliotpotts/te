@@ -93,23 +93,14 @@ void te::sim::generate_map() {
     entities.assign<pickable>(merchant_e);
     entities.assign<trader>(merchant_e, 1u);
     entities.assign<inventory>(merchant_e);
-    std::vector<te::stop> salesman;
-    int i = 1;
-    for (auto market : entities.view<site, market>()) {
-        te::stop buy_one_wheat { market };
-        buy_one_wheat.leave_with[commodities[0]] = i++ % 2;
-        salesman.push_back(buy_one_wheat);
-    }
-    entities.assign<merchant> (
-        merchant_e,
-        route { salesman },
-        salesman.size() - 1
+    entities.assign<merchant>(merchant_e, std::nullopt);
+
+    routes.push_back (
+        route {
+            "G'Day M'Lady",
+            {}
+        }
     );
-    // Create a reverse salesman
-    std::reverse(salesman.begin(), salesman.end());
-    auto merchant2_e = entities.create(merchant_e, entities);
-    entities.replace<named>(merchant2_e, "Marco Polo");
-    entities.get<merchant&>(merchant2_e).route.stops = salesman;
 }
 
 te::market* te::sim::market_at(glm::vec2 x) {
@@ -261,38 +252,42 @@ int te::sim::market_stock(entt::entity market_e, entt::entity commodity_e) {
 }
 
 void te::sim::tick(double dt) {
-    entities.view<merchant, named, inventory, site>().each (
-        [&](entt::entity merchant_e, auto& merchant, auto& name, auto& merchant_inventory, auto& merchant_site) {
-            std::size_t dest_stop_ix = (merchant.last_stop + 1) % merchant.route.stops.size();
-            stop& dest_stop = merchant.route.stops[dest_stop_ix];
-            auto dest = entities.get<site>(dest_stop.where);
-            auto course = dest.position - merchant_site.position;
-            auto distance = glm::length(course);
-            // is the merchant at his desired market?
-            if (distance <= 1.0f) {
-                if (merchant.trading) {
-                    if (merchant_inventory.stock == dest_stop.leave_with) {
-                        // stop trading
-                        merchant.trading = false;
-                        // start heading to next market
-                        merchant.last_stop = dest_stop_ix;
-                    } else {
-                        // do nothing - wait for trades to finish
-                    }
+    auto merchants = entities.view<merchant, inventory, site>();
+    for (auto merchant_e : merchants) {
+        auto& merchant = merchants.get<te::merchant>(merchant_e);
+        if (!merchant.route) continue;
+        auto& merchant_inventory = merchants.get<te::inventory>(merchant_e);
+        auto& merchant_site = merchants.get<te::site>(merchant_e);
+        
+        std::size_t dest_stop_ix = (merchant.last_stop + 1) % merchant.route->stops.size();
+        stop& dest_stop = merchant.route->stops[dest_stop_ix];
+        auto dest = entities.get<site>(dest_stop.where);
+        auto course = dest.position - merchant_site.position;
+        auto distance = glm::length(course);
+        // is the merchant at his desired market?
+        if (distance <= 1.0f) {
+            if (merchant.trading) {
+                if (merchant_inventory.stock == dest_stop.leave_with) {
+                    // stop trading
+                    merchant.trading = false;
+                    // start heading to next market
+                    merchant.last_stop = dest_stop_ix;
                 } else {
-                    merchant.trading = true;
-                    auto& bids = entities.get<trader>(merchant_e).bid;
-                    
-                    for (auto [commodity_e, count] : dest_stop.leave_with) {
-                        bids[commodity_e] = count - merchant_inventory.stock[commodity_e];
-                    }
+                    // do nothing - wait for trades to finish
                 }
             } else {
-                // move him a bit closer
-                merchant_site.position += glm::normalize(course) * static_cast<float>(dt);
+                merchant.trading = true;
+                auto& bids = entities.get<trader>(merchant_e).bid;
+                    
+                for (auto [commodity_e, count] : dest_stop.leave_with) {
+                    bids[commodity_e] = count - merchant_inventory.stock[commodity_e];
+                }
             }
+        } else {
+            // move him a bit closer
+            merchant_site.position += glm::normalize(course) * static_cast<float>(dt);
         }
-    );
+    }
     entities.view<market, site>().each (
         [&](entt::entity market_e, auto& market, auto& market_site) {
             // advance generators

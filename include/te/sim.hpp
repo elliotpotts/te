@@ -88,12 +88,13 @@ namespace te {
     };
 
     struct route {
+        std::string name;
         std::vector<stop> stops;
     };
 
     struct merchant {
-        te::route route;
-        std::size_t last_stop;
+        std::optional<te::route> route;
+        std::size_t last_stop = 0;
         bool trading = false;
     };
 
@@ -104,6 +105,7 @@ namespace te {
         std::vector<family> families;
         std::vector<entt::entity> commodities;
         std::vector<entt::entity> blueprints;
+        std::vector<route> routes;
         entt::entity merchant_blueprint;
 
         const int map_width = 40;

@@ -315,72 +315,132 @@ void te::app::render_inspector() {
 void te::app::render_controller() {
     ImGui::Begin("Controller", nullptr, 0);
     ImGui::Text(fmt::format("¤{}", model.families[1].balance).c_str());
-    ImGui::BeginTabBar("MainTabbar", 0);
-    if (ImGui::BeginTabItem("Build")) {
-        for (auto blueprint : model.blueprints) {
-            if (auto [named, price, footprint] = model.entities.try_get<te::named, te::price, te::footprint>(blueprint); named && price && footprint) {
-                if (ImGui::Button(fmt::format("{}: ¤{}", named->name, price->price).c_str())) {
-                    if (!ghost) {
-                        ghost = model.entities.create<te::site, te::footprint, te::render_mesh>(blueprint, model.entities);
-                        model.entities.assign<te::ghost>(*ghost, blueprint);
+    if (ImGui::BeginTabBar("MainTabbar")) {
+        if (ImGui::BeginTabItem("Build")) {
+            for (auto blueprint : model.blueprints) {
+                if (auto [named, price, footprint] = model.entities.try_get<te::named, te::price, te::footprint>(blueprint); named && price && footprint) {
+                    if (ImGui::Button(fmt::format("{}: ¤{}", named->name, price->price).c_str())) {
+                        if (!ghost) {
+                            ghost = model.entities.create<te::site, te::footprint, te::render_mesh>(blueprint, model.entities);
+                            model.entities.assign<te::ghost>(*ghost, blueprint);
+                        }
                     }
                 }
             }
+            ImGui::EndTabItem();
         }
-        ImGui::EndTabItem();
-    }
-    if (ImGui::BeginTabItem("Merchants")) {
-        auto merchants = model.entities.view<te::trader, te::merchant, te::inventory, te::named>();
-        for (auto merchant_entity : merchants) {
-            const auto& trader = merchants.get<te::trader>(merchant_entity);
-            if (trader.family_ix != 1) continue;
-            const auto& merchant = merchants.get<te::merchant>(merchant_entity);
-            const auto& merchant_inventory = merchants.get<te::inventory>(merchant_entity);
-            const auto& merchant_name = merchants.get<te::named>(merchant_entity);
-            ImGui::Text(fmt::format("{}: ¤{}", merchant_name.name, trader.balance).c_str());
-            auto next_stop = merchant.route.stops[(merchant.last_stop + 1) % merchant.route.stops.size()];
-            auto next_stop_name = model.entities.get<te::named>(next_stop.where);
-            if (merchant.trading) {
-                ImGui::Text(fmt::format("Trading at {}", next_stop_name.name).c_str());
-            } else {
-                ImGui::Text(fmt::format("En route to {}", next_stop_name.name).c_str());
+        if (ImGui::BeginTabItem("Merchants")) {
+            auto merchants = model.entities.view<te::trader, te::merchant, te::inventory, te::named>();
+            for (auto merchant_entity : merchants) {
+                const auto& trader = merchants.get<te::trader>(merchant_entity);
+                if (trader.family_ix != 1) continue;
+                const auto& merchant = merchants.get<te::merchant>(merchant_entity);
+                const auto& merchant_inventory = merchants.get<te::inventory>(merchant_entity);
+                const auto& merchant_name = merchants.get<te::named>(merchant_entity);
+                ImGui::Text(fmt::format("{}: ¤{}", merchant_name.name, trader.balance).c_str());
+                if (merchant.route) {
+                    ImGui::Text(merchant.route->name.c_str());
+                    auto next_stop = merchant.route->stops[(merchant.last_stop + 1) % merchant.route->stops.size()];
+                    auto next_stop_name = model.entities.get<te::named>(next_stop.where);
+                    if (merchant.trading) {
+                        ImGui::Text(fmt::format("Trading at {}", next_stop_name.name).c_str());
+                    } else {
+                        ImGui::Text(fmt::format("En route to {}", next_stop_name.name).c_str());
+                    }
+                    ImGui::NewLine();
+                    for (auto commodity : model.commodities) {
+                        const auto stock_it = merchant_inventory.stock.find(commodity);
+                        const int stock = stock_it == merchant_inventory.stock.end() ? 0 : stock_it->second;
+                        const auto leave_with_it = next_stop.leave_with.find(commodity);
+                        const int leave_with = leave_with_it == next_stop.leave_with.end() ? 0 : leave_with_it->second;
+                        const int buy = std::max(0, leave_with - stock);
+                        const int sell = merchant.trading ? std::max(0, stock - leave_with) : 0;
+                        const int keep = stock - sell;
+                        const auto& commodity_tex = resources.lazy_load<te::gl::texture2d>(model.entities.get<te::render_tex>(commodity).filename);
+                        for (int i = 0; i < buy; i++) {
+                            ImGui::SameLine();
+                            ImGui::Image (
+                                *commodity_tex.hnd, ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1},
+                                ImVec4{22.9/100.0, 60.7/100.0, 85.9/100.0, 1.0f}
+                            );
+                        }
+                        for (int i = 0; i < sell; i++) {
+                            ImGui::SameLine();
+                            ImGui::Image(*commodity_tex.hnd, ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{1, 0, 0, 1});
+                        }
+                        for (int i = 0; i < keep; i++) {
+                            ImGui::SameLine();
+                            ImGui::Image(*commodity_tex.hnd, ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{1, 1, 1, 1});
+                        }
+                    }
+                } else {
+                    ImGui::Text("No route assigned");
+                    for (auto [commodity, stock] : merchant_inventory.stock) {
+                        const auto& commodity_tex = resources.lazy_load<te::gl::texture2d>(model.entities.get<te::render_tex>(commodity).filename);
+                        for (int i = 0; i < stock; i++) {
+                            ImGui::SameLine();
+                            ImGui::Image(*commodity_tex.hnd, ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{1, 1, 1, 1});
+                        }
+                    }
+                }
+                ImGui::Separator();
             }
-            ImGui::NewLine();
-            int columns_left = 10;
-            for (auto commodity : model.commodities) {
-                const auto stock_it = merchant_inventory.stock.find(commodity);
-                const int stock = stock_it == merchant_inventory.stock.end() ? 0 : stock_it->second;
-                const auto leave_with_it = next_stop.leave_with.find(commodity);
-                const int leave_with = leave_with_it == next_stop.leave_with.end() ? 0 : leave_with_it->second;
-                const int buy = std::max(0, leave_with - stock);
-                const int sell = merchant.trading ? std::max(0, stock - leave_with) : 0;
-                const int keep = stock - sell;
-                const auto& commodity_tex = resources.lazy_load<te::gl::texture2d>(model.entities.get<te::render_tex>(commodity).filename);
-                for (int i = 0; i < buy && --columns_left > 0; i++) {
-                    ImGui::SameLine();
-                    ImGui::Image (
-                        *commodity_tex.hnd, ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1},
-                        ImVec4{22.9/100.0, 60.7/100.0, 85.9/100.0, 1.0f}
-                    );
-                }
-                for (int i = 0; i < sell && --columns_left > 0; i++) {
-                    ImGui::SameLine();
-                    ImGui::Image(*commodity_tex.hnd, ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{1, 0, 0, 1});
-                }
-                for (int i = 0; i < keep && --columns_left > 0; i++) {
-                    ImGui::SameLine();
-                    ImGui::Image(*commodity_tex.hnd, ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{1, 1, 1, 1});
-                }
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Routes")) {
+            static te::route* editing = nullptr;
+            static std::optional<int> selected_route_ix = std::nullopt;
+            if (ImGui::BeginCombo("###route_selector", selected_route_ix ? model.routes[*selected_route_ix].name.c_str() : "")) {
+                for (int i = 0; i < model.routes.size(); i++) {
+                    bool current_item_selected = i == selected_route_ix;
+                    if (ImGui::Selectable(model.routes[i].name.c_str(), current_item_selected)) {
+                        selected_route_ix = i;
+                    }
+                    if (current_item_selected) {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                };
+                ImGui::EndCombo();
+            }
+            if (ImGui::Button("New")) {
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Save")) {
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Delete")) {
             }
             ImGui::Separator();
+            auto markets = model.entities.view<te::market, te::named, te::site>();
+            auto market_it = markets.begin();
+            static std::optional<decltype(market_it)> selected_next_stop_it = std::nullopt;
+            if (market_it == markets.end()) {
+                if (ImGui::BeginCombo("###next_stop_selector", "")) {
+                    // no markets so don't allow anything to be selected
+                    ImGui::EndCombo();
+                }
+            } else {
+                if (ImGui::BeginCombo("###next_stop_selector", model.entities.get<te::named>(*(selected_next_stop_it.value_or(market_it))).name.c_str())) {
+                    for (;market_it != markets.end(); market_it++) {
+                        bool current_next_stop_selected = market_it == selected_next_stop_it;
+                        auto name = model.entities.get<te::named>(*market_it).name;
+                        if (ImGui::Selectable(name.c_str(), current_next_stop_selected)) {
+                            selected_next_stop_it = market_it;
+                        }
+                        if (current_next_stop_selected) {
+                            ImGui::SetItemDefaultFocus();
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Add Stop")) {
+            }
+            ImGui::EndTabItem();
         }
-        ImGui::EndTabItem();
+        ImGui::EndTabBar();
     }
-    if (ImGui::BeginTabItem("Routes")) {
-        ImGui::Text("Routes will go here");
-        ImGui::EndTabItem();
-    }
-    ImGui::EndTabBar();
     ImGui::End();
 }
 
@@ -389,7 +449,7 @@ void te::app::render_ui() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    render_inspector();
+    //render_inspector();
     render_controller();
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
