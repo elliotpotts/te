@@ -30,6 +30,10 @@ namespace te {
         glm::vec2 position;
     };
 
+    struct ghost {
+        entt::entity proto;
+    };
+
     struct dweller {
         //TODO: programmatically represent requirements of living
         // i.e. dwellings need 2 of 3 food types in abundance

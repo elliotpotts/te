@@ -60,6 +60,7 @@ void te::sim::init_blueprints() {
     
     auto market = blueprints.emplace_back(entities.create());
     entities.assign<named>(market, "Market");
+    entities.assign<price>(market, 900.0);
     entities.assign<footprint>(market, glm::vec2{2.0f,2.0f});
     entities.assign<te::market>(market, base_market_prices);
     entities.assign<render_mesh>(market, "media/market.glb");

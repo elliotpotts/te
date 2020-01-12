@@ -69,8 +69,13 @@ void te::app::on_key(int key, int scancode, int action, int mods) {
 void te::app::on_mouse_button(int button, int action, int mods) {
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
         if (ghost) {
-            ghost.reset();
-            return;
+            auto proto = model.entities.get<te::ghost>(*ghost).proto;
+            if (model.try_place(proto, model.entities.get<te::site>(*ghost).position)) {
+                model.families[1].balance -= model.entities.get<te::price>(proto).price;
+                model.entities.destroy(*ghost);
+                ghost.reset();
+                return;
+            }
         }
         if (pos_under_mouse) {
             auto map_entities = model.entities.view<te::site, te::pickable>();
@@ -312,11 +317,12 @@ void te::app::render_controller() {
     ImGui::Text(fmt::format("¤{}", model.families[1].balance).c_str());
     ImGui::BeginTabBar("MainTabbar", 0);
     if (ImGui::BeginTabItem("Build")) {
-        for (auto e : model.blueprints) {
-            if (auto [named, price, footprint] = model.entities.try_get<te::named, te::price, te::footprint>(e); named && price && footprint) {
+        for (auto blueprint : model.blueprints) {
+            if (auto [named, price, footprint] = model.entities.try_get<te::named, te::price, te::footprint>(blueprint); named && price && footprint) {
                 if (ImGui::Button(fmt::format("{}: ¤{}", named->name, price->price).c_str())) {
                     if (!ghost) {
-                        ghost = model.entities.create(e, model.entities);
+                        ghost = model.entities.create<te::site, te::footprint, te::render_mesh>(blueprint, model.entities);
+                        model.entities.assign<te::ghost>(*ghost, blueprint);
                     }
                 }
             }
