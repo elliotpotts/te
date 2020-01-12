@@ -86,7 +86,7 @@ void te::sim::generate_map() {
     for (int i = 0; i < 100; i++) spawn(blueprints[select_blueprint(rengine)]);
     // create a roaming merchant
     auto merchant_e = entities.create();
-    entities.assign<named>(merchant_e, "Merchant Nebuchadnezzar");
+    entities.assign<named>(merchant_e, "Nebuchadnezzar");
     entities.assign<site>(merchant_e, glm::vec2{0.0f, 0.0f});
     entities.assign<footprint>(merchant_e, glm::vec2{1.0f, 1.0f});
     entities.assign<render_mesh>(merchant_e, "media/merchant.glb");
@@ -105,6 +105,11 @@ void te::sim::generate_map() {
         route { salesman },
         salesman.size() - 1
     );
+    // Create a reverse salesman
+    std::reverse(salesman.begin(), salesman.end());
+    auto merchant2_e = entities.create(merchant_e, entities);
+    entities.replace<named>(merchant2_e, "Marco Polo");
+    entities.get<merchant&>(merchant2_e).route.stops = salesman;
 }
 
 te::market* te::sim::market_at(glm::vec2 x) {
@@ -169,6 +174,7 @@ std::optional<entt::entity> te::sim::try_place(entt::entity proto, glm::vec2 cen
     
     auto instantiated = entities.create(proto, entities);
     entities.assign<site>(instantiated, centre);
+    entities.replace<named>(instantiated, fmt::format("{} (#{})", entities.get<named>(instantiated).name, static_cast<unsigned>(instantiated)));
     
     //TODO: remove this horrible junk
     if (auto maybe_market = entities.try_get<te::market>(instantiated); maybe_market) {

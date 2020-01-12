@@ -166,7 +166,7 @@ void te::app::render_inspector() {
         if (auto [maybe_site, maybe_named] = model.entities.try_get<te::site, te::named>(*inspected); maybe_site && maybe_named) {
             ImGui::Text("Map position: (%f, %f)", maybe_site->position.x, maybe_site->position.y);
             auto id_string = fmt::format("{}", *reinterpret_cast<std::uint32_t*>(&*inspected));
-            ImGui::Text("%s (#%s)", maybe_named->name.c_str(), id_string.c_str());
+            ImGui::Text("%s", maybe_named->name.c_str());
             ImGui::Separator();
         }
         if (auto the_generator = model.entities.try_get<te::generator>(*inspected); the_generator) {
@@ -330,7 +330,50 @@ void te::app::render_controller() {
         ImGui::EndTabItem();
     }
     if (ImGui::BeginTabItem("Merchants")) {
-        ImGui::Text("Merhcants will go here");
+        auto merchants = model.entities.view<te::trader, te::merchant, te::inventory, te::named>();
+        for (auto merchant_entity : merchants) {
+            const auto& trader = merchants.get<te::trader>(merchant_entity);
+            if (trader.family_ix != 1) continue;
+            const auto& merchant = merchants.get<te::merchant>(merchant_entity);
+            const auto& merchant_inventory = merchants.get<te::inventory>(merchant_entity);
+            const auto& merchant_name = merchants.get<te::named>(merchant_entity);
+            ImGui::Text(fmt::format("{}: ¤{}", merchant_name.name, trader.balance).c_str());
+            auto next_stop = merchant.route.stops[(merchant.last_stop + 1) % merchant.route.stops.size()];
+            auto next_stop_name = model.entities.get<te::named>(next_stop.where);
+            if (merchant.trading) {
+                ImGui::Text(fmt::format("Trading at {}", next_stop_name.name).c_str());
+            } else {
+                ImGui::Text(fmt::format("En route to {}", next_stop_name.name).c_str());
+            }
+            ImGui::NewLine();
+            int columns_left = 10;
+            for (auto commodity : model.commodities) {
+                const auto stock_it = merchant_inventory.stock.find(commodity);
+                const int stock = stock_it == merchant_inventory.stock.end() ? 0 : stock_it->second;
+                const auto leave_with_it = next_stop.leave_with.find(commodity);
+                const int leave_with = leave_with_it == next_stop.leave_with.end() ? 0 : leave_with_it->second;
+                const int buy = std::max(0, leave_with - stock);
+                const int sell = merchant.trading ? std::max(0, stock - leave_with) : 0;
+                const int keep = stock - sell;
+                const auto& commodity_tex = resources.lazy_load<te::gl::texture2d>(model.entities.get<te::render_tex>(commodity).filename);
+                for (int i = 0; i < buy && --columns_left > 0; i++) {
+                    ImGui::SameLine();
+                    ImGui::Image (
+                        *commodity_tex.hnd, ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1},
+                        ImVec4{22.9/100.0, 60.7/100.0, 85.9/100.0, 1.0f}
+                    );
+                }
+                for (int i = 0; i < sell && --columns_left > 0; i++) {
+                    ImGui::SameLine();
+                    ImGui::Image(*commodity_tex.hnd, ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{1, 0, 0, 1});
+                }
+                for (int i = 0; i < keep && --columns_left > 0; i++) {
+                    ImGui::SameLine();
+                    ImGui::Image(*commodity_tex.hnd, ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{1, 1, 1, 1});
+                }
+            }
+            ImGui::Separator();
+        }
         ImGui::EndTabItem();
     }
     if (ImGui::BeginTabItem("Routes")) {
@@ -367,10 +410,10 @@ void te::app::input() {
     forward.z = 0.0f;
     forward = glm::normalize(forward);
     glm::vec3 left = glm::rotate(forward, glm::half_pi<float>(), glm::vec3{0.0f, 0.0f, 1.0f});
-    if (win.key(GLFW_KEY_W) == GLFW_PRESS) cam.focus += 0.1f * forward;
-    if (win.key(GLFW_KEY_A) == GLFW_PRESS) cam.focus += 0.1f * left;
-    if (win.key(GLFW_KEY_S) == GLFW_PRESS) cam.focus -= 0.1f * forward;
-    if (win.key(GLFW_KEY_D) == GLFW_PRESS) cam.focus -= 0.1f * left;
+    if (win.key(GLFW_KEY_W) == GLFW_PRESS) cam.focus += 0.3f * forward;
+    if (win.key(GLFW_KEY_A) == GLFW_PRESS) cam.focus += 0.3f * left;
+    if (win.key(GLFW_KEY_S) == GLFW_PRESS) cam.focus -= 0.3f * forward;
+    if (win.key(GLFW_KEY_D) == GLFW_PRESS) cam.focus -= 0.3f * left;
     if (win.key(GLFW_KEY_H) == GLFW_PRESS) cam.zoom(0.15f);
     if (win.key(GLFW_KEY_J) == GLFW_PRESS) cam.zoom(-0.15f);
     cam.use_ortho = win.key(GLFW_KEY_SPACE) != GLFW_PRESS;
