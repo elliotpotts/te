@@ -417,13 +417,13 @@ void te::sim::tick(double dt) {
             
             // calculate market population
             market.population = 0;
-            entities.view<dweller, site>().each (
-                [&](auto& trader, auto& dwelling_site) {
-                    if (in_market(dwelling_site, market_site, market)) {
-                        market.population++;
-                    }
+            auto dwellings = entities.view<dweller, site>();
+            for (auto entity : dwellings) {
+                auto& dwelling_site = dwellings.get<te::site>(entity);
+                if (in_market(dwelling_site, market_site, market)) {
+                    market.population++;
                 }
-            );
+            };
 
             // calculate market growth rate
             market.growth_rate = 0.0;

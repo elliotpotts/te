@@ -37,7 +37,6 @@ namespace te {
     struct dweller {
         //TODO: programmatically represent requirements of living
         // i.e. dwellings need 2 of 3 food types in abundance
-        bool dummy;
     };
 
     // A demander stores the rate of increase of demand of entities
