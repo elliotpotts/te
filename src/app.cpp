@@ -388,7 +388,6 @@ void te::app::render_controller() {
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Routes")) {
-            static te::route* editing = nullptr;
             static std::optional<int> selected_route_ix = std::nullopt;
             if (ImGui::BeginCombo("###route_selector", selected_route_ix ? model.routes[*selected_route_ix].name.c_str() : "")) {
                 for (int i = 0; i < model.routes.size(); i++) {
@@ -405,37 +404,56 @@ void te::app::render_controller() {
             if (ImGui::Button("New")) {
             }
             ImGui::SameLine();
-            if (ImGui::Button("Save")) {
+            if (ImGui::Button("Save") && selected_route_ix) {
+                auto merch = model.entities.view<te::merchant>().begin();
+                model.entities.get<te::merchant&>(*merch).route = model.routes[*selected_route_ix];
             }
             ImGui::SameLine();
             if (ImGui::Button("Delete")) {
             }
             ImGui::Separator();
+            if (selected_route_ix) {
+                for (const te::stop& stop : model.routes[*selected_route_ix].stops) {
+                    ImGui::Text(model.entities.get<te::named>(stop.where).name.c_str());
+                    for (auto [commodity, leave_with] : stop.leave_with) {
+                        const auto& commodity_tex = resources.lazy_load<te::gl::texture2d>(model.entities.get<te::render_tex>(commodity).filename);
+                        for (int i = 0; i < leave_with; i++) {
+                            ImGui::SameLine();
+                            ImGui::Image(*commodity_tex.hnd, ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{1, 1, 1, 1});
+                        }
+                    }
+                    ImGui::Separator();
+                }
+            }
             auto markets = model.entities.view<te::market, te::named, te::site>();
             auto market_it = markets.begin();
             static std::optional<decltype(market_it)> selected_next_stop_it = std::nullopt;
-            if (market_it == markets.end()) {
-                if (ImGui::BeginCombo("###next_stop_selector", "")) {
-                    // no markets so don't allow anything to be selected
-                    ImGui::EndCombo();
-                }
-            } else {
-                if (ImGui::BeginCombo("###next_stop_selector", model.entities.get<te::named>(*(selected_next_stop_it.value_or(market_it))).name.c_str())) {
-                    for (;market_it != markets.end(); market_it++) {
-                        bool current_next_stop_selected = market_it == selected_next_stop_it;
-                        auto name = model.entities.get<te::named>(*market_it).name;
-                        if (ImGui::Selectable(name.c_str(), current_next_stop_selected)) {
-                            selected_next_stop_it = market_it;
-                        }
-                        if (current_next_stop_selected) {
-                            ImGui::SetItemDefaultFocus();
-                        }
+            const char* const combo_preview = selected_next_stop_it ? model.entities.get<te::named>(**selected_next_stop_it).name.c_str() : "";
+            if (ImGui::BeginCombo("###next_stop_selector", combo_preview)) {
+                for (;market_it != markets.end(); market_it++) {
+                    bool current_next_stop_selected = market_it == selected_next_stop_it;
+                    auto name = model.entities.get<te::named>(*market_it).name;
+                    if (ImGui::Selectable(name.c_str(), current_next_stop_selected)) {
+                        selected_next_stop_it = market_it;
                     }
-                    ImGui::EndCombo();
+                    if (current_next_stop_selected) {
+                        ImGui::SetItemDefaultFocus();
+                    }
                 }
+                ImGui::EndCombo();
             }
             ImGui::SameLine();
-            if (ImGui::Button("Add Stop")) {
+            if (ImGui::Button("Add Stop") && selected_route_ix && selected_next_stop_it) {
+                model.routes[*selected_route_ix].stops.push_back(stop {**selected_next_stop_it, {}});
+            }
+            ImGui::Separator();
+            for (auto commodity : model.commodities) {
+                const auto& commodity_tex = resources.lazy_load<te::gl::texture2d>(model.entities.get<te::render_tex>(commodity).filename);
+                if (ImGui::ImageButton(*commodity_tex.hnd, ImVec2{24, 24}) && selected_route_ix && model.routes[*selected_route_ix].stops.size() > 0) {
+                    model.routes[*selected_route_ix].stops.back().leave_with[commodity]++;
+                }
+                ImGui::SameLine();
+                ImGui::Text(model.entities.get<te::named>(commodity).name.c_str());
             }
             ImGui::EndTabItem();
         }
@@ -449,7 +467,7 @@ void te::app::render_ui() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    //render_inspector();
+    render_inspector();
     render_controller();
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -493,7 +511,7 @@ void te::app::run() {
             auto now = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> secs = now - then;
             fps = static_cast<double>(frames) / secs.count();
-            model.tick(secs.count() * 3.0);
+            model.tick(secs.count() * 1.0);
             frames = 0;
             then = std::chrono::high_resolution_clock::now();
         }
