@@ -115,6 +115,7 @@ namespace te {
 
         sim(unsigned seed);
 
+        void load_commodities();
         void init_blueprints();
         void generate_map();
 
@@ -135,6 +136,8 @@ namespace te {
         
         bool spawn_dwelling(entt::entity market);
         void spawn(entt::entity proto);
+
+        void tick_merchant_routes(double dt);
         
         void tick(double delta_t);
     };

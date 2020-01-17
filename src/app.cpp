@@ -158,6 +158,15 @@ namespace {
     }
 }
 
+void te::app::imgui_commicon(entt::entity e, ImVec4 colour) {
+    auto& render_tex = model.entities.get<te::render_tex>(e);
+    ImGui::Image (
+        *resources.lazy_load<te::gl::texture2d>(render_tex.filename).hnd,
+        ImVec2{21, 21}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1},
+        colour
+    );
+}
+
 void te::app::render_inspector() {
     ImGui::Begin("Inspector", nullptr, 0);
     ImGui::Text("FPS: %f", fps);
@@ -170,8 +179,7 @@ void te::app::render_inspector() {
             ImGui::Separator();
         }
         if (auto the_generator = model.entities.try_get<te::generator>(*inspected); the_generator) {
-            auto& rendr_tex = model.entities.get<te::render_tex>(the_generator->output);
-            ImGui::Image(*resources.lazy_load<te::gl::texture2d>(rendr_tex.filename).hnd, ImVec2{24, 24});
+            imgui_commicon(the_generator->output);
             ImGui::SameLine();
             const auto& output_commodity_name = model.entities.get<te::named>(the_generator->output);
             ImGui::Text(fmt::format("{} @ {}/s", output_commodity_name.name, the_generator->rate).c_str());
@@ -181,10 +189,9 @@ void te::app::render_inspector() {
         }
         if (auto demander = model.entities.try_get<te::demander>(*inspected); demander) {
             for (auto [demanded, rate] : demander->rate) {
-                auto [name, tex] = model.entities.get<te::named, te::render_tex>(demanded);
-                ImGui::Image(*resources.lazy_load<te::gl::texture2d>(tex.filename).hnd, ImVec2{24, 24});
+                imgui_commicon(demanded);
                 ImGui::SameLine();
-                ImGui::Text(fmt::format("{} @ {}/s", name.name, rate).c_str());
+                ImGui::Text(fmt::format("{} @ {}/s", model.entities.get<te::named>(demanded).name, rate).c_str());
             }
             ImGui::Separator();
         }
@@ -202,16 +209,14 @@ void te::app::render_inspector() {
         if (auto [producer, inventory] = model.entities.try_get<te::producer, te::inventory>(*inspected); producer && inventory) {
             ImGui::Text("Inputs");
             for (auto& [commodity_e, needed] : producer->inputs) {
-                auto& commodity_tex = model.entities.get<te::render_tex>(commodity_e);
-                ImGui::Image(*resources.lazy_load<te::gl::texture2d>(commodity_tex.filename).hnd, ImVec2{24, 24});
+                imgui_commicon(commodity_e);
                 ImGui::SameLine();
                 ImGui::Text(fmt::format("{}: {}/{}", model.entities.get<named>(commodity_e).name, inventory->stock[commodity_e], needed).c_str());
             }
             ImGui::ProgressBar(producer->progress);
             ImGui::Text(fmt::format("Outputs @{}/s", producer->rate).c_str());
             for (auto& [commodity_e, produced] : producer->outputs) {
-                auto& commodity_tex = model.entities.get<te::render_tex>(commodity_e);
-                ImGui::Image(*resources.lazy_load<te::gl::texture2d>(commodity_tex.filename).hnd, ImVec2{24, 24});
+                imgui_commicon(commodity_e);
                 ImGui::SameLine();
                 ImGui::Text(fmt::format("{}: ×{}", model.entities.get<named>(commodity_e).name, produced).c_str());
             }
@@ -221,6 +226,8 @@ void te::app::render_inspector() {
             ImGui::Text(fmt::format("Growth rate: {}", market->growth_rate).c_str());
             ImGui::Text("Growth: ");
             ImGui::SameLine();
+            float fake_growth_rate = market->growth_rate;
+            ImGui::SliderFloat("", &fake_growth_rate, -1.0f / 3.0, 1.0f / 4.0);
             ImGui::ProgressBar((glm::clamp(market->growth, -1.0, 1.0) + 1.0) / 2.0);
 
             ImGui::Columns(5);
@@ -249,11 +256,11 @@ void te::app::render_inspector() {
 
             ImGui::SetColumnWidth(3, width_available);
             for (auto [commodity_entity, price] : market->prices) {
-                auto [commodity_name, commodity_tex] = model.entities.get<te::named, te::render_tex>(commodity_entity);
+                auto& commodity_name = model.entities.get<te::named>(commodity_entity);
                 ImGui::Text(fmt::format("{}", model.market_stock(*inspected, commodity_entity)).c_str());
                 ImGui::NextColumn();
 
-                ImGui::Image(*resources.lazy_load<te::gl::texture2d>(commodity_tex.filename).hnd, ImVec2{24, 24});
+                imgui_commicon(commodity_entity);
                 ImGui::NextColumn();
 
                 ImGui::Text(commodity_name.name.c_str());
@@ -356,21 +363,17 @@ void te::app::render_controller() {
                         const int buy = std::max(0, leave_with - stock);
                         const int sell = merchant.trading ? std::max(0, stock - leave_with) : 0;
                         const int keep = stock - sell;
-                        const auto& commodity_tex = resources.lazy_load<te::gl::texture2d>(model.entities.get<te::render_tex>(commodity).filename);
                         for (int i = 0; i < buy; i++) {
                             ImGui::SameLine();
-                            ImGui::Image (
-                                *commodity_tex.hnd, ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1},
-                                ImVec4{22.9/100.0, 60.7/100.0, 85.9/100.0, 1.0f}
-                            );
+                            imgui_commicon(commodity, ImVec4{22.9/100.0, 60.7/100.0, 85.9/100.0, 1.0f});
                         }
                         for (int i = 0; i < sell; i++) {
                             ImGui::SameLine();
-                            ImGui::Image(*commodity_tex.hnd, ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{1, 0, 0, 1});
+                            imgui_commicon(commodity, ImVec4{1, 0, 0, 1});
                         }
                         for (int i = 0; i < keep; i++) {
                             ImGui::SameLine();
-                            ImGui::Image(*commodity_tex.hnd, ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{1, 1, 1, 1});
+                            imgui_commicon(commodity);
                         }
                     }
                 } else {
@@ -384,6 +387,19 @@ void te::app::render_controller() {
                     }
                 }
                 ImGui::Separator();
+            }
+            static const std::vector<std::string> merch_names = { "Zazoo", "Mufasa", "Rafiki" };
+            static auto merch_name = merch_names.begin();
+            if (ImGui::Button("Hire new merchant: ¤600") && merch_name != merch_names.end()) {
+                auto merchant_e = model.entities.create();
+                model.entities.assign<te::named>(merchant_e, *merch_name++);
+                model.entities.assign<te::site>(merchant_e, glm::vec2{0.0f, 0.0f});
+                model.entities.assign<te::footprint>(merchant_e, glm::vec2{1.0f, 1.0f});
+                model.entities.assign<te::render_mesh>(merchant_e, "media/merchant.glb");
+                model.entities.assign<te::pickable>(merchant_e);
+                model.entities.assign<te::trader>(merchant_e, 1u);
+                model.entities.assign<te::inventory>(merchant_e);
+                model.entities.assign<te::merchant>(merchant_e, std::nullopt);
             }
             ImGui::EndTabItem();
         }
@@ -451,6 +467,7 @@ void te::app::render_controller() {
                 const auto& commodity_tex = resources.lazy_load<te::gl::texture2d>(model.entities.get<te::render_tex>(commodity).filename);
                 if (ImGui::ImageButton(*commodity_tex.hnd, ImVec2{24, 24}) && selected_route_ix && model.routes[*selected_route_ix].stops.size() > 0) {
                     model.routes[*selected_route_ix].stops.back().leave_with[commodity]++;
+                    ImGui::Text("One more!");
                 }
                 ImGui::SameLine();
                 ImGui::Text(model.entities.get<te::named>(commodity).name.c_str());

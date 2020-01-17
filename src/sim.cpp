@@ -1,89 +1,169 @@
 #include <te/sim.hpp>
 #include <spdlog/spdlog.h>
+#include <fstream>
+#include <regex>
+#include <algorithm>
+#include <cctype>
+#include <cstdlib>
+#include <optional>
+#include <utility>
 
 te::sim::sim(unsigned int seed) : rengine { seed } {
+    load_commodities();
     init_blueprints();
     generate_map();
+}
+namespace {    
+    struct unit {
+    };
+    template<typename It>
+    struct csv_parser {
+        It current;
+        It end;
+        csv_parser(It begin, It end) : current(begin), end(end) {
+        }
+        auto try_parse_regex(const std::regex& regex) -> std::optional<std::match_results<It>> {
+            if (std::match_results<It> match; std::regex_search(current, end, match, regex)) {
+                current = match[0].second;
+                return std::optional{match};
+            } else {
+                return std::nullopt;
+            }
+        }
+        auto try_parse_literal(const std::string_view literal) -> std::optional<std::string_view> {
+            if (auto lit_begin = std::search(current, end, literal.begin(), literal.end()); lit_begin != end) {
+                current = lit_begin + literal.size();
+                return std::optional{std::string_view{std::to_address(lit_begin), literal.size()}};
+            } else {
+                return std::nullopt;
+            }
+        }
+        auto next_field() -> std::optional<unit> {
+            static const std::regex whitespace("\\s*");
+            try_parse_regex(whitespace) && try_parse_literal(",") && try_parse_regex(whitespace);
+            return {{}};
+        }
+    public:
+        auto try_parse_quoted() -> std::optional<std::string> {
+            static const std::regex match_quoted_str{"\"([a-zA-Z ]*)\""};
+            auto result = try_parse_regex(match_quoted_str);
+            if (result) {
+                next_field();
+                return (*result)[1].str();
+            } else {
+                return std::nullopt;
+            }
+        }
+        auto parse_quoted() {
+            return *try_parse_quoted();
+        }
+        auto try_parse_double() -> std::optional<double> {
+            const char* const current_char = std::to_address(current);
+            char* double_end;
+            double parsed = std::strtod(current_char, &double_end);
+            if (double_end != current_char) {
+                current = decltype(current){double_end};
+                next_field();
+                return std::optional{parsed};
+            } else {
+                return std::nullopt;
+            }
+        }
+        auto parse_double() {
+            return *try_parse_double();
+        }
+        auto skip() -> std::optional<unit> {
+            try_parse_quoted() || try_parse_double();
+            return {{}};
+        }
+    };
+}
+
+void te::sim::load_commodities() {
+    static const std::vector<std::string> only_see {
+        "Barley", "Carnelian", "Flax", "Furniture", "Linen cloth", "Wood"
+    };
+    std::ifstream fstr("assets/commodities.csv");
+    std::string line;
+    // skip header
+    std::getline(fstr, line);
+    while (std::getline(fstr, line)) {
+        csv_parser csv {line.cbegin(), line.cend()};
+        auto name = csv.parse_quoted();
+        auto find_name = std::find(only_see.begin(), only_see.end(), name);
+        if (find_name != only_see.end()) {
+            auto entity = commodities.emplace_back(entities.create());
+            entities.assign<named>(entity, name);
+            entities.assign<price>(entity, csv.parse_double());
+            entities.assign<render_tex>(entity, fmt::format("assets/commodities/icons/{}.png", name));
+        }
+    }
 }
 
 void te::sim::init_blueprints() {
     families.resize(3);
     // Commodities
-    auto wheat = commodities.emplace_back(entities.create());
-    entities.assign<named>(wheat, "Wheat");
-    entities.assign<price>(wheat, 15.0);
-    entities.assign<render_tex>(wheat, "media/wheat.png");
-
-    auto barley = commodities.emplace_back(entities.create());
-    entities.assign<named>(barley, "Barley");
-    entities.assign<price>(barley, 10.0);
-    entities.assign<render_tex>(barley, "media/wheat.png");
-
-    auto flour = commodities.emplace_back(entities.create());
-    entities.assign<named>(flour, "Flour");
-    entities.assign<price>(flour, 30.0);
-    entities.assign<render_tex>(flour, "media/flour.png");
-
     std::unordered_map<entt::entity, double> base_market_prices;
     for (auto e : commodities) {
         base_market_prices[e] = entities.get<price>(e).price;
     }
 
     // Buildings
-    auto wheat_field = blueprints.emplace_back(entities.create());
-    entities.assign<named>(wheat_field, "Wheat Field");
-    entities.assign<footprint>(wheat_field, glm::vec2{2.0f,2.0f});
-    entities.assign<generator>(wheat_field, wheat, 1.0 / 4.0);
-    entities.assign<inventory>(wheat_field);
-    entities.assign<trader>(wheat_field, 0u);
-    entities.assign<render_mesh>(wheat_field, "media/wheat.glb");
-    entities.assign<pickable>(wheat_field);
-
     auto barley_field = blueprints.emplace_back(entities.create());
     entities.assign<named>(barley_field, "Barley Field");
     entities.assign<footprint>(barley_field, glm::vec2{2.0f,2.0f});
-    entities.assign<generator>(barley_field, barley, 1.0 / 3.0);
+    entities.assign<generator>(barley_field, commodities[0], 1.0 / 14.0);
     entities.assign<inventory>(barley_field);
     entities.assign<trader>(barley_field, 0u);
     entities.assign<render_mesh>(barley_field, "media/barley.glb");
     entities.assign<pickable>(barley_field);
+    
+    auto flax_field = blueprints.emplace_back(entities.create());
+    entities.assign<named>(flax_field, "Flax Field");
+    entities.assign<footprint>(flax_field, glm::vec2{2.0f,2.0f});
+    entities.assign<generator>(flax_field, commodities[2], 1.0 / 10.0);
+    entities.assign<inventory>(flax_field);
+    entities.assign<trader>(flax_field, 0u);
+    entities.assign<render_mesh>(flax_field, "media/wheat.glb");
+    entities.assign<pickable>(flax_field);
 
     auto dwelling = blueprints.emplace_back(entities.create());
     entities.assign<named>(dwelling, "Dwelling");
     entities.assign<footprint>(dwelling, glm::vec2{1.0f,1.0f});
     demander& dwelling_demander = entities.assign<demander>(dwelling);
-    dwelling_demander.rate[wheat] = 0.0005f;
-    dwelling_demander.rate[barley] = 0.0004f;
+    dwelling_demander.rate[commodities[0]] = 1.0 / (2*60.0 + 45.0); // it takes 2m45s to demand 1x wheat
+    dwelling_demander.rate[commodities[3]] = 1.0 / (9*60.0);
+    dwelling_demander.rate[commodities[4]] = 1.0 / (10*60.0);
     entities.assign<dweller>(dwelling);
     entities.assign<render_mesh>(dwelling, "media/dwelling.glb");
     entities.assign<pickable>(dwelling);
     
     auto market = blueprints.emplace_back(entities.create());
-    entities.assign<named>(market, "Market");
-    entities.assign<price>(market, 900.0);
+    entities.assign<named>(market, "Trading Post");
+    entities.assign<price>(market, 200.0);
     entities.assign<footprint>(market, glm::vec2{2.0f,2.0f});
     entities.assign<te::market>(market, base_market_prices);
     entities.assign<render_mesh>(market, "media/market.glb");
     entities.assign<pickable>(market);
 
-    auto mill = blueprints.emplace_back(entities.create());
-    entities.assign<named>(mill, "Flour Mill");
-    entities.assign<footprint>(mill, glm::vec2{1.0f, 1.0f});
+    auto weaver = blueprints.emplace_back(entities.create());
+    entities.assign<named>(weaver, "Weaver");
+    entities.assign<footprint>(weaver, glm::vec2{1.0f, 1.0f});
     std::unordered_map<entt::entity, double> inputs;
-    inputs[wheat] = 4.0;
+    inputs[commodities[2]] = 3.0;
     std::unordered_map<entt::entity, double> outputs;
-    outputs[flour] = 1.0;
-    entities.assign<inventory>(mill);
-    entities.assign<producer>(mill, inputs, outputs, 1.0 / 6.0);
-    entities.assign<trader>(mill, 0u);
-    entities.assign<price>(mill, 550.0);
-    entities.assign<render_mesh>(mill, "media/mill.glb");
-    entities.assign<pickable>(mill);
+    outputs[commodities[4]] = 1.0;
+    entities.assign<inventory>(weaver);
+    entities.assign<producer>(weaver, inputs, outputs, 1.0 / 12.0);
+    entities.assign<trader>(weaver, 0u);
+    entities.assign<price>(weaver, 1000.0);
+    entities.assign<render_mesh>(weaver, "media/mill.glb");
+    entities.assign<pickable>(weaver);
 }
 
 void te::sim::generate_map() {
-    std::discrete_distribution<std::size_t> select_blueprint {7, 7, 2, 1, 2};
-    for (int i = 0; i < 100; i++) spawn(blueprints[select_blueprint(rengine)]);
+    std::discrete_distribution<std::size_t> select_blueprint {7, 7, 2, 0, 2};
+    for (int i = 0; i < 40; i++) spawn(blueprints[select_blueprint(rengine)]);
     // create a roaming merchant
     auto merchant_e = entities.create();
     entities.assign<named>(merchant_e, "Nebuchadnezzar");
@@ -251,7 +331,7 @@ int te::sim::market_stock(entt::entity market_e, entt::entity commodity_e) {
     return tot;
 }
 
-void te::sim::tick(double dt) {
+void te::sim::tick_merchant_routes(double dt) {
     auto merchants = entities.view<merchant, inventory, site>();
     for (auto merchant_e : merchants) {
         auto& merchant = merchants.get<te::merchant>(merchant_e);
@@ -288,6 +368,10 @@ void te::sim::tick(double dt) {
             merchant_site.position += glm::normalize(course) * static_cast<float>(dt);
         }
     }
+}
+
+void te::sim::tick(double dt) {
+    tick_merchant_routes(dt);
     entities.view<market, site>().each (
         [&](entt::entity market_e, auto& market, auto& market_site) {
             // advance generators
@@ -402,8 +486,9 @@ void te::sim::tick(double dt) {
                     }
                 }
             );
-           
-            // calculate market prices
+            
+            /* Calculate market prices
+             *   - prices should not increase unless there is at least 1 unit of demand */
             for (auto& [commodity, price] : market.prices) {
                 const double base_price = entities.get<te::price>(commodity).price;
                 const double demand = market.demand[commodity];
@@ -427,12 +512,13 @@ void te::sim::tick(double dt) {
             };
 
             // calculate market growth rate
+            // for now, let's say markets grow when both wheat and barley are reasonably priced
             market.growth_rate = 0.0;
             for (auto commodity : commodities) {
                 auto base_price = entities.get<price>(commodity).price;
                 market.growth_rate += ((base_price - market.prices[commodity]) / base_price) * 0.1;
             }
-            market.growth_rate = glm::clamp(market.growth_rate, -1.0, 1.0);
+            market.growth_rate = glm::clamp(market.growth_rate, -(1.0 / 3.0), 1.0 / 4.0);
 
             // grow
             market.growth += market.growth_rate * dt;

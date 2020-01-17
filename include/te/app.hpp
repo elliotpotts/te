@@ -40,6 +40,7 @@ namespace te {
         glm::vec2 cast_ray(glm::vec2 screen_space) const;
         
         void render_scene();
+        void imgui_commicon(entt::entity, ImVec4 colour = ImVec4{1, 1, 1, 1});
         void render_inspector();
         void render_controller();
         void render_ui();
