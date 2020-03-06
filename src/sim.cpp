@@ -115,7 +115,7 @@ void te::sim::init_blueprints() {
     entities.assign<generator>(barley_field, commodities[0], 1.0 / 14.0);
     entities.assign<inventory>(barley_field);
     entities.assign<trader>(barley_field, 0u);
-    entities.assign<render_mesh>(barley_field, "media/barley.glb");
+    entities.assign<render_mesh>(barley_field, "assets/barley.glb");
     entities.assign<pickable>(barley_field);
     
     auto flax_field = blueprints.emplace_back(entities.create());
@@ -124,7 +124,7 @@ void te::sim::init_blueprints() {
     entities.assign<generator>(flax_field, commodities[2], 1.0 / 10.0);
     entities.assign<inventory>(flax_field);
     entities.assign<trader>(flax_field, 0u);
-    entities.assign<render_mesh>(flax_field, "media/wheat.glb");
+    entities.assign<render_mesh>(flax_field, "assets/wheat.glb");
     entities.assign<pickable>(flax_field);
 
     auto dwelling = blueprints.emplace_back(entities.create());
@@ -135,7 +135,7 @@ void te::sim::init_blueprints() {
     dwelling_demander.rate[commodities[3]] = 1.0 / (9*60.0);
     dwelling_demander.rate[commodities[4]] = 1.0 / (10*60.0);
     entities.assign<dweller>(dwelling);
-    entities.assign<render_mesh>(dwelling, "media/dwelling.glb");
+    entities.assign<render_mesh>(dwelling, "assets/dwelling.glb");
     entities.assign<pickable>(dwelling);
     
     auto market = blueprints.emplace_back(entities.create());
@@ -143,7 +143,7 @@ void te::sim::init_blueprints() {
     entities.assign<price>(market, 200.0);
     entities.assign<footprint>(market, glm::vec2{2.0f,2.0f});
     entities.assign<te::market>(market, base_market_prices);
-    entities.assign<render_mesh>(market, "media/market.glb");
+    entities.assign<render_mesh>(market, "assets/market.glb");
     entities.assign<pickable>(market);
 
     auto weaver = blueprints.emplace_back(entities.create());
@@ -157,7 +157,7 @@ void te::sim::init_blueprints() {
     entities.assign<producer>(weaver, inputs, outputs, 1.0 / 12.0);
     entities.assign<trader>(weaver, 0u);
     entities.assign<price>(weaver, 1000.0);
-    entities.assign<render_mesh>(weaver, "media/mill.glb");
+    entities.assign<render_mesh>(weaver, "assets/mill.glb");
     entities.assign<pickable>(weaver);
 }
 
@@ -169,7 +169,7 @@ void te::sim::generate_map() {
     entities.assign<named>(merchant_e, "Nebuchadnezzar");
     entities.assign<site>(merchant_e, glm::vec2{0.0f, 0.0f});
     entities.assign<footprint>(merchant_e, glm::vec2{1.0f, 1.0f});
-    entities.assign<render_mesh>(merchant_e, "media/merchant.glb");
+    entities.assign<render_mesh>(merchant_e, "assets/merchant.glb");
     entities.assign<pickable>(merchant_e);
     entities.assign<trader>(merchant_e, 1u);
     entities.assign<inventory>(merchant_e);

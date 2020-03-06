@@ -66,7 +66,7 @@ te::app::app(te::sim& model, unsigned int seed) :
     glCullFace(GL_BACK);
 
     marker = model.entities.create();
-    model.entities.assign<render_mesh>(marker, "media/dwelling.glb");
+    model.entities.assign<render_mesh>(marker, "assets/dwelling.glb");
     model.entities.assign<footprint>(marker, glm::vec2{1.0f, 1.0f});
 }
 
@@ -408,7 +408,7 @@ void te::app::render_controller() {
                 model.entities.assign<te::named>(merchant_e, *merch_name++);
                 model.entities.assign<te::site>(merchant_e, glm::vec2{0.0f, 0.0f});
                 model.entities.assign<te::footprint>(merchant_e, glm::vec2{1.0f, 1.0f});
-                model.entities.assign<te::render_mesh>(merchant_e, "media/merchant.glb");
+                model.entities.assign<te::render_mesh>(merchant_e, "assets/merchant.glb");
                 model.entities.assign<te::pickable>(merchant_e);
                 model.entities.assign<te::trader>(merchant_e, 1u);
                 model.entities.assign<te::inventory>(merchant_e);
