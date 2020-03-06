@@ -180,153 +180,185 @@ void te::app::imgui_commicon(entt::entity e, ImVec4 colour) {
     );
 }
 
-void te::app::render_inspector() {
+void te::app::render_mappos_inspector(const te::site& site, const te::named& named) {
+    ImGui::Text("Map position: (%f, %f)", site.position.x, site.position.y);
+    auto id_string = fmt::format("{}", *reinterpret_cast<std::uint32_t*>(&*inspected));
+    ImGui::Text("%s", named.name.c_str());
+    ImGui::Separator();
+}
+
+void te::app::render_generator_inspector(const te::generator& generator) {
+    imgui_commicon(generator.output);
+    ImGui::SameLine();
+    const auto& output_commodity_name = model.entities.get<te::named>(generator.output);
+    ImGui::Text(fmt::format("{} @ {}/s", output_commodity_name.name, generator.rate).c_str());
+    ImGui::SameLine();
+    ImGui::ProgressBar(generator.progress);
+    ImGui::Separator();
+}
+
+void te::app::render_demander_inspector(const te::demander& demander) {
+    for (auto [demanded, rate] : demander.rate) {
+        imgui_commicon(demanded);
+        ImGui::SameLine();
+        ImGui::Text(fmt::format("{} @ {}/s", model.entities.get<te::named>(demanded).name, rate).c_str());
+    }
+    ImGui::Separator();
+}
+
+void te::app::render_inventory_inspector(const te::inventory& inventory) {
+    for (auto [commodity_entity, stock] : inventory.stock) {
+        auto& name = model.entities.get<te::named>(commodity_entity);
+        ImGui::Text(fmt::format("{}x {}", stock, name.name).c_str());
+    }
+    ImGui::Separator();
+}
+
+void te::app::render_trader_inspector(const te::trader& trader) {
+    ImGui::Text(fmt::format("Running balance: {}", trader.balance).c_str());
+    ImGui::Separator();
+}
+
+void te::app::render_producer_inspector(const te::producer& producer, const te::inventory& inventory) {
+    ImGui::Text("Inputs");
+    for (auto& [commodity_e, needed] : producer.inputs) {
+        imgui_commicon(commodity_e);
+        ImGui::SameLine();
+        auto commodity_stock_it = inventory.stock.find(commodity_e);
+        int commodity_stock = commodity_stock_it == inventory.stock.end() ? 0 : commodity_stock_it->second;
+        ImGui::Text(fmt::format("{}: {}/{}", model.entities.get<named>(commodity_e).name, commodity_stock, needed).c_str());
+    }
+    ImGui::ProgressBar(producer.progress);
+    ImGui::Text(fmt::format("Outputs @{}/s", producer.rate).c_str());
+    for (auto& [commodity_e, produced] : producer.outputs) {
+        imgui_commicon(commodity_e);
+        ImGui::SameLine();
+        ImGui::Text(fmt::format("{}: ×{}", model.entities.get<named>(commodity_e).name, produced).c_str());
+    }
+}
+
+void te::app::render_market_inspector(const te::market& market) {
+    ImGui::Text(fmt::format("Population: {}", market.population).c_str());
+    ImGui::Text(fmt::format("Growth rate: {}", market.growth_rate).c_str());
+    ImGui::Text("Growth: ");
+    ImGui::SameLine();
+    float fake_growth_rate = market.growth_rate;
+    ImGui::SliderFloat("", &fake_growth_rate, -1.0f / 3.0, 1.0f / 4.0);
+    ImGui::ProgressBar((glm::clamp(market.growth, -1.0, 1.0) + 1.0) / 2.0);
+
+    ImGui::Columns(5);
+    float width_available = ImGui::GetWindowContentRegionWidth();
+
+    ImGui::Text("Stock");
+    ImGui::SetColumnWidth(0, 80);
+    width_available -= 80;
+    ImGui::NextColumn();
+
+    ImGui::SetColumnWidth(1, 50);
+    width_available -= 50;
+    ImGui::NextColumn();
+
+    ImGui::Text("Commodity");
+    ImGui::SetColumnWidth(2, 300);
+    width_available -= 300;
+    ImGui::NextColumn();
+
+    ImGui::NextColumn();
+
+    ImGui::Text("Demand");
+    ImGui::SetColumnWidth(4, 100);
+    width_available -= 100;
+    ImGui::NextColumn();
+
+    ImGui::SetColumnWidth(3, width_available);
+    for (auto [commodity_entity, price] : market.prices) {
+        auto& commodity_name = model.entities.get<te::named>(commodity_entity);
+        ImGui::Text(fmt::format("{}", model.market_stock(*inspected, commodity_entity)).c_str());
+        ImGui::NextColumn();
+
+        imgui_commicon(commodity_entity);
+        ImGui::NextColumn();
+
+        ImGui::Text(commodity_name.name.c_str());
+        ImGui::NextColumn();
+
+        auto commodity_demand_it = market.demand.find(commodity_entity);
+        double commodity_demand = commodity_demand_it == market.demand.end() ? 0.0 : commodity_demand_it->second;
+        auto commodity_price_it = market.prices.find(commodity_entity);
+        double commodity_price = commodity_price_it == market.prices.end() ? 0.0 : commodity_price_it->second;
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        static const auto light_blue = ImColor(ImVec4{22.9/100.0, 60.7/100.0, 85.9/100.0, 1.0f});
+        static const auto dark_blue = ImColor(ImVec4{22.9/255.0, 60.7/255.0, 85.9/255.0, 1.0f});
+        static const auto white = ImColor(ImVec4{1.0, 1.0, 1.0, 1.0});
+        const ImVec2 cursor_pos {ImGui::GetCursorScreenPos()};
+        const float bar_bottom = cursor_pos.y + 20.0f;
+        const float bar_height = 10.0f;
+        const float bar_top = bar_bottom - bar_height;
+        const float bar_left = cursor_pos.x;
+        const float bar_width = width_available - 16;
+        const float bar_right = cursor_pos.x + bar_width;
+        const float bar_centre = (bar_left + bar_right) / 2.0;
+        draw->AddRectFilled (
+            ImVec2{bar_left, bar_top},
+            ImVec2{bar_left + bar_width * std::min(static_cast<float>(commodity_demand), 1.0f), bar_bottom},
+            light_blue, 0, 0.0f
+        );
+        draw->AddRectFilled (
+            ImVec2{bar_right - bar_width * (std::max(1.0f - static_cast<float>(commodity_demand), 0.0f)), bar_top},
+            ImVec2{bar_right, bar_bottom},
+            dark_blue, 0, 0.0f
+        );
+
+        std::string price_string = fmt::format("{:.1f}", commodity_price);
+        const char* price_string_begin = std::to_address(price_string.begin());
+        const char* price_string_end = std::to_address(price_string.end());
+        ImVec2 price_text_size = ImGui::CalcTextSize(price_string_begin, price_string_end);
+        const float text_left = bar_centre - price_text_size.x / 2.0f;
+        draw->AddText(ImVec2{text_left, cursor_pos.y}, white, price_string_begin, price_string_end);
+
+        int marker_count = static_cast<int>(commodity_demand);
+        float gap_size = ((std::floor(commodity_demand) / commodity_demand) * bar_width) / static_cast<float>(marker_count);
+        for (int i = 0; i < marker_count; i++) {
+            draw->AddRectFilled (
+                ImVec2{bar_left + (i + 1) * gap_size - 2.0f, bar_top - 1.0f},
+                ImVec2{bar_left + (i + 1) * gap_size + 2.0f, bar_bottom + 1.0f},
+                white, 0, 0.0f
+            );
+        }
+        ImGui::NextColumn();
+
+        ImGui::Text(fmt::format("{}x", static_cast<int>(commodity_demand)).c_str());
+        ImGui::NextColumn();
+    }
+    ImGui::Separator();
+    ImGui::Columns();
+}
+
+void te::app::render_inspectors() {
     ImGui::Begin("Inspector", nullptr, 0);
     ImGui::Text("FPS: %f", fps);
     ImGui::Separator();
     if (inspected) {
         if (auto [maybe_site, maybe_named] = model.entities.try_get<te::site, te::named>(*inspected); maybe_site && maybe_named) {
-            ImGui::Text("Map position: (%f, %f)", maybe_site->position.x, maybe_site->position.y);
-            auto id_string = fmt::format("{}", *reinterpret_cast<std::uint32_t*>(&*inspected));
-            ImGui::Text("%s", maybe_named->name.c_str());
-            ImGui::Separator();
+            render_mappos_inspector(*maybe_site, *maybe_named);
         }
-        if (auto the_generator = model.entities.try_get<te::generator>(*inspected); the_generator) {
-            imgui_commicon(the_generator->output);
-            ImGui::SameLine();
-            const auto& output_commodity_name = model.entities.get<te::named>(the_generator->output);
-            ImGui::Text(fmt::format("{} @ {}/s", output_commodity_name.name, the_generator->rate).c_str());
-            ImGui::SameLine();
-            ImGui::ProgressBar(the_generator->progress);
-            ImGui::Separator();
+        if (auto generator = model.entities.try_get<te::generator>(*inspected); generator) {
+            render_generator_inspector(*generator);
         }
         if (auto demander = model.entities.try_get<te::demander>(*inspected); demander) {
-            for (auto [demanded, rate] : demander->rate) {
-                imgui_commicon(demanded);
-                ImGui::SameLine();
-                ImGui::Text(fmt::format("{} @ {}/s", model.entities.get<te::named>(demanded).name, rate).c_str());
-            }
-            ImGui::Separator();
+            render_demander_inspector(*demander);
         }
         if (auto inventory = model.entities.try_get<te::inventory>(*inspected); inventory && !inventory->stock.empty()) {
-            for (auto [commodity_entity, stock] : inventory->stock) {
-                auto& name = model.entities.get<te::named>(commodity_entity);
-                ImGui::Text(fmt::format("{}x {}", stock, name.name).c_str());
-            }
-            ImGui::Separator();
+            render_inventory_inspector(*inventory);
         }
         if (auto trader = model.entities.try_get<te::trader>(*inspected); trader) {
-            ImGui::Text(fmt::format("Running balance: {}", trader->balance).c_str());
-            ImGui::Separator();
+            render_trader_inspector(*trader);
         }
         if (auto [producer, inventory] = model.entities.try_get<te::producer, te::inventory>(*inspected); producer && inventory) {
-            ImGui::Text("Inputs");
-            for (auto& [commodity_e, needed] : producer->inputs) {
-                imgui_commicon(commodity_e);
-                ImGui::SameLine();
-                ImGui::Text(fmt::format("{}: {}/{}", model.entities.get<named>(commodity_e).name, inventory->stock[commodity_e], needed).c_str());
-            }
-            ImGui::ProgressBar(producer->progress);
-            ImGui::Text(fmt::format("Outputs @{}/s", producer->rate).c_str());
-            for (auto& [commodity_e, produced] : producer->outputs) {
-                imgui_commicon(commodity_e);
-                ImGui::SameLine();
-                ImGui::Text(fmt::format("{}: ×{}", model.entities.get<named>(commodity_e).name, produced).c_str());
-            }
+            render_producer_inspector(*producer, *inventory);
         }
         if (auto market = model.entities.try_get<te::market>(*inspected); market) {
-            ImGui::Text(fmt::format("Population: {}", market->population).c_str());
-            ImGui::Text(fmt::format("Growth rate: {}", market->growth_rate).c_str());
-            ImGui::Text("Growth: ");
-            ImGui::SameLine();
-            float fake_growth_rate = market->growth_rate;
-            ImGui::SliderFloat("", &fake_growth_rate, -1.0f / 3.0, 1.0f / 4.0);
-            ImGui::ProgressBar((glm::clamp(market->growth, -1.0, 1.0) + 1.0) / 2.0);
-
-            ImGui::Columns(5);
-            float width_available = ImGui::GetWindowContentRegionWidth();
-
-            ImGui::Text("Stock");
-            ImGui::SetColumnWidth(0, 80);
-            width_available -= 80;
-            ImGui::NextColumn();
-
-            ImGui::SetColumnWidth(1, 50);
-            width_available -= 50;
-            ImGui::NextColumn();
-
-            ImGui::Text("Commodity");
-            ImGui::SetColumnWidth(2, 300);
-            width_available -= 300;
-            ImGui::NextColumn();
-
-            ImGui::NextColumn();
-
-            ImGui::Text("Demand");
-            ImGui::SetColumnWidth(4, 100);
-            width_available -= 100;
-            ImGui::NextColumn();
-
-            ImGui::SetColumnWidth(3, width_available);
-            for (auto [commodity_entity, price] : market->prices) {
-                auto& commodity_name = model.entities.get<te::named>(commodity_entity);
-                ImGui::Text(fmt::format("{}", model.market_stock(*inspected, commodity_entity)).c_str());
-                ImGui::NextColumn();
-
-                imgui_commicon(commodity_entity);
-                ImGui::NextColumn();
-
-                ImGui::Text(commodity_name.name.c_str());
-                ImGui::NextColumn();
-
-                double commodity_demand = market->demand[commodity_entity];
-                double commodity_price = market->prices[commodity_entity];
-                ImDrawList* draw = ImGui::GetWindowDrawList();
-                static const auto light_blue = ImColor(ImVec4{22.9/100.0, 60.7/100.0, 85.9/100.0, 1.0f});
-                static const auto dark_blue = ImColor(ImVec4{22.9/255.0, 60.7/255.0, 85.9/255.0, 1.0f});
-                static const auto white = ImColor(ImVec4{1.0, 1.0, 1.0, 1.0});
-                const ImVec2 cursor_pos {ImGui::GetCursorScreenPos()};
-                const float bar_bottom = cursor_pos.y + 20.0f;
-                const float bar_height = 10.0f;
-                const float bar_top = bar_bottom - bar_height;
-                const float bar_left = cursor_pos.x;
-                const float bar_width = width_available - 16;
-                const float bar_right = cursor_pos.x + bar_width;
-                const float bar_centre = (bar_left + bar_right) / 2.0;
-                draw->AddRectFilled (
-                    ImVec2{bar_left, bar_top},
-                    ImVec2{bar_left + bar_width * std::min(static_cast<float>(commodity_demand), 1.0f), bar_bottom},
-                    light_blue, 0, 0.0f
-                );
-                draw->AddRectFilled (
-                    ImVec2{bar_right - bar_width * (std::max(1.0f - static_cast<float>(commodity_demand), 0.0f)), bar_top},
-                    ImVec2{bar_right, bar_bottom},
-                    dark_blue, 0, 0.0f
-                );
-
-                std::string price_string = fmt::format("{:.1f}", commodity_price);
-                const char* price_string_begin = std::to_address(price_string.begin());
-                const char* price_string_end = std::to_address(price_string.end());
-                ImVec2 price_text_size = ImGui::CalcTextSize(price_string_begin, price_string_end);
-                const float text_left = bar_centre - price_text_size.x / 2.0f;
-                draw->AddText(ImVec2{text_left, cursor_pos.y}, white, price_string_begin, price_string_end);
-
-                int marker_count = static_cast<int>(commodity_demand);
-                float gap_size = ((std::floor(commodity_demand) / commodity_demand) * bar_width) / static_cast<float>(marker_count);
-                for (int i = 0; i < marker_count; i++) {
-                    draw->AddRectFilled (
-                        ImVec2{bar_left + (i + 1) * gap_size - 2.0f, bar_top - 1.0f},
-                        ImVec2{bar_left + (i + 1) * gap_size + 2.0f, bar_bottom + 1.0f},
-                        white, 0, 0.0f
-                    );
-                }
-                ImGui::NextColumn();
-
-                ImGui::Text(fmt::format("{}x", static_cast<int>(commodity_demand)).c_str());
-                ImGui::NextColumn();
-            }
-            ImGui::Separator();
-            ImGui::Columns();
+            render_market_inspector(*market);
         }
     }
     ImGui::End();
@@ -497,7 +529,7 @@ void te::app::render_ui() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    render_inspector();
+    render_inspectors();
     render_controller();
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

@@ -41,10 +41,17 @@ namespace te {
         std::optional<glm::vec2> pos_under_mouse;
         void mouse_pick();
         glm::vec2 cast_ray(glm::vec2 screen_space) const;
-        
+
         void render_scene();
         void imgui_commicon(entt::entity, ImVec4 colour = ImVec4{1, 1, 1, 1});
-        void render_inspector();
+        void render_mappos_inspector(const te::site&, const te::named&);
+        void render_generator_inspector(const te::generator&);
+        void render_demander_inspector(const te::demander&);
+        void render_inventory_inspector(const te::inventory&);
+        void render_trader_inspector(const te::trader&);
+        void render_producer_inspector(const te::producer&, const te::inventory&);
+        void render_market_inspector(const te::market&);
+        void render_inspectors();
         void render_controller();
         void render_ui();
 
