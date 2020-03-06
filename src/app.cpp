@@ -20,7 +20,7 @@ namespace {
         ImGuiIO& io = ImGui::GetIO();
         ImGui_ImplGlfw_InitForOpenGL(win.hnd.get(), true);
         ImGui_ImplOpenGL3_Init("#version 130");
-        io.Fonts->AddFontFromFileTTF("LiberationSans-Regular.ttf", 18);
+        io.Fonts->AddFontFromFileTTF("assets/LiberationSans-Regular.ttf", 18);
         return io;
     }
 }

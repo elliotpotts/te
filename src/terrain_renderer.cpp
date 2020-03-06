@@ -46,7 +46,7 @@ te::terrain_renderer::terrain_renderer(gl::context& ogl, std::default_random_eng
     view_uniform(program.uniform("view")),
     proj_uniform(program.uniform("projection")),
     sampler(gl.make_sampler()),
-    texture(gl.make_texture("tiles.png")),
+    texture(gl.make_texture("assets/tiles.png")),
     width(width),
     height(height),
     grid_topleft{-width/2.0f, -height/2.0f, 0.0f}
