@@ -12,6 +12,8 @@
 #include <random>
 #include <imgui.h>
 #include <glm/glm.hpp>
+#include <fmod.hpp>
+#include <te/fmod.hpp>
 namespace te {
     struct app {
         te::sim& model;
@@ -25,6 +27,7 @@ namespace te {
         te::colour_picker colour_picker;
         te::asset_loader loader;
         te::cache<asset_loader> resources;
+        te::fmod_system_hnd fmod;
 
         std::optional<entt::entity> inspected;
         std::optional<entt::entity> ghost;

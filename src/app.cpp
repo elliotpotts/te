@@ -10,6 +10,7 @@
 #include <glm/gtx/transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
+#include <fmod_errors.h>
 
 namespace {
     double fps = 0.0;
@@ -39,8 +40,20 @@ te::app::app(te::sim& model, unsigned int seed) :
     mesh_renderer { win.gl },
     colour_picker{ win },
     loader { win.gl },
-    resources { loader }
+    resources { loader },
+    fmod { te::make_fmod_system() }
 {
+    if (FMOD_RESULT result = fmod->init(512, FMOD_INIT_NORMAL, 0); result != FMOD_OK) {
+        spdlog::error("Couldn't initialize fmod due to error {}: {}", result, FMOD_ErrorString(result));
+    }
+    FMOD::Sound* sound;
+    if (FMOD_RESULT result = fmod->createSound("assets/market.ogg", FMOD_DEFAULT, nullptr, &sound); result != FMOD_OK) {
+        spdlog::error("Couldn't create sound due to error {}: {}", result, FMOD_ErrorString(result));
+    }
+    if (FMOD_RESULT result = fmod->playSound(sound, nullptr, false, nullptr); result != FMOD_OK) {
+        spdlog::error("Couldn't play sound due to error {}: {}", result, FMOD_ErrorString(result));
+    }
+    
     win.on_framebuffer_size.connect([&](int width, int height) {
                                         cam.aspect_ratio = static_cast<float>(width) / height;
                                         glViewport(0, 0, width, height);
