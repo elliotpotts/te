@@ -47,8 +47,16 @@ te::app::app(te::sim& model, unsigned int seed) :
                                         glViewport(0, 0, width, height);
                                     });
     win.set_attribute(GLFW_RESIZABLE, GLFW_TRUE);
-    win.on_key.connect([&](int key, int scancode, int action, int mods){ on_key(key, scancode, action, mods); });
-    win.on_mouse_button.connect([&](int button, int action, int mods) { on_mouse_button(button, action, mods); });
+    win.on_key.connect([&](int key, int scancode, int action, int mods) {
+                           if (!ImGui::GetIO().WantCaptureMouse) {
+                               on_key(key, scancode, action, mods);
+                           }
+                       });
+    win.on_mouse_button.connect([&](int button, int action, int mods) {
+                                    if (!ImGui::GetIO().WantCaptureKeyboard) {
+                                        on_mouse_button(button, action, mods);
+                                    }
+                                });
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
