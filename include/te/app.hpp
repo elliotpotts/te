@@ -52,8 +52,19 @@ namespace te {
         void render_producer_inspector(const te::producer&, const te::inventory&);
         void render_market_inspector(const te::market&);
         void render_inspectors();
+
+        std::optional<entt::entity> merchant_ordering;
+        std::optional<entt::entity> merchant_selected;
+        void render_orders_controller();
+        void render_roster_controller();
+        void render_merchants_controller();
+        void render_routes_controller();
+        void render_construction_controller();
+        void render_technology_controller();
         void render_controller();
         void render_ui();
+
+        void playsfx(std::string filename);
 
         void input();
         void draw();
