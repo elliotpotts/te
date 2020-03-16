@@ -144,6 +144,7 @@ void te::sim::init_blueprints() {
     entities.assign<footprint>(market, glm::vec2{2.0f,2.0f});
     entities.assign<te::market>(market, base_market_prices);
     entities.assign<render_mesh>(market, "assets/market.glb");
+    entities.assign<noisy>(market, "assets/sfx/market2.wav");
     entities.assign<pickable>(market);
 
     auto weaver = blueprints.emplace_back(entities.create());

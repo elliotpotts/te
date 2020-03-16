@@ -7,13 +7,16 @@
 #include <te/unique_any.hpp>
 #include <te/util.hpp>
 #include <te/mesh.hpp>
+#include <te/fmod.hpp>
 #include <utility>
 #include <spdlog/spdlog.h>
 namespace te {
     struct asset_loader {
         te::gl::context& gl;
+        FMOD::System& fmod;
         te::gl::texture2d operator()(type_tag<te::gl::texture2d>, const std::string& filename);
         te::gltf operator()(type_tag<te::gltf>, const std::string& filename);
+        te::fmod_sound_hnd operator()(type_tag<te::fmod_sound_hnd>, const std::string& filename);
     };
     
     template<typename F>

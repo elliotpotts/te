@@ -10,7 +10,6 @@
 #include <glm/gtx/transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
-#include <fmod_errors.h>
 
 namespace {
     double fps = 0.0;
@@ -39,21 +38,10 @@ te::app::app(te::sim& model, unsigned int seed) :
     terrain_renderer{ win.gl, rengine, model.map_width, model.map_height },
     mesh_renderer { win.gl },
     colour_picker{ win },
-    loader { win.gl },
-    resources { loader },
-    fmod { te::make_fmod_system() }
+    fmod { te::make_fmod_system() },
+    loader { win.gl, *fmod },
+    resources { loader }
 {
-    if (FMOD_RESULT result = fmod->init(512, FMOD_INIT_NORMAL, 0); result != FMOD_OK) {
-        spdlog::error("Couldn't initialize fmod due to error {}: {}", result, FMOD_ErrorString(result));
-    }
-    FMOD::Sound* sound;
-    if (FMOD_RESULT result = fmod->createSound("assets/market.ogg", FMOD_DEFAULT, nullptr, &sound); result != FMOD_OK) {
-        spdlog::error("Couldn't create sound due to error {}: {}", result, FMOD_ErrorString(result));
-    }
-    if (FMOD_RESULT result = fmod->playSound(sound, nullptr, false, nullptr); result != FMOD_OK) {
-        spdlog::error("Couldn't play sound due to error {}: {}", result, FMOD_ErrorString(result));
-    }
-    
     win.on_framebuffer_size.connect([&](int width, int height) {
                                         cam.aspect_ratio = static_cast<float>(width) / height;
                                         glViewport(0, 0, width, height);
@@ -87,15 +75,20 @@ void te::app::on_mouse_button(int button, int action, int mods) {
                 model.families[1].balance -= model.entities.get<te::price>(proto).price;
                 model.entities.destroy(*ghost);
                 ghost.reset();
+                fmod->playSound(resources.lazy_load<te::fmod_sound_hnd>("assets/sfx/build1.wav").get(), nullptr, false, nullptr);
                 return;
+            } else {
+                fmod->playSound(resources.lazy_load<te::fmod_sound_hnd>("assets/sfx/notif3.wav").get(), nullptr, false, nullptr);
             }
-        }
-        if (pos_under_mouse) {
+        } else if (pos_under_mouse) {
             auto map_entities = model.entities.view<te::site, te::pickable>();
             for (auto entity : map_entities) {
                 auto& map_site = map_entities.get<te::site>(entity);
                 if (glm::distance(map_site.position, *pos_under_mouse) <= 1.0f) {
                     inspected = entity;
+                    if (auto noisy = model.entities.try_get<te::noisy>(entity); noisy) {
+                        fmod->playSound(resources.lazy_load<te::fmod_sound_hnd>(noisy->filename).get(), nullptr, false, nullptr);    
+                    }
                     return;
                 }
             }
@@ -371,13 +364,15 @@ void te::app::render_controller() {
         if (ImGui::BeginTabItem("Build")) {
             for (auto blueprint : model.blueprints) {
                 if (auto [named, price, footprint] = model.entities.try_get<te::named, te::price, te::footprint>(blueprint); named && price && footprint) {
-                    if (ImGui::Button(fmt::format("{}: ¤{}", named->name, price->price).c_str())) {
-                        if (!ghost) {
-                            ghost = model.entities.create<te::site, te::footprint, te::render_mesh>(blueprint, model.entities);
-                            model.entities.assign<te::ghost>(*ghost, blueprint);
-                        }
+                    if (ImGui::Button(fmt::format("{}: ¤{}", named->name, price->price).c_str()) && !ghost) {
+                        ghost = model.entities.create<te::site, te::footprint, te::render_mesh>(blueprint, model.entities);
+                        model.entities.assign<te::ghost>(*ghost, blueprint);
                     }
                 }
+            }
+            if (ghost && ImGui::Button("Cancel construction")) {
+                model.entities.destroy(*ghost);
+                ghost.reset();
             }
             ImGui::EndTabItem();
         }
@@ -543,7 +538,7 @@ void te::app::input() {
 
     mouse_pick();
     if (ghost && pos_under_mouse) {
-        model.entities.assign_or_replace<site>(*ghost, model.snap(*pos_under_mouse, glm::vec2{1.0f, 1.0f}));
+        model.entities.assign_or_replace<site>(*ghost, model.snap(*pos_under_mouse, model.entities.get<footprint>(*ghost).dimensions));
     }
 
     glm::vec3 forward = -cam.offset;

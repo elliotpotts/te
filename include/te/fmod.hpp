@@ -11,6 +11,11 @@ namespace te {
     };
     using fmod_system_hnd = std::unique_ptr<FMOD::System, fmod_system_deleter>;
     fmod_system_hnd make_fmod_system();
+
+    struct fmod_sound_deleter {
+        void operator()(FMOD::Sound* p) const;
+    };
+    using fmod_sound_hnd = std::unique_ptr<FMOD::Sound, fmod_sound_deleter>;
 };
 
 #endif

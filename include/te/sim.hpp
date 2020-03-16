@@ -150,6 +150,9 @@ namespace te {
     struct render_mesh {
         std::string filename;
     };
+    struct noisy {
+        std::string filename;
+    };
     struct pickable {
     };
 }

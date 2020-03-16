@@ -25,9 +25,9 @@ namespace te {
         te::terrain_renderer terrain_renderer;
         te::mesh_renderer mesh_renderer;
         te::colour_picker colour_picker;
+        te::fmod_system_hnd fmod;
         te::asset_loader loader;
         te::cache<asset_loader> resources;
-        te::fmod_system_hnd fmod;
 
         std::optional<entt::entity> inspected;
         std::optional<entt::entity> ghost;

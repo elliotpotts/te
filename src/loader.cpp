@@ -3,6 +3,7 @@
 #include <te/gl.hpp>
 #include <spdlog/spdlog.h>
 #include <fx/gltf.h>
+#include <fmod_errors.h>
 
 te::gl::texture2d te::asset_loader::operator()(type_tag<te::gl::texture2d>, const std::string& filename) {
     return gl.make_texture(filename);
@@ -204,4 +205,13 @@ te::gltf te::asset_loader::operator()(type_tag<te::gltf>, const std::string& fil
         loader.load_mesh(i);
     }
     return out;
+}
+
+te::fmod_sound_hnd te::asset_loader::operator()(type_tag<te::fmod_sound_hnd>, const std::string& filename) {
+    FMOD::Sound* sound;
+    if (FMOD_RESULT result = fmod.createSound(filename.c_str(), FMOD_3D, nullptr, &sound); result != FMOD_OK) {
+        throw std::runtime_error(fmt::format("Couldn't create sound due to error {}: {}", result, FMOD_ErrorString(result)));
+    } else {
+        return te::fmod_sound_hnd{sound};
+    }
 }
