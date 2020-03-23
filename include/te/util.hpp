@@ -13,6 +13,11 @@ template<typename T>
 struct type_tag {
 };
 
+template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
+template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>; // not needed as of C++20
+
+template<class T> struct always_false : std::false_type {};
+
 namespace std {
     template<>
     struct hash<glm::vec2> {

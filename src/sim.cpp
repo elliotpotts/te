@@ -182,6 +182,18 @@ void te::sim::generate_map() {
             {}
         }
     );
+    routes.push_back (
+        route {
+            "Flargunst'how",
+            {}
+        }
+    );
+    routes.push_back (
+        route {
+            "Mai'm'ao",
+            {}
+        }
+    );
 }
 
 te::market* te::sim::market_at(glm::vec2 x) {
@@ -205,6 +217,7 @@ te::market* te::sim::market_at(glm::vec2 x) {
 bool te::sim::in_market(const site& question_site, const site& market_site, const market& the_market) const {
     return glm::length(glm::vec2{question_site.position - market_site.position}) <= the_market.radius;
 }
+
 bool te::sim::can_place(entt::entity entity, glm::vec2 centre) {
     {
         auto& print = entities.get<footprint>(entity);
@@ -248,15 +261,6 @@ std::optional<entt::entity> te::sim::try_place(entt::entity proto, glm::vec2 cen
     entities.assign<site>(instantiated, centre);
     entities.replace<named>(instantiated, fmt::format("{} (#{})", entities.get<named>(instantiated).name, static_cast<unsigned>(instantiated)));
     
-    //TODO: remove this horrible junk
-    if (auto maybe_market = entities.try_get<te::market>(instantiated); maybe_market) {
-        auto commons = entities.create();
-        entities.assign<trader>(commons, 0u);
-        entities.assign<inventory>(commons);
-        entities.assign<site>(commons, centre);
-        maybe_market->commons = commons;
-    }
-    
     auto& print = entities.get<footprint>(instantiated);
     glm::vec2 topleft = centre - print.dimensions / 2.0f;
     for (int x = 0; x < print.dimensions.x; x++) {
@@ -264,6 +268,33 @@ std::optional<entt::entity> te::sim::try_place(entt::entity proto, glm::vec2 cen
             grid[{topleft.x + x, topleft.y + y}] = instantiated;
         }
     }
+
+    //TODO: somehow get rid of this special casing
+    if (auto maybe_market = entities.try_get<te::market>(instantiated); maybe_market) {
+        auto commons = entities.create();
+        entities.assign<trader>(commons, 0u);
+        entities.assign<named>(commons, fmt::format("Commons (#{})", static_cast<unsigned>(commons)));
+        entities.assign<inventory>(commons);
+        maybe_market->commons = commons;
+        maybe_market->trading.push_back(commons);
+        // make things trade
+        auto traders = entities.view<site, trader>();
+        for (auto trader_e : traders) {
+            if (!entities.try_get<te::merchant>(trader_e) && in_market(entities.get<site>(trader_e), {centre}, *maybe_market)) {
+                maybe_market->trading.push_back(trader_e);
+            }
+        }
+    } else {
+        auto markets = entities.view<site, market>();
+        for (auto market_e : markets) {
+            auto& market = markets.get<te::market>(market_e);
+            if (in_market({centre}, markets.get<site>(market_e), market)) {
+                market.trading.push_back(instantiated);
+                break;
+            }
+        }
+    }
+    
     return instantiated;
 }
 
@@ -319,54 +350,82 @@ try_again:
 }
 
 int te::sim::market_stock(entt::entity market_e, entt::entity commodity_e) {
-    const auto& market_site = entities.get<te::site>(market_e);
-    const auto& market = entities.get<te::market>(market_e);
     int tot = 0;
-    entities.view<te::site, te::trader>().each (
-        [&](auto& site, auto& trader) {
-            if (in_market(site, market_site, market) && trader.bid[commodity_e] < 0) {
-                tot -= trader.bid[commodity_e];
-            }
-        }
-    );
+    auto& market = entities.get<te::market>(market_e);
+    for (auto trader_e : market.trading) {
+        tot -= std::min(0.0, entities.get<te::trader>(trader_e).bid[commodity_e]);
+    }
     return tot;
 }
 
+void te::sim::merchant_embark(entt::entity merchant_e, const te::route& route) {
+    entities.get<te::merchant&>(merchant_e).route = route;
+    auto& bid = entities.get<te::trader&>(merchant_e).bid;
+    bid.clear();
+    for (auto [commodity, leave_with] : route.stops[0].leave_with) {
+        bid[commodity] = static_cast<double>(leave_with);
+    }
+}
+
+std::optional<te::merchant_activity> te::sim::merchant_status(entt::entity merchant_e) {
+    auto& merchant = entities.get<te::merchant>(merchant_e);
+    if (merchant.route) {
+        stop dest = merchant.route->stops[merchant.next_stop_ix];
+        auto& dest_market = entities.get<te::market>(dest.where);
+        auto it = std::find(dest_market.trading.begin(), dest_market.trading.end(), merchant_e);
+        if (it != dest_market.trading.end()) {
+            return te::merchant_activity{true, dest};
+        } else {
+            return te::merchant_activity{false, dest};
+        }
+    } else {
+        return std::nullopt;
+    }
+}
+
 void te::sim::tick_merchant_routes(double dt) {
-    auto merchants = entities.view<merchant, inventory, site>();
+    auto merchants = entities.view<merchant, inventory, trader>();
     for (auto merchant_e : merchants) {
         auto& merchant = merchants.get<te::merchant>(merchant_e);
         if (!merchant.route) continue;
-        auto& merchant_inventory = merchants.get<te::inventory>(merchant_e);
-        auto& merchant_site = merchants.get<te::site>(merchant_e);
-        
-        std::size_t dest_stop_ix = (merchant.last_stop + 1) % merchant.route->stops.size();
-        stop& dest_stop = merchant.route->stops[dest_stop_ix];
-        auto dest = entities.get<site>(dest_stop.where);
-        auto course = dest.position - merchant_site.position;
-        auto distance = glm::length(course);
-        // is the merchant at his desired market?
-        if (distance <= 1.0f) {
-            if (merchant.trading) {
-                if (merchant_inventory.stock == dest_stop.leave_with) {
-                    // stop trading
-                    merchant.trading = false;
-                    // start heading to next market
-                    merchant.last_stop = dest_stop_ix;
-                } else {
-                    // do nothing - wait for trades to finish
+        te::stop& dest_stop = merchant.route->stops[merchant.next_stop_ix];
+        auto& dest_market = entities.get<te::market>(dest_stop.where);
+        auto dest = entities.get<te::site>(dest_stop.where);
+        auto market_it = std::find(dest_market.trading.begin(), dest_market.trading.end(), merchant_e);
+        if (market_it != dest_market.trading.end()) {
+            // inside the market
+            auto& merchant_inventory = merchants.get<te::inventory>(merchant_e);
+            auto& merchant_trader = merchants.get<te::trader>(merchant_e);
+            bool stop_satisfied = std::all_of (
+                commodities.begin(),
+                commodities.end(),
+                [&](entt::entity commodity) {
+                    return merchant_inventory.stock[commodity] == dest_stop.leave_with[commodity];
+                }
+            );
+            if (stop_satisfied) {
+                dest_market.trading.erase(market_it);
+                entities.assign<te::site>(merchant_e, dest);
+                merchant.next_stop_ix = (merchant.next_stop_ix + 1) % merchant.route->stops.size();
+                auto& next_stop = merchant.route->stops[merchant.next_stop_ix];
+                auto& bids = merchant_trader.bid;
+                for (auto commodity_e : commodities) {
+                    bids[commodity_e] = next_stop.leave_with[commodity_e] - merchant_inventory.stock[commodity_e];
                 }
             } else {
-                merchant.trading = true;
-                auto& bids = entities.get<trader>(merchant_e).bid;
-                    
-                for (auto [commodity_e, count] : dest_stop.leave_with) {
-                    bids[commodity_e] = count - merchant_inventory.stock[commodity_e];
-                }
+                // wait until it's satisfied
             }
         } else {
-            // move him a bit closer
-            merchant_site.position += glm::normalize(course) * static_cast<float>(dt);
+            // en route
+            auto& merchant_site = entities.get<te::site>(merchant_e);
+            auto course = dest.position - merchant_site.position;
+            auto distance = glm::length(course);
+            if (distance <= 1.0) {
+                entities.remove<te::site>(merchant_e);
+                dest_market.trading.push_back(merchant_e);
+            } else {
+                merchant_site.position += glm::normalize(course) * static_cast<float>(dt);
+            }
         }
     }
 }
@@ -433,60 +492,55 @@ void te::sim::tick(double dt) {
                 [&](auto& demander, auto& demander_site) {
                     if (in_market(demander_site, market_site, market)) {
                         for (auto [commodity_e, demand_rate] : demander.rate) {
+                            //BUG: segfault here after a new dwelling appears
                             entities.get<trader>(market.commons).bid[commodity_e] += demand_rate * dt;
                         }
                     }
                 }
             );
 
+            // Do trades
             for (auto commodity_e : commodities) {
-                //TODO: sort traders here
-                //TODO: make this not O(N^2)
-                //TODO: somehow deal with dwellings...
-                entities.view<inventory, site, trader>().each (
-                    [&](entt::entity trader_a_e, auto& trader_a_inventory, auto& trader_a_site, auto& trader_a) {
-                        entities.view<inventory, site, trader>().each (
-                            [&](entt::entity trader_b_e, auto& trader_b_inventory, auto& trader_b_site, auto& trader_b) {
-                                if (in_market(trader_a_site, market_site, market) && in_market(trader_b_site, market_site, market)) {
-                                    auto& a_bid = trader_a.bid[commodity_e];
-                                    auto& b_bid = trader_b.bid[commodity_e];
-                                    if (a_bid > 0.0 && b_bid < 0.0) {
-                                        auto movement = static_cast<int>(std::min(a_bid, std::abs(b_bid)));
-                                        auto& a_stock = trader_a_inventory.stock[commodity_e];
-                                        auto& b_stock = trader_b_inventory.stock[commodity_e];
-                                        if (movement != 0) {
-                                            if (b_stock >= movement) {
-                                                auto price = market.prices[commodity_e];
-                                                a_bid -= movement;
-                                                a_stock += movement;
-                                                trader_a.balance -= price;
-                                                families[trader_a.family_ix].balance -= price;
-                                                b_bid += movement;
-                                                b_stock -= movement;
-                                                trader_b.balance += price;
-                                                families[trader_b.family_ix].balance += price;
-                                            }
-                                        }
-                                    }
+                // TODO: sort the traders somehow
+                // TODO: make this not O(N^2)
+                for (auto& trader_a_e : market.trading) {
+                    auto& a_stock = entities.get<te::inventory>(trader_a_e).stock[commodity_e];
+                    auto& a = entities.get<te::trader>(trader_a_e);
+                    auto& a_bid = a.bid[commodity_e];
+                    for (auto& trader_b_e : market.trading) {
+                        if (trader_a_e == trader_b_e) continue;
+                        auto& b_stock = entities.get<te::inventory>(trader_b_e).stock[commodity_e];
+                        auto& b = entities.get<te::trader>(trader_b_e);
+                        auto& b_bid = b.bid[commodity_e];
+                        // TODO: extract function for doing trades
+                        if (a_bid > 0.0 && b_bid < 0.0) {
+                            auto movement = static_cast<int>(std::min(a_bid, std::abs(b_bid)));
+                            if (movement != 0) {
+                                if (b_stock >= movement) {
+                                    auto price = market.prices[commodity_e];
+                                    a_bid -= movement;
+                                    a_stock += movement;
+                                    a.balance -= price;
+                                    families[a.family_ix].balance -= price;
+                                    b_bid += movement;
+                                    b_stock -= movement;
+                                    b.balance += price;
+                                    families[b.family_ix].balance += price;
                                 }
                             }
-                        );
+                        }
                     }
-                );
+                }
             }
             
             // market demand is sum of all trader demands
             market.demand = {};
-            entities.view<trader, site>().each (
-                [&](auto& trader, auto& trader_site) {
-                    if (in_market(trader_site, market_site, market)) {
-                        for (auto [commodity, bid] : trader.bid) {
-                            //TODO: make bids only in increments
-                            market.demand[commodity] += std::max(0.0, std::floor(bid * (1.0 / 0.01)) / (1 / 0.01));
-                        }
-                    }
+            for (auto trader_e : market.trading) {
+                const auto& trader = entities.get<te::trader>(trader_e);
+                for (auto [commodity, bid] : trader.bid) {
+                    market.demand[commodity] += std::max(0.0, std::floor(bid * (1.0 / 0.01)) / (1 / 0.01));
                 }
-            );
+            }
             
             /* Calculate market prices
              *   - prices should not increase unless there is at least 1 unit of demand */

@@ -55,6 +55,7 @@ namespace te {
 
         std::optional<entt::entity> merchant_ordering;
         std::optional<entt::entity> merchant_selected;
+        void render_merchant_summary(entt::entity);
         void render_orders_controller();
         void render_roster_controller();
         void render_merchants_controller();

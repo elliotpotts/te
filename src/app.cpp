@@ -1,9 +1,12 @@
 #include <te/app.hpp>
+#include <te/util.hpp>
 #include <fmt/format.h>
 #include <examples/imgui_impl_glfw.h>
 #include <examples/imgui_impl_opengl3.h>
 #include <spdlog/spdlog.h>
 #include <chrono>
+#include <variant>
+#include <algorithm>
 #include <te/maths.hpp>
 #include <glm/gtx/rotate_vector.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -24,6 +27,13 @@ namespace {
     }
 }
 
+namespace {
+    const auto light_blue = ImColor(ImVec4{22.9/100.0, 60.7/100.0, 85.9/100.0, 1.0});
+    const auto dark_blue = ImColor(ImVec4{22.9/255.0, 60.7/255.0, 85.9/255.0, 1.0f});
+    const auto white = ImColor(ImVec4{1.0, 1.0, 1.0, 1.0});
+    const auto red = ImColor(ImVec4{1.0, 0.0, 0.0, 1.0});
+}
+
 te::app::app(te::sim& model, unsigned int seed) :
     model { model },
     rengine { seed },
@@ -42,6 +52,7 @@ te::app::app(te::sim& model, unsigned int seed) :
     loader { win.gl, *fmod },
     resources { loader }
 {
+    playsfx("assets/music/chinese4.ogg");
     win.on_framebuffer_size.connect([&](int width, int height) {
                                         cam.aspect_ratio = static_cast<float>(width) / height;
                                         glViewport(0, 0, width, height);
@@ -239,6 +250,62 @@ void te::app::render_producer_inspector(const te::producer& producer, const te::
 }
 
 void te::app::render_market_inspector(const te::market& market) {
+    ImGui::Text("Trading at this market:");
+    ImGui::Columns(4);
+    
+    ImGui::Text("Party");
+    ImGui::NextColumn();
+
+    ImGui::Text("Bid");
+    ImGui::NextColumn();
+
+    ImGui::NextColumn();
+
+    ImGui::Text("Commodity");
+    ImGui::NextColumn();
+
+    
+    for (auto entity : market.trading) {
+        if (auto [named, trader] = model.entities.try_get<te::named, te::trader>(entity); named && trader) {
+            bool any_bids = std::any_of (
+                trader->bid.begin(),
+                trader->bid.end(),
+                [](auto pair) {
+                    auto [commodity_e, bid] = pair;
+                    return bid != 0.0;
+                }
+            );
+            if (!any_bids) {
+                continue;
+            }
+            ImGui::Text(fmt::format("* {}", named->name).c_str());
+            for (auto [commodity_e, bid] : trader->bid) {
+                if (bid == 0.0) {
+                    continue;
+                }
+                ImGui::NextColumn();
+
+                if (bid > 0.0) {
+                    ImGui::Text("Buy");
+                    ImGui::NextColumn();
+                    ImGui::TextColored(light_blue, fmt::format("{:.1}", bid).c_str());
+                } else if (bid < 0.0) {
+                    ImGui::Text("Sell");
+                    ImGui::NextColumn();
+                    ImGui::TextColored(red, fmt::format("{:.1}", std::abs(bid)).c_str());
+                }
+                ImGui::NextColumn();
+
+                imgui_commicon(commodity_e);
+                ImGui::SameLine();
+                ImGui::Text(model.entities.get<te::named>(commodity_e).name.c_str());
+                ImGui::NextColumn();
+            }
+        }
+    }
+    ImGui::Columns(1);
+    ImGui::Separator();
+    
     ImGui::Text(fmt::format("Population: {}", market.population).c_str());
     ImGui::Text(fmt::format("Growth rate: {}", market.growth_rate).c_str());
     ImGui::Text("Growth: ");
@@ -288,9 +355,6 @@ void te::app::render_market_inspector(const te::market& market) {
         auto commodity_price_it = market.prices.find(commodity_entity);
         double commodity_price = commodity_price_it == market.prices.end() ? 0.0 : commodity_price_it->second;
         ImDrawList* draw = ImGui::GetWindowDrawList();
-        static const auto light_blue = ImColor(ImVec4{22.9/100.0, 60.7/100.0, 85.9/100.0, 1.0f});
-        static const auto dark_blue = ImColor(ImVec4{22.9/255.0, 60.7/255.0, 85.9/255.0, 1.0f});
-        static const auto white = ImColor(ImVec4{1.0, 1.0, 1.0, 1.0});
         const ImVec2 cursor_pos {ImGui::GetCursorScreenPos()};
         const float bar_bottom = cursor_pos.y + 20.0f;
         const float bar_height = 10.0f;
@@ -365,9 +429,70 @@ void te::app::render_inspectors() {
     ImGui::End();
 }
 
-void te::app::render_orders_controller() {
-    ImGui::Text("orders!");
+void te::app::render_merchant_summary(entt::entity merchant_entity) {
+    const auto& merchant = model.entities.get<te::merchant>(merchant_entity);
+    const auto& merchant_inventory = model.entities.get<te::inventory>(merchant_entity);
+    const auto& merchant_name = model.entities.get<te::named>(merchant_entity);
+    const auto& trader = model.entities.get<te::trader>(merchant_entity);
+    ImGui::Columns(2);
+    ImGui::SetColumnWidth(0, 66.0);
+    const auto& mule_tex = resources.lazy_load<te::gl::texture2d>("assets/yellowmule.png");
+    ImGui::Image(*mule_tex.hnd, ImVec2{64, 54});
+    ImGui::NextColumn();
+    if (ImGui::Button(merchant_name.name.c_str())) {
+        merchant_ordering = merchant_entity;
+    }
+    ImGui::SameLine();
+    ImGui::Text(fmt::format("¤{}", trader.balance).c_str());
+    auto status = model.merchant_status(merchant_entity);
+    if (status) {
+        ImGui::Text(merchant.route->name.c_str());
+        if (status->trading) {
+            ImGui::Text(fmt::format("Trading at {}", model.entities.get<te::named>(status->next.where).name).c_str());
+        } else {
+            ImGui::Text(fmt::format("En route to {}", model.entities.get<te::named>(status->next.where).name).c_str()); 
+        }
+        ImGui::NextColumn();
+        ImGui::Columns();
+        ImGui::NewLine();
+        for (auto commodity : model.commodities) {
+            const auto stock_it = merchant_inventory.stock.find(commodity);
+            const int stock = stock_it == merchant_inventory.stock.end() ? 0 : stock_it->second;
+            const auto leave_with_it = status->next.leave_with.find(commodity);
+            const int leave_with = leave_with_it == status->next.leave_with.end() ? 0 : leave_with_it->second;
+            const int buy = std::max(0, leave_with - stock);
+            const int sell = status->trading ? std::max(0, stock - leave_with) : 0;
+            const int keep = stock - sell;
+            for (int i = 0; i < buy; i++) {
+                ImGui::SameLine();
+                imgui_commicon(commodity, light_blue);
+            }
+            for (int i = 0; i < sell; i++) {
+                ImGui::SameLine();
+                imgui_commicon(commodity, red);
+            }
+            for (int i = 0; i < keep; i++) {
+                ImGui::SameLine();
+                imgui_commicon(commodity);
+            }
+        }
+    } else {
+        ImGui::Text("No route assigned");
+        ImGui::NextColumn();
+        ImGui::Columns();
+        for (auto [commodity, stock] : merchant_inventory.stock) {
+            const auto& commodity_tex = resources.lazy_load<te::gl::texture2d>(model.entities.get<te::render_tex>(commodity).filename);
+            for (int i = 0; i < stock; i++) {
+                ImGui::SameLine();
+                ImGui::Image(*commodity_tex.hnd, ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{1, 1, 1, 1});
+            }
+        }
+    }
     ImGui::Separator();
+}
+
+void te::app::render_orders_controller() {
+    render_merchant_summary(*merchant_ordering);
 
     static std::optional<int> selected_route_ix = std::nullopt;
     if (ImGui::ListBoxHeader("###route_selector")) {
@@ -383,9 +508,9 @@ void te::app::render_orders_controller() {
         ImGui::ListBoxFooter();
     }
 
-    if (ImGui::Button("Embark on orders") && selected_route_ix) {
+    if (ImGui::Button("Embark on route") && selected_route_ix) {
         playsfx("assets/sfx/route4.wav");
-        model.entities.get<te::merchant&>(*merchant_ordering).route = model.routes[*selected_route_ix];
+        model.merchant_embark(*merchant_ordering, model.routes[*selected_route_ix]);
     }
 
     if (ImGui::Button("Clear orders")) {
@@ -400,67 +525,7 @@ void te::app::render_orders_controller() {
 void te::app::render_roster_controller() {
     auto merchants = model.entities.view<te::trader, te::merchant, te::inventory, te::named>();
     for (auto merchant_entity : merchants) {
-        const auto& trader = merchants.get<te::trader>(merchant_entity);
-        if (trader.family_ix != 1) continue;
-        const auto& merchant = merchants.get<te::merchant>(merchant_entity);
-        const auto& merchant_inventory = merchants.get<te::inventory>(merchant_entity);
-        const auto& merchant_name = merchants.get<te::named>(merchant_entity);
-        ImGui::Columns(2);
-        ImGui::SetColumnWidth(0, 66.0);
-        const auto& mule_tex = resources.lazy_load<te::gl::texture2d>("assets/yellowmule.png");
-        ImGui::Image(*mule_tex.hnd, ImVec2{64, 54});
-        ImGui::NextColumn();
-        if (ImGui::Button(merchant_name.name.c_str())) {
-            merchant_ordering = merchant_entity;
-        }
-        ImGui::SameLine();
-        ImGui::Text(fmt::format("¤{}", trader.balance).c_str());
-        if (merchant.route) {
-            ImGui::Text(merchant.route->name.c_str());
-            auto next_stop = merchant.route->stops[(merchant.last_stop + 1) % merchant.route->stops.size()];
-            auto next_stop_name = model.entities.get<te::named>(next_stop.where);
-            if (merchant.trading) {
-                ImGui::Text(fmt::format("Trading at {}", next_stop_name.name).c_str());
-            } else {
-                ImGui::Text(fmt::format("En route to {}", next_stop_name.name).c_str());
-            }
-            ImGui::NextColumn();
-            ImGui::Columns();
-            ImGui::NewLine();
-            for (auto commodity : model.commodities) {
-                const auto stock_it = merchant_inventory.stock.find(commodity);
-                const int stock = stock_it == merchant_inventory.stock.end() ? 0 : stock_it->second;
-                const auto leave_with_it = next_stop.leave_with.find(commodity);
-                const int leave_with = leave_with_it == next_stop.leave_with.end() ? 0 : leave_with_it->second;
-                const int buy = std::max(0, leave_with - stock);
-                const int sell = merchant.trading ? std::max(0, stock - leave_with) : 0;
-                const int keep = stock - sell;
-                for (int i = 0; i < buy; i++) {
-                    ImGui::SameLine();
-                    imgui_commicon(commodity, ImVec4{22.9/100.0, 60.7/100.0, 85.9/100.0, 1.0f});
-                }
-                for (int i = 0; i < sell; i++) {
-                    ImGui::SameLine();
-                    imgui_commicon(commodity, ImVec4{1, 0, 0, 1});
-                }
-                for (int i = 0; i < keep; i++) {
-                    ImGui::SameLine();
-                    imgui_commicon(commodity);
-                }
-            }
-        } else {
-            ImGui::Text("No route assigned");
-            ImGui::NextColumn();
-            ImGui::Columns();
-            for (auto [commodity, stock] : merchant_inventory.stock) {
-                const auto& commodity_tex = resources.lazy_load<te::gl::texture2d>(model.entities.get<te::render_tex>(commodity).filename);
-                for (int i = 0; i < stock; i++) {
-                    ImGui::SameLine();
-                    ImGui::Image(*commodity_tex.hnd, ImVec2{24, 24}, ImVec2{0, 0}, ImVec2{1, 1}, ImVec4{1, 1, 1, 1}, ImVec4{1, 1, 1, 1});
-                }
-            }
-        }
-        ImGui::Separator();
+        render_merchant_summary(merchant_entity);
     }
     static const std::vector<std::string> merch_names = { "Zazoo", "Mufasa", "Rafiki" };
     static auto merch_name = merch_names.begin();

@@ -76,6 +76,7 @@ namespace te {
         std::unordered_map<entt::entity, double> prices;
         std::unordered_map<entt::entity, double> demand;
         entt::entity commons;
+        std::vector<entt::entity> trading;
         double radius = 5.0f;
         int population = 0;
         double growth_rate = 0.001;
@@ -92,10 +93,14 @@ namespace te {
         std::vector<stop> stops;
     };
 
+    struct merchant_activity {
+        bool trading;
+        stop next;
+    };
+
     struct merchant {
         std::optional<te::route> route;
-        std::size_t last_stop = 0;
-        bool trading = false;
+        std::size_t next_stop_ix = 0;
     };
 
     struct sim {
@@ -130,6 +135,9 @@ namespace te {
 
         market* market_at(glm::vec2 x);
         bool in_market(const site& question_site, const site& market_site, const market& the_market) const;
+
+        void merchant_embark(entt::entity merchant, const route& route);
+        std::optional<merchant_activity> merchant_status(entt::entity merchant);
 
         bool can_place(entt::entity entity, glm::vec2 where);
         std::optional<entt::entity> try_place(entt::entity entity, glm::vec2 where);
