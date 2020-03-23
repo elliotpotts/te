@@ -8,6 +8,7 @@
 #include <string>
 #include <glm/vec2.hpp>
 #include <entt/entt.hpp>
+#include <boost/signals2.hpp>
 
 namespace te {
     struct family {
@@ -146,8 +147,10 @@ namespace te {
         void spawn(entt::entity proto);
 
         void tick_merchant_routes(double dt);
-        
+
         void tick(double delta_t);
+
+        boost::signals2::signal<void()> on_trade;
     };
 
     //TOOD: put these somewhere else

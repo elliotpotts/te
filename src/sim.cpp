@@ -514,18 +514,17 @@ void te::sim::tick(double dt) {
                         // TODO: extract function for doing trades
                         if (a_bid > 0.0 && b_bid < 0.0) {
                             auto movement = static_cast<int>(std::min(a_bid, std::abs(b_bid)));
-                            if (movement != 0) {
-                                if (b_stock >= movement) {
-                                    auto price = market.prices[commodity_e];
-                                    a_bid -= movement;
-                                    a_stock += movement;
-                                    a.balance -= price;
-                                    families[a.family_ix].balance -= price;
-                                    b_bid += movement;
-                                    b_stock -= movement;
-                                    b.balance += price;
-                                    families[b.family_ix].balance += price;
-                                }
+                            if (movement != 0 && b_stock >= movement) {
+                                on_trade();
+                                auto price = market.prices[commodity_e];
+                                a_bid -= movement;
+                                a_stock += movement;
+                                a.balance -= price;
+                                families[a.family_ix].balance -= price;
+                                b_bid += movement;
+                                b_stock -= movement;
+                                b.balance += price;
+                                families[b.family_ix].balance += price;
                             }
                         }
                     }
@@ -566,6 +565,11 @@ void te::sim::tick(double dt) {
             };
 
             // calculate market growth rate
+            /*TODO: Need to get this figured out. The following should be taken into account:
+             *  - the price of basic goods
+             *  - how long dwellings have been without basic goods
+             *  - ???
+             */
             // for now, let's say markets grow when both wheat and barley are reasonably priced
             market.growth_rate = 0.0;
             for (auto commodity : commodities) {

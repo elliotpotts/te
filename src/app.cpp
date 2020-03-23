@@ -75,6 +75,13 @@ te::app::app(te::sim& model, unsigned int seed) :
     marker = model.entities.create();
     model.entities.assign<render_mesh>(marker, "assets/dwelling.glb");
     model.entities.assign<footprint>(marker, glm::vec2{1.0f, 1.0f});
+
+    model.on_trade.connect (
+        [&]() {
+            static std::uniform_int_distribution select{1, 4};
+            playsfx(fmt::format("assets/sfx/coin{}.wav", select(rengine)));
+        }
+    );
 }
 
 void te::app::on_key(int key, int scancode, int action, int mods) {
