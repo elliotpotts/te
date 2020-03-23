@@ -270,22 +270,22 @@ std::optional<entt::entity> te::sim::try_place(entt::entity proto, glm::vec2 cen
     }
 
     //TODO: somehow get rid of this special casing
-    if (auto maybe_market = entities.try_get<te::market>(instantiated); maybe_market) {
+    if (auto market = entities.try_get<te::market>(instantiated); market) {
         auto commons = entities.create();
         entities.assign<trader>(commons, 0u);
         entities.assign<named>(commons, fmt::format("Commons (#{})", static_cast<unsigned>(commons)));
         entities.assign<inventory>(commons);
-        maybe_market->commons = commons;
-        maybe_market->trading.push_back(commons);
+        market->commons = commons;
+        market->trading.push_back(commons);
         // make things trade
         auto traders = entities.view<site, trader>();
         for (auto trader_e : traders) {
-            if (!entities.try_get<te::merchant>(trader_e) && in_market(entities.get<site>(trader_e), {centre}, *maybe_market)) {
-                maybe_market->trading.push_back(trader_e);
+            if (!entities.try_get<te::merchant>(trader_e) && in_market(entities.get<site>(trader_e), {centre}, *market)) {
+                market->trading.push_back(trader_e);
             }
         }
-    } else {
-        auto markets = entities.view<site, market>();
+    } else if (auto trader = entities.try_get<te::trader>(instantiated); trader) {
+        auto markets = entities.view<te::site, te::market>();
         for (auto market_e : markets) {
             auto& market = markets.get<te::market>(market_e);
             if (in_market({centre}, markets.get<site>(market_e), market)) {
@@ -492,7 +492,6 @@ void te::sim::tick(double dt) {
                 [&](auto& demander, auto& demander_site) {
                     if (in_market(demander_site, market_site, market)) {
                         for (auto [commodity_e, demand_rate] : demander.rate) {
-                            //BUG: segfault here after a new dwelling appears
                             entities.get<trader>(market.commons).bid[commodity_e] += demand_rate * dt;
                         }
                     }
