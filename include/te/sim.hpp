@@ -6,6 +6,7 @@
 #include <vector>
 #include <random>
 #include <string>
+#include <variant>
 #include <glm/vec2.hpp>
 #include <entt/entt.hpp>
 #include <boost/signals2.hpp>
@@ -13,6 +14,10 @@
 namespace te {
     struct family {
         double balance;
+    };
+
+    struct owned {
+        unsigned family_ix;
     };
 
     struct named {
@@ -48,7 +53,7 @@ namespace te {
     // A trader stores the current demand of entities
     struct trader {
         // the index of the family this trader works for
-        unsigned int family_ix;
+        unsigned family_ix;
         // +ve bid = buying
         // -ve bid = selling
         std::unordered_map<entt::entity, double> bid;
@@ -123,12 +128,6 @@ namespace te {
 
         void load_commodities();
         void init_blueprints();
-        void generate_map();
-
-        // which entities a market has influence over
-        std::unordered_map<entt::entity, std::vector<entt::entity>> market_influencees;
-        // which markets an entity is influenced by
-        std::unordered_map<entt::entity, std::vector<entt::entity>> influencee_markets;
 
         // total units wanting to be sold
         int market_stock(entt::entity market_e, entt::entity commodity_e);
@@ -146,8 +145,8 @@ namespace te {
         bool spawn_dwelling(entt::entity market);
         void spawn(entt::entity proto);
 
-        void tick_merchant_routes(double dt);
-
+        void tick_merchants(double dt);
+        void tick_markets(double dt);
         void tick(double delta_t);
 
         boost::signals2::signal<void()> on_trade;

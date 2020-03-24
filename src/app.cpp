@@ -34,9 +34,10 @@ namespace {
     const auto red = ImColor(ImVec4{1.0, 0.0, 0.0, 1.0});
 }
 
-te::app::app(te::sim& model, unsigned int seed) :
+te::app::app(te::sim& model, te::controller& ctrl) :
     model { model },
-    rengine { seed },
+    ctrl { ctrl },
+    rengine { 42 },
     win { glfw.make_window(1920 - 200, 1080 - 200, "Hello, World!", false)},
     imgui_io { setup_imgui(win) },
     cam {
@@ -59,12 +60,12 @@ te::app::app(te::sim& model, unsigned int seed) :
                                     });
     win.set_attribute(GLFW_RESIZABLE, GLFW_TRUE);
     win.on_key.connect([&](int key, int scancode, int action, int mods) {
-                           if (!ImGui::GetIO().WantCaptureMouse) {
+                           if (!ImGui::GetIO().WantCaptureKeyboard) {
                                on_key(key, scancode, action, mods);
                            }
                        });
     win.on_mouse_button.connect([&](int button, int action, int mods) {
-                                    if (!ImGui::GetIO().WantCaptureKeyboard) {
+                                    if (!ImGui::GetIO().WantCaptureMouse) {
                                         on_mouse_button(button, action, mods);
                                     }
                                 });
@@ -72,19 +73,17 @@ te::app::app(te::sim& model, unsigned int seed) :
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
 
-    marker = model.entities.create();
-    model.entities.assign<render_mesh>(marker, "assets/dwelling.glb");
-    model.entities.assign<footprint>(marker, glm::vec2{1.0f, 1.0f});
-
-    model.on_trade.connect (
-        [&]() {
-            static std::uniform_int_distribution select{1, 4};
-            playsfx(fmt::format("assets/sfx/coin{}.wav", select(rengine)));
-        }
-    );
+    model.on_trade.connect([&]() {
+        static std::uniform_int_distribution select{1, 4};
+        playsfx(fmt::format("assets/sfx/coin{}.wav", select(rengine)));
+    });
 }
 
 void te::app::on_key(int key, int scancode, int action, int mods) {
+    if (key == GLFW_KEY_ESCAPE) {
+        win.close();
+        return;
+    };
     if (key == GLFW_KEY_Q && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
         cam.offset = glm::rotate(cam.offset, -glm::half_pi<float>()/4.0f, glm::vec3{0.0f, 0.0f, 1.0f});
     }
@@ -97,15 +96,11 @@ void te::app::on_mouse_button(int button, int action, int mods) {
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
         if (ghost) {
             auto proto = model.entities.get<te::ghost>(*ghost).proto;
-            if (model.try_place(proto, model.entities.get<te::site>(*ghost).position)) {
-                model.families[1].balance -= model.entities.get<te::price>(proto).price;
-                model.entities.destroy(*ghost);
-                ghost.reset();
-                playsfx("assets/sfx/build1.wav");
-                return;
-            } else {
-                playsfx("assets/sfx/notif3.wav");
-            }
+            ctrl(act::build{1, proto, model.entities.get<te::site>(*ghost).position});
+            model.entities.destroy(*ghost);
+            ghost.reset();
+            /* TODO: figure out how to play sound effecs when things fail/don't fail.
+             *       Do we always have to wait for a response from the server? */
         } else if (pos_under_mouse) {
             auto map_entities = model.entities.view<te::site, te::pickable>();
             for (auto entity : map_entities) {
@@ -113,7 +108,7 @@ void te::app::on_mouse_button(int button, int action, int mods) {
                 if (glm::distance(map_site.position, *pos_under_mouse) <= 1.0f) {
                     inspected = entity;
                     if (auto noisy = model.entities.try_get<te::noisy>(entity); noisy) {
-                        fmod->playSound(resources.lazy_load<te::fmod_sound_hnd>(noisy->filename).get(), nullptr, false, nullptr);    
+                        playsfx(noisy->filename);
                     }
                     return;
                 }
@@ -157,7 +152,7 @@ void te::app::render_scene() {
         market_site = model.entities.try_get<te::site>(*inspected);
     }
 
-    do {
+    while (it != end) {
         std::vector<te::mesh_renderer::instance_attributes> instance_attributes;
         const auto& current_rmesh = instances.get<render_mesh>(*it);
         while (it != end && instances.get<render_mesh>(*it).filename == current_rmesh.filename) {
@@ -176,7 +171,7 @@ void te::app::render_scene() {
         instanced.instance_attribute_buffer.bind();
         instanced.instance_attribute_buffer.upload(instance_attributes.begin(), instance_attributes.end());
         mesh_renderer.draw(instanced, rotate_zup, cam, instance_attributes.size());
-    } while (it != end);
+    }
 }
 
 namespace {
@@ -436,6 +431,40 @@ void te::app::render_inspectors() {
     ImGui::End();
 }
 
+void te::app::render_console() {
+    ImGui::Begin("Console", nullptr, 0);
+    const float footer_height_to_reserve = ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeightWithSpacing(); // 1 separator, 1 input text
+    ImGui::BeginChild("ScrollingRegion", ImVec2(0, -footer_height_to_reserve), false, ImGuiWindowFlags_HorizontalScrollbar); // Leave room for 1 separator + 1 InputText
+    if (ImGui::BeginPopupContextWindow()) {
+        if (ImGui::Selectable("Clear")) console.clear();
+        ImGui::EndPopup();
+    }
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4,1));
+    static bool scroll_to_bottom = false;
+    for (auto& line : console) {
+        ImGui::PushStyleColor(ImGuiCol_Text, static_cast<ImVec4>(light_blue));
+        ImGui::TextUnformatted(line.prefix.c_str());
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::TextUnformatted(line.content.c_str());
+    }
+    if (scroll_to_bottom) {
+        ImGui::SetScrollHereY(1.0f);
+        scroll_to_bottom = false;
+    }
+    ImGui::PopStyleVar();
+    ImGui::EndChild();
+    ImGui::Separator();
+    static std::array<char, 200> line_buf {'\0'};
+    if (ImGui::InputText("Input", line_buf.data(), line_buf.size(), ImGuiInputTextFlags_EnterReturnsTrue, nullptr, nullptr)) {
+        console.emplace_back(console_line{ImColor{255, 255, 255}, std::string{"[chat]: "}, std::string{line_buf.data(), line_buf.size()}});
+        line_buf.fill('\0');
+        ImGui::SetKeyboardFocusHere(-1);
+        scroll_to_bottom = true;
+    }
+    ImGui::End();
+}
+
 void te::app::render_merchant_summary(entt::entity merchant_entity) {
     const auto& merchant = model.entities.get<te::merchant>(merchant_entity);
     const auto& merchant_inventory = model.entities.get<te::inventory>(merchant_entity);
@@ -676,6 +705,7 @@ void te::app::render_ui() {
     ImGui::NewFrame();
     render_inspectors();
     render_controller();
+    render_console();
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
@@ -685,27 +715,28 @@ void te::app::playsfx(std::string filename) {
 }
 
 void te::app::input() {
-    if (win.key(GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-        win.close();
-        return;
-    };
-
-    mouse_pick();
-    if (ghost && pos_under_mouse) {
-        model.entities.assign_or_replace<site>(*ghost, model.snap(*pos_under_mouse, model.entities.get<footprint>(*ghost).dimensions));
+    if (!ImGui::GetIO().WantCaptureMouse) {
+        mouse_pick();
+        if (ghost && pos_under_mouse) {
+            model.entities.assign_or_replace<site>(*ghost, model.snap(*pos_under_mouse, model.entities.get<footprint>(*ghost).dimensions));
+        }
     }
 
-    glm::vec3 forward = -cam.offset;
-    forward.z = 0.0f;
-    forward = glm::normalize(forward);
-    glm::vec3 left = glm::rotate(forward, glm::half_pi<float>(), glm::vec3{0.0f, 0.0f, 1.0f});
-    if (win.key(GLFW_KEY_W) == GLFW_PRESS) cam.focus += 0.3f * forward;
-    if (win.key(GLFW_KEY_A) == GLFW_PRESS) cam.focus += 0.3f * left;
-    if (win.key(GLFW_KEY_S) == GLFW_PRESS) cam.focus -= 0.3f * forward;
-    if (win.key(GLFW_KEY_D) == GLFW_PRESS) cam.focus -= 0.3f * left;
-    if (win.key(GLFW_KEY_H) == GLFW_PRESS) cam.zoom(0.15f);
-    if (win.key(GLFW_KEY_J) == GLFW_PRESS) cam.zoom(-0.15f);
-    cam.use_ortho = win.key(GLFW_KEY_SPACE) != GLFW_PRESS;
+    if (!ImGui::GetIO().WantCaptureKeyboard && !ImGui::GetIO().WantTextInput) {
+        glm::vec3 forward = -cam.offset;
+        forward.z = 0.0f;
+        forward = glm::normalize(forward);
+        glm::vec3 left = glm::rotate(forward, glm::half_pi<float>(), glm::vec3{0.0f, 0.0f, 1.0f});
+        if (win.key(GLFW_KEY_W) == GLFW_PRESS) {
+            cam.focus += 0.3f * forward;
+        }
+        if (win.key(GLFW_KEY_A) == GLFW_PRESS) cam.focus += 0.3f * left;
+        if (win.key(GLFW_KEY_S) == GLFW_PRESS) cam.focus -= 0.3f * forward;
+        if (win.key(GLFW_KEY_D) == GLFW_PRESS) cam.focus -= 0.3f * left;
+        if (win.key(GLFW_KEY_H) == GLFW_PRESS) cam.zoom(0.15f);
+        if (win.key(GLFW_KEY_J) == GLFW_PRESS) cam.zoom(-0.15f);
+        cam.use_ortho = win.key(GLFW_KEY_SPACE) != GLFW_PRESS;
+    }
 }
 
 void te::app::draw() {
@@ -714,15 +745,20 @@ void te::app::draw() {
 }
 
 void te::app::run() {
+    static bool started = false;
+    if (!started) {
+        ctrl.start();
+        started = true;
+    }
     auto then = std::chrono::high_resolution_clock::now();
     int frames = 0;
     while (!glfwWindowShouldClose(win.hnd.get())) {
         input();
+        ctrl.poll();
         if (frames == 5) {
             auto now = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> secs = now - then;
             fps = static_cast<double>(frames) / secs.count();
-            model.tick(secs.count() * 1.0);
             frames = 0;
             then = std::chrono::high_resolution_clock::now();
         }

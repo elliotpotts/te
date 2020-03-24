@@ -11,8 +11,8 @@
 te::sim::sim(unsigned int seed) : rengine { seed } {
     load_commodities();
     init_blueprints();
-    generate_map();
 }
+
 namespace {    
     struct unit {
     };
@@ -160,40 +160,6 @@ void te::sim::init_blueprints() {
     entities.assign<price>(weaver, 1000.0);
     entities.assign<render_mesh>(weaver, "assets/mill.glb");
     entities.assign<pickable>(weaver);
-}
-
-void te::sim::generate_map() {
-    std::discrete_distribution<std::size_t> select_blueprint {7, 7, 2, 0, 2};
-    for (int i = 0; i < 40; i++) spawn(blueprints[select_blueprint(rengine)]);
-    // create a roaming merchant
-    auto merchant_e = entities.create();
-    entities.assign<named>(merchant_e, "Nebuchadnezzar");
-    entities.assign<site>(merchant_e, glm::vec2{0.0f, 0.0f});
-    entities.assign<footprint>(merchant_e, glm::vec2{1.0f, 1.0f});
-    entities.assign<render_mesh>(merchant_e, "assets/merchant.glb");
-    entities.assign<pickable>(merchant_e);
-    entities.assign<trader>(merchant_e, 1u);
-    entities.assign<inventory>(merchant_e);
-    entities.assign<merchant>(merchant_e, std::nullopt);
-
-    routes.push_back (
-        route {
-            "G'Day M'Lady",
-            {}
-        }
-    );
-    routes.push_back (
-        route {
-            "Flargunst'how",
-            {}
-        }
-    );
-    routes.push_back (
-        route {
-            "Mai'm'ao",
-            {}
-        }
-    );
 }
 
 te::market* te::sim::market_at(glm::vec2 x) {
@@ -383,7 +349,7 @@ std::optional<te::merchant_activity> te::sim::merchant_status(entt::entity merch
     }
 }
 
-void te::sim::tick_merchant_routes(double dt) {
+void te::sim::tick_merchants(double dt) {
     auto merchants = entities.view<merchant, inventory, trader>();
     for (auto merchant_e : merchants) {
         auto& merchant = merchants.get<te::merchant>(merchant_e);
@@ -431,7 +397,7 @@ void te::sim::tick_merchant_routes(double dt) {
 }
 
 void te::sim::tick(double dt) {
-    tick_merchant_routes(dt);
+    tick_merchants(dt);
     entities.view<market, site>().each (
         [&](entt::entity market_e, auto& market, auto& market_site) {
             // advance generators

@@ -1,6 +1,7 @@
 #ifndef TE_APP_HPP_INCLUDED
 #define TE_APP_HPP_INCLUDED
 #include <te/sim.hpp>
+#include <te/controller.hpp>
 #include <te/window.hpp>
 #include <te/cache.hpp>
 #include <te/camera.hpp>
@@ -14,9 +15,11 @@
 #include <glm/glm.hpp>
 #include <fmod.hpp>
 #include <te/fmod.hpp>
+
 namespace te {
     struct app {
         te::sim& model;
+        te::controller& ctrl;
         std::default_random_engine rengine;
         te::glfw_context glfw;
         te::window win;
@@ -31,9 +34,15 @@ namespace te {
 
         std::optional<entt::entity> inspected;
         std::optional<entt::entity> ghost;
-        entt::entity marker;
 
-        app(te::sim& model, unsigned int seed);
+        struct console_line {
+            ImColor prefix_colour;
+            std::string prefix;
+            std::string content;
+        };
+        std::vector<console_line> console;
+
+        app(te::sim& model, te::controller& ctrl);
 
         void on_key(int key, int scancode, int action, int mods);
         void on_mouse_button(int button, int action, int mods);
@@ -52,6 +61,8 @@ namespace te {
         void render_producer_inspector(const te::producer&, const te::inventory&);
         void render_market_inspector(const te::market&);
         void render_inspectors();
+
+        void render_console();
 
         std::optional<entt::entity> merchant_ordering;
         std::optional<entt::entity> merchant_selected;
