@@ -1,7 +1,7 @@
 #ifndef TE_APP_HPP_INCLUDED
 #define TE_APP_HPP_INCLUDED
 #include <te/sim.hpp>
-#include <te/controller.hpp>
+#include <te/net.hpp>
 #include <te/window.hpp>
 #include <te/cache.hpp>
 #include <te/camera.hpp>
@@ -17,9 +17,41 @@
 #include <te/fmod.hpp>
 
 namespace te {
+    struct render_tex {
+        std::string filename;
+    };
+    template<typename Ar>
+    void serialize(Ar& ar, render_tex& x){
+        ar(x.filename);
+    }
+    
+    struct render_mesh {
+        std::string filename;
+    };
+    template<typename Ar>
+    void serialize(Ar& ar, render_mesh& x){
+        ar(x.filename);
+    }
+    
+    struct noisy {
+        std::string filename;
+    };
+    
+    struct pickable {
+    };
+    template<typename Ar>
+    void serialize(Ar& ar, pickable& x){
+        ar();
+    }
+    
+    struct ghost {
+        entt::entity proto;
+    };
+
     struct app {
         te::sim& model;
-        te::controller& ctrl;
+        te::peer& peer;
+        unsigned family_ix;
         std::default_random_engine rengine;
         te::glfw_context glfw;
         te::window win;
@@ -42,7 +74,7 @@ namespace te {
         };
         std::vector<console_line> console;
 
-        app(te::sim& model, te::controller& ctrl);
+        app(te::sim& model, te::peer& ctrl, unsigned family_ix);
 
         void on_key(int key, int scancode, int action, int mods);
         void on_mouse_button(int button, int action, int mods);

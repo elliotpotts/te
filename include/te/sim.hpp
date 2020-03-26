@@ -11,6 +11,11 @@
 #include <entt/entt.hpp>
 #include <boost/signals2.hpp>
 
+template<typename Ar>
+void serialize(Ar& ar, glm::vec2& vec){
+    ar(vec.x, vec.y);
+}
+
 namespace te {
     struct family {
         double balance;
@@ -23,6 +28,10 @@ namespace te {
     struct named {
         std::string name;
     };
+    template<typename Ar>
+    void serialize(Ar& ar, named& x){
+        ar(x.name);
+    }
 
     struct price {
         double price;
@@ -31,14 +40,18 @@ namespace te {
     struct footprint {
         glm::vec2 dimensions;
     };
+    template<typename Ar>
+    void serialize(Ar& ar, footprint& x){
+        ar(x.dimensions);
+    }    
 
     struct site {
         glm::vec2 position;
     };
-
-    struct ghost {
-        entt::entity proto;
-    };
+    template<typename Ar>
+    void serialize(Ar& ar, site& x){
+        ar(x.position);
+    }
 
     struct dweller {
         //TODO: programmatically represent requirements of living
@@ -128,6 +141,7 @@ namespace te {
 
         void load_commodities();
         void init_blueprints();
+        void generate_map();
 
         // total units wanting to be sold
         int market_stock(entt::entity market_e, entt::entity commodity_e);
@@ -150,21 +164,8 @@ namespace te {
         void tick(double delta_t);
 
         boost::signals2::signal<void()> on_trade;
-    };
-
-    //TOOD: put these somewhere else
-    // Client Components
-    struct render_tex {
-        std::string filename;
-    };
-    struct render_mesh {
-        std::string filename;
-    };
-    struct noisy {
-        std::string filename;
-    };
-    struct pickable {
-    };
+        boost::signals2::signal<void(unsigned)> on_family_join;
+    };    
 }
 
 #endif

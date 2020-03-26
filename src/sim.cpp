@@ -1,4 +1,6 @@
 #include <te/sim.hpp>
+#include <te/csv_parser.hpp>
+#include <te/app.hpp>
 #include <spdlog/spdlog.h>
 #include <fstream>
 #include <regex>
@@ -13,70 +15,19 @@ te::sim::sim(unsigned int seed) : rengine { seed } {
     init_blueprints();
 }
 
-namespace {    
-    struct unit {
-    };
-    template<typename It>
-    struct csv_parser {
-        It current;
-        It end;
-        csv_parser(It begin, It end) : current(begin), end(end) {
-        }
-        auto try_parse_regex(const std::regex& regex) -> std::optional<std::match_results<It>> {
-            if (std::match_results<It> match; std::regex_search(current, end, match, regex)) {
-                current = match[0].second;
-                return std::optional{match};
-            } else {
-                return std::nullopt;
-            }
-        }
-        auto try_parse_literal(const std::string_view literal) -> std::optional<std::string_view> {
-            if (auto lit_begin = std::search(current, end, literal.begin(), literal.end()); lit_begin != end) {
-                current = lit_begin + literal.size();
-                return std::optional{std::string_view{std::to_address(lit_begin), literal.size()}};
-            } else {
-                return std::nullopt;
-            }
-        }
-        auto next_field() -> std::optional<unit> {
-            static const std::regex whitespace("\\s*");
-            try_parse_regex(whitespace) && try_parse_literal(",") && try_parse_regex(whitespace);
-            return {{}};
-        }
-    public:
-        auto try_parse_quoted() -> std::optional<std::string> {
-            static const std::regex match_quoted_str{"\"([a-zA-Z ]*)\""};
-            auto result = try_parse_regex(match_quoted_str);
-            if (result) {
-                next_field();
-                return (*result)[1].str();
-            } else {
-                return std::nullopt;
-            }
-        }
-        auto parse_quoted() {
-            return *try_parse_quoted();
-        }
-        auto try_parse_double() -> std::optional<double> {
-            const char* const current_char = std::to_address(current);
-            char* double_end;
-            double parsed = std::strtod(current_char, &double_end);
-            if (double_end != current_char) {
-                current = decltype(current){double_end};
-                next_field();
-                return std::optional{parsed};
-            } else {
-                return std::nullopt;
-            }
-        }
-        auto parse_double() {
-            return *try_parse_double();
-        }
-        auto skip() -> std::optional<unit> {
-            try_parse_quoted() || try_parse_double();
-            return {{}};
-        }
-    };
+void te::sim::generate_map() {
+    std::discrete_distribution<std::size_t> select_blueprint {7, 7, 2, 0, 2};
+    for (int i = 0; i < 40; i++) spawn(blueprints[select_blueprint(rengine)]);
+    // create a roaming merchant
+    auto merchant_e = entities.create();
+    entities.assign<named>(merchant_e, "Nebuchadnezzar");
+    entities.assign<site>(merchant_e, glm::vec2{0.0f, 0.0f});
+    entities.assign<footprint>(merchant_e, glm::vec2{1.0f, 1.0f});
+    entities.assign<render_mesh>(merchant_e, "assets/merchant.glb");
+    entities.assign<pickable>(merchant_e);
+    entities.assign<trader>(merchant_e, 1u);
+    entities.assign<inventory>(merchant_e);
+    entities.assign<merchant>(merchant_e, std::nullopt);
 }
 
 void te::sim::load_commodities() {

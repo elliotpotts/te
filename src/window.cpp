@@ -58,7 +58,7 @@ te::glfw_context::glfw_context() {
     glfwSetErrorCallback(glfw_error_callback);
 }
 te::window te::glfw_context::make_window(int width, int height, const char* title, bool fullscreen = true) {
-    glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
+    //glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);

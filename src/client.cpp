@@ -3,7 +3,9 @@
 #include <stdexcept>
 #include <string_view>
 
-te::client::client(const SteamNetworkingIPAddr& server_addr) : netio{SteamNetworkingSockets()} {
+te::client::client(const SteamNetworkingIPAddr& server_addr, te::sim& model):
+    netio { SteamNetworkingSockets() },
+    model { model } {
     std::array<char, SteamNetworkingIPAddr::k_cchMaxString> addr_string;
     server_addr.ToString(addr_string.data(), sizeof(addr_string), true);
     spdlog::info("Connecting to chat server at {}", addr_string.data());
@@ -14,18 +16,38 @@ te::client::client(const SteamNetworkingIPAddr& server_addr) : netio{SteamNetwor
 }
 
 std::vector<te::message_ptr> te::client::recv() {
-    netio->RunCallbacks(this);
-        
     std::vector<te::message_ptr> received;
     ISteamNetworkingMessage *incoming = nullptr;
     int count_received = netio->ReceiveMessagesOnConnection(conn, &incoming, 1);
     while (count_received == 1) {
         received.emplace_back(incoming);
+        count_received = netio->ReceiveMessagesOnConnection(conn, &incoming, 1);
     }
     if (count_received < 0) {
         throw std::runtime_error{"Error checking for messages"};
     } else {
         return received;
+    }
+}
+
+#include <te/app.hpp>
+#include <cereal/archives/json.hpp>
+#include <sstream>
+#include <iterator>
+#include <algorithm>
+void te::client::poll() {
+    netio->RunCallbacks(this);
+    std::vector<te::message_ptr> received = recv();
+    for (auto& msg_ptr : received) {
+        std::stringstream strmsg;
+        auto strmsg_writer = std::ostreambuf_iterator { strmsg.rdbuf() };
+        std::copy_n(static_cast<char*>(msg_ptr->m_pData), msg_ptr->m_cbSize, strmsg_writer);
+        try {
+            cereal::JSONInputArchive input { strmsg };
+            model.entities.loader().component<te::named, te::site, te::footprint, te::render_mesh>(input);
+        } catch (const cereal::RapidJSONException& ex) {
+            spdlog::debug(strmsg.str());
+        }
     }
 }
 

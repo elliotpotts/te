@@ -2,30 +2,34 @@
 #define TE_SERVER_HPP_INCLUDED
 
 #include <te/net.hpp>
-#include <map>
+#include <te/sim.hpp>
+#include <unordered_map>
 #include <vector>
 
 namespace te {
     struct client_handle {
+        unsigned family;
         std::string nick;
     };
     
     struct server : private ISteamNetworkingSocketsCallbacks, public peer {
+        sim& model;
+        
         ISteamNetworkingSockets* netio;
         HSteamListenSocket listen_sock;
         HSteamNetPollGroup poll_group;
         bool quit = false;
 
-        std::map<HSteamNetConnection, client_handle> conn_clients;
+        std::unordered_map<HSteamNetConnection, client_handle> conn_clients;
         void send(HSteamNetConnection conn, std::string_view str);
         void send_all(std::string_view str, HSteamNetConnection except = k_HSteamNetConnection_Invalid);
-        void set_nick(HSteamNetConnection hConn, const char* new_nick);
+        std::vector<std::pair<te::client_handle, te::message_ptr>> recv();
         virtual void OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* info) override;
     public:
-        server();
+        server(te::sim& model);
         virtual ~server() = default;
         void listen(std::uint16_t port);
-        std::vector<std::pair<te::client_handle, te::message_ptr>> poll();
+        virtual void poll() override;
         void run();
         void shutdown();
     };

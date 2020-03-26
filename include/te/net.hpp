@@ -16,7 +16,8 @@ namespace te {
     using message_ptr = std::unique_ptr<ISteamNetworkingMessage, message_deleter>;
 
     struct peer {
-        virtual ~peer() = default;
+        virtual ~peer();
+        virtual void poll() = 0;
     };
 }
 

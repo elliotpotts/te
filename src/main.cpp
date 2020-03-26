@@ -1,5 +1,6 @@
 #include <te/sim.hpp>
 #include <te/app.hpp>
+#include <te/net.hpp>
 #include <te/server.hpp>
 #include <te/client.hpp>
 #include <random>
@@ -7,16 +8,7 @@
 #include <spdlog/spdlog.h>
 #include <sys/resource.h>
 
-void graphical_frontend(te::controller& ctrl, te::sim& model) {
-    te::app frontend { model, ctrl };
-    frontend.run();
-}
-
-//TODO: figure out how this is gonna work...
-void headless_frontend(te::controller& ctrl, te::sim& model) {
-    while (true) {
-        ctrl.poll();
-    }
+te::peer::~peer() {
 }
 
 SteamNetworkingIPAddr init_net() {
@@ -36,21 +28,29 @@ int main(const int argc, const char** argv) {
     core_limits.rlim_cur = core_limits.rlim_max = RLIM_INFINITY;
     setrlimit(RLIMIT_CORE, &core_limits);
 
-    // Add peer
-    SteamNetworkingIPAddr server_addr = init_net();
-    std::unique_ptr<te::peer> peer;
-    if (argc == 1) {
-        peer = std::make_unique<te::server>();
-    } else if (argc == 2) {
-        peer = std::make_unique<te::client>(server_addr);
-    }
+    const bool is_server = argc == 1;
 
-    // Run
+    // Create empty model
     auto seed = std::random_device{}();
     te::sim model { seed };
-    te::controller ctrl { model };
-    ctrl.actors.emplace_back(std::move(peer));
-    graphical_frontend(ctrl, model);
+
+    // Create peer
+    SteamNetworkingIPAddr server_addr = init_net();
+    std::unique_ptr<te::peer> peer;
+    unsigned family_ix;
+    if (argc == 1) {
+        peer = std::make_unique<te::server>(model);
+        static_cast<te::server*>(peer.get())->listen(te::port);
+        family_ix = 1;
+        model.generate_map();
+    } else if (argc == 2) {
+        peer = std::make_unique<te::client>(server_addr, model);
+        family_ix = 2;
+    }
+
+    // Create frontend & run
+    te::app frontend { model, *peer, family_ix };
+    frontend.run();
 
     // TODO: Put in destructor of something/scope guard
     GameNetworkingSockets_Kill();

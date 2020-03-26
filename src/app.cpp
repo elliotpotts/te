@@ -34,11 +34,12 @@ namespace {
     const auto red = ImColor(ImVec4{1.0, 0.0, 0.0, 1.0});
 }
 
-te::app::app(te::sim& model, te::controller& ctrl) :
+te::app::app(te::sim& model, te::peer& peer, unsigned family_ix) :
     model { model },
-    ctrl { ctrl },
+    peer { peer },
+    family_ix { family_ix },
     rengine { 42 },
-    win { glfw.make_window(1920 - 200, 1080 - 200, "Hello, World!", false)},
+    win { glfw.make_window((1920 / 2) - 8, 1080 - 200, "Hello, World!", false)},
     imgui_io { setup_imgui(win) },
     cam {
         {0.0f, 0.0f, 0.0f},
@@ -69,6 +70,9 @@ te::app::app(te::sim& model, te::controller& ctrl) :
                                         on_mouse_button(button, action, mods);
                                     }
                                 });
+    model.on_family_join.connect([&](unsigned new_ix) {
+        console.emplace_back(console_line{ImColor{255, 255, 255}, std::string{"A new family has joined!"}, std::string{}});
+    });
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
@@ -96,7 +100,7 @@ void te::app::on_mouse_button(int button, int action, int mods) {
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
         if (ghost) {
             auto proto = model.entities.get<te::ghost>(*ghost).proto;
-            ctrl(act::build{1, proto, model.entities.get<te::site>(*ghost).position});
+            model.try_place(proto, model.entities.get<te::site>(*ghost).position);
             model.entities.destroy(*ghost);
             ghost.reset();
             /* TODO: figure out how to play sound effecs when things fail/don't fail.
@@ -687,7 +691,7 @@ void te::app::render_technology_controller() {
 
 void te::app::render_controller() {
     ImGui::Begin("Controller", nullptr, 0);
-    ImGui::Text(fmt::format("¤{}", model.families[1].balance).c_str());
+    ImGui::Text(fmt::format("¤{}", model.families[family_ix].balance).c_str());
     if (ImGui::BeginTabBar("MainTabbar")) {
         if (ImGui::BeginTabItem("Merchants")) render_merchants_controller();
         if (ImGui::BeginTabItem("Routes")) render_routes_controller();
@@ -745,17 +749,12 @@ void te::app::draw() {
 }
 
 void te::app::run() {
-    static bool started = false;
-    if (!started) {
-        ctrl.start();
-        started = true;
-    }
     auto then = std::chrono::high_resolution_clock::now();
     int frames = 0;
     while (!glfwWindowShouldClose(win.hnd.get())) {
         input();
-        ctrl.poll();
-        if (frames == 5) {
+        if (frames == 30) {
+            peer.poll();
             auto now = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> secs = now - then;
             fps = static_cast<double>(frames) / secs.count();
