@@ -13,12 +13,10 @@ namespace te {
     };
     
     struct server : private ISteamNetworkingSocketsCallbacks, public peer {
-        sim& model;
-        
         ISteamNetworkingSockets* netio;
         HSteamListenSocket listen_sock;
         HSteamNetPollGroup poll_group;
-        bool quit = false;
+        sim& model;
 
         std::unordered_map<HSteamNetConnection, client_handle> conn_clients;
         void send(HSteamNetConnection conn, std::string_view str);
@@ -27,7 +25,7 @@ namespace te {
         virtual void OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* info) override;
     public:
         server(te::sim& model);
-        virtual ~server() = default;
+        virtual ~server();
         void listen(std::uint16_t port);
         virtual void poll() override;
         void run();

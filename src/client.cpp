@@ -1,7 +1,15 @@
 #include <te/client.hpp>
+#include <te/app.hpp>
 #include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <string_view>
+#include <iterator>
+#include <algorithm>
+#include <sstream>
+#include <cereal/types/map.hpp>
+#include <cereal/types/vector.hpp>
+#include <cereal/types/string.hpp>
+#include <cereal/archives/binary.hpp>
 
 te::client::client(const SteamNetworkingIPAddr& server_addr, te::sim& model):
     netio { SteamNetworkingSockets() },
@@ -13,6 +21,10 @@ te::client::client(const SteamNetworkingIPAddr& server_addr, te::sim& model):
     if (conn == k_HSteamNetConnection_Invalid) {
         throw std::runtime_error{"Failed to create connection"};
     }
+}
+
+te::client::~client() {
+    netio->CloseConnection(conn, 0, "quit", true);
 }
 
 std::vector<te::message_ptr> te::client::recv() {
@@ -30,11 +42,6 @@ std::vector<te::message_ptr> te::client::recv() {
     }
 }
 
-#include <te/app.hpp>
-#include <cereal/archives/json.hpp>
-#include <sstream>
-#include <iterator>
-#include <algorithm>
 void te::client::poll() {
     netio->RunCallbacks(this);
     std::vector<te::message_ptr> received = recv();
@@ -42,12 +49,8 @@ void te::client::poll() {
         std::stringstream strmsg;
         auto strmsg_writer = std::ostreambuf_iterator { strmsg.rdbuf() };
         std::copy_n(static_cast<char*>(msg_ptr->m_pData), msg_ptr->m_cbSize, strmsg_writer);
-        try {
-            cereal::JSONInputArchive input { strmsg };
-            model.entities.loader().component<te::named, te::site, te::footprint, te::render_mesh>(input);
-        } catch (const cereal::RapidJSONException& ex) {
-            spdlog::debug(strmsg.str());
-        }
+        cereal::BinaryInputArchive input { strmsg };
+        model.entities.loader().component<te::named, te::site, te::footprint, te::render_mesh>(input);
     }
 }
 
@@ -60,7 +63,6 @@ void te::client::OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChang
 
     case k_ESteamNetworkingConnectionState_ClosedByPeer:
     case k_ESteamNetworkingConnectionState_ProblemDetectedLocally:
-        quit = true;
         if ( info->m_eOldState == k_ESteamNetworkingConnectionState_Connecting ) {
             // Note: we could distinguish between a timeout, a rejected connection, or some other transport problem.
             spdlog::info("We sought the remote host, yet our efforts were met with defeat. ({})", info->m_info.m_szEndDebug);

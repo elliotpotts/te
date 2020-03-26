@@ -8,16 +8,15 @@
 namespace te {
     class client : private ISteamNetworkingSocketsCallbacks, public peer {
         ISteamNetworkingSockets* netio;
+        te::sim& model;
         HSteamNetConnection conn;
-        bool quit = false;
         virtual void OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* info);
         std::vector<message_ptr> recv();
         void send(std::vector<char>);
-
-        te::sim& model;
+        
     public:
         client(const SteamNetworkingIPAddr &serverAddr, te::sim& model);
-        virtual ~client() = default;
+        virtual ~client();
         virtual void poll() override;
     };
 }

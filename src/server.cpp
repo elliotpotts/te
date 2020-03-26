@@ -1,10 +1,19 @@
 #include <te/server.hpp>
 #include <te/app.hpp>
 #include <spdlog/spdlog.h>
+#include <sstream>
+#include <cereal/types/map.hpp>
+#include <cereal/types/vector.hpp>
+#include <cereal/types/string.hpp>
+#include <cereal/archives/binary.hpp>
 
 te::server::server(te::sim& model) :
     netio { SteamNetworkingSockets() },
     model { model } {
+}
+
+te::server::~server() {
+    shutdown();
 }
     
 void te::server::listen(std::uint16_t port) {
@@ -25,12 +34,11 @@ void te::server::listen(std::uint16_t port) {
 void te::server::shutdown() {
     spdlog::info("Closing connections...");
     for (auto [conn, client] : conn_clients) {
-        send(conn, "Server is shutting down. Goodbye.");
         // Use linger mode to gracefully close the connection
         netio->CloseConnection(conn, 0, "Server Shutdown", true);
     }
     conn_clients.clear();
-
+    
     netio->CloseListenSocket(listen_sock);
     listen_sock = k_HSteamListenSocket_Invalid;
 
@@ -67,13 +75,11 @@ std::vector<std::pair<te::client_handle, te::message_ptr>> te::server::recv() {
     }
 }
 
-#include <cereal/archives/json.hpp>
-#include <sstream>
 void te::server::poll() {
     netio->RunCallbacks(this);
     std::stringstream msg;
     {
-        cereal::JSONOutputArchive output { msg };
+        cereal::BinaryOutputArchive output { msg };
         auto interesting = model.entities.view<te::named, te::site, te::footprint, te::render_mesh>();
         model.entities.snapshot().component<te::named, te::site, te::footprint, te::render_mesh>(output, interesting.begin(), interesting.end());
     }
@@ -81,9 +87,6 @@ void te::server::poll() {
 }
 
 void te::server::OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* info) {
-    char temp[1024];
-            
-    // What's the state of the connection?
     switch (info->m_info.m_eState) {
     case k_ESteamNetworkingConnectionState_None:
         // NOTE: We will get callbacks here when we destroy connections.  You can ignore these.
