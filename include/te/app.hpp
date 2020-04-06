@@ -1,7 +1,8 @@
 #ifndef TE_APP_HPP_INCLUDED
 #define TE_APP_HPP_INCLUDED
 #include <te/sim.hpp>
-#include <te/net.hpp>
+#include <te/client.hpp>
+#include <te/server.hpp>
 #include <te/window.hpp>
 #include <te/cache.hpp>
 #include <te/camera.hpp>
@@ -24,7 +25,7 @@ namespace te {
     void serialize(Ar& ar, render_tex& x){
         ar(x.filename);
     }
-    
+
     struct render_mesh {
         std::string filename;
     };
@@ -32,37 +33,45 @@ namespace te {
     void serialize(Ar& ar, render_mesh& x){
         ar(x.filename);
     }
-    
+
     struct noisy {
         std::string filename;
     };
-    
+
     struct pickable {
     };
     template<typename Ar>
     void serialize(Ar& ar, pickable& x){
         ar();
     }
-    
+
     struct ghost {
         entt::entity proto;
     };
 
     struct app {
-        te::sim& model;
-        te::peer& peer;
-        unsigned family_ix;
+        // shared between scenes
         std::default_random_engine rengine;
         te::glfw_context glfw;
         te::window win;
+        te::fmod_system_hnd fmod;
         ImGuiIO& imgui_io;
+        te::asset_loader loader;
+        te::cache<asset_loader> resources;
+
+        std::optional<te::server> server;
+        SteamNetworkingIPAddr server_addr;
+        std::unique_ptr<te::client> client;
+
+        // menu scene
+        FMOD::Sound* menu_music_src;
+        FMOD::Channel* menu_music;
+
+        // gameplay scene
+        te::sim& model;
         te::camera cam;
         te::terrain_renderer terrain_renderer;
         te::mesh_renderer mesh_renderer;
-        te::colour_picker colour_picker;
-        te::fmod_system_hnd fmod;
-        te::asset_loader loader;
-        te::cache<asset_loader> resources;
 
         std::optional<entt::entity> inspected;
         std::optional<entt::entity> ghost;
@@ -74,7 +83,7 @@ namespace te {
         };
         std::vector<console_line> console;
 
-        app(te::sim& model, te::peer& ctrl, unsigned family_ix);
+        app(te::sim& model, SteamNetworkingIPAddr server_addr);
 
         void on_key(int key, int scancode, int action, int mods);
         void on_mouse_button(int button, int action, int mods);
@@ -106,6 +115,9 @@ namespace te {
         void render_construction_controller();
         void render_technology_controller();
         void render_controller();
+
+        bool render_main_menu();
+
         void render_ui();
 
         void playsfx(std::string filename);

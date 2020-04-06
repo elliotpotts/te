@@ -10,15 +10,12 @@
 #include <glm/vec2.hpp>
 #include <entt/entt.hpp>
 #include <boost/signals2.hpp>
-
-template<typename Ar>
-void serialize(Ar& ar, glm::vec2& vec){
-    ar(vec.x, vec.y);
-}
+#include <te/net.hpp>
 
 namespace te {
     struct family {
         double balance;
+        std::string name;
     };
 
     struct owned {
@@ -121,6 +118,17 @@ namespace te {
         std::optional<te::route> route;
         std::size_t next_stop_ix = 0;
     };
+
+    // Actions
+    struct build {
+        entt::entity proto;
+        glm::vec2 place;
+    };
+    template<typename Ar>
+    void serialize(Ar& ar, build& x){
+        ar(static_cast<ENTT_ID_TYPE>(x.proto));
+        ar(x.place);
+    }    
 
     struct sim {
         std::default_random_engine rengine;

@@ -174,9 +174,11 @@ std::optional<entt::entity> te::sim::try_place(entt::entity proto, glm::vec2 cen
         return {};
     }
     
-    auto instantiated = entities.create(proto, entities);
+    auto instantiated = entities.create();
+    entities.stamp(instantiated, entities, proto);
+
     entities.assign<site>(instantiated, centre);
-    entities.replace<named>(instantiated, fmt::format("{} (#{})", entities.get<named>(instantiated).name, static_cast<unsigned>(instantiated)));
+    entities.get<named>(instantiated) = named{fmt::format("{} (#{})", entities.get<named>(instantiated).name, static_cast<unsigned>(instantiated))};
     
     auto& print = entities.get<footprint>(instantiated);
     glm::vec2 topleft = centre - print.dimensions / 2.0f;
@@ -276,8 +278,8 @@ int te::sim::market_stock(entt::entity market_e, entt::entity commodity_e) {
 }
 
 void te::sim::merchant_embark(entt::entity merchant_e, const te::route& route) {
-    entities.get<te::merchant&>(merchant_e).route = route;
-    auto& bid = entities.get<te::trader&>(merchant_e).bid;
+    entities.get<te::merchant>(merchant_e).route = route;
+    auto& bid = entities.get<te::trader>(merchant_e).bid;
     bid.clear();
     for (auto [commodity, leave_with] : route.stops[0].leave_with) {
         bid[commodity] = static_cast<double>(leave_with);

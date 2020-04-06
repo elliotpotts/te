@@ -23,6 +23,7 @@ namespace {
         ImGui_ImplGlfw_InitForOpenGL(win.hnd.get(), true);
         ImGui_ImplOpenGL3_Init("#version 130");
         io.Fonts->AddFontFromFileTTF("assets/LiberationSans-Regular.ttf", 18);
+        io.Fonts->AddFontFromFileTTF("assets/LiberationMono-Regular.ttf", 18);
         return io;
     }
 }
@@ -34,13 +35,18 @@ namespace {
     const auto red = ImColor(ImVec4{1.0, 0.0, 0.0, 1.0});
 }
 
-te::app::app(te::sim& model, te::peer& peer, unsigned family_ix) :
-    model { model },
-    peer { peer },
-    family_ix { family_ix },
+te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     rengine { 42 },
     win { glfw.make_window((1920 / 2) - 8, 1080 - 200, "Hello, World!", false)},
+    fmod { te::make_fmod_system() },
     imgui_io { setup_imgui(win) },
+    loader { win.gl, *fmod },
+    resources { loader },
+
+    server_addr { server_addr },
+    client { nullptr },
+
+    model { model },
     cam {
         {0.0f, 0.0f, 0.0f},
         {-0.6f, -0.6f, 1.0f},
@@ -48,13 +54,10 @@ te::app::app(te::sim& model, te::peer& peer, unsigned family_ix) :
         static_cast<float>(win.width()) / win.height()
     },
     terrain_renderer{ win.gl, rengine, model.map_width, model.map_height },
-    mesh_renderer { win.gl },
-    colour_picker{ win },
-    fmod { te::make_fmod_system() },
-    loader { win.gl, *fmod },
-    resources { loader }
+    mesh_renderer { win.gl }
 {
-    playsfx("assets/music/chinese4.ogg");
+    fmod->createStream("assets/music/main-theme.ogg", FMOD_CREATESTREAM | FMOD_LOOP_NORMAL, nullptr, &menu_music_src);
+    fmod->playSound(menu_music_src, nullptr, false, &menu_music);
     win.on_framebuffer_size.connect([&](int width, int height) {
                                         cam.aspect_ratio = static_cast<float>(width) / height;
                                         glViewport(0, 0, width, height);
@@ -160,8 +163,8 @@ void te::app::render_scene() {
         std::vector<te::mesh_renderer::instance_attributes> instance_attributes;
         const auto& current_rmesh = instances.get<render_mesh>(*it);
         while (it != end && instances.get<render_mesh>(*it).filename == current_rmesh.filename) {
-            bool tinted = market && market_site && model.in_market(instances.get<site>(*it), *market_site, *market)
-                       || inspected == *it;            
+            bool tinted = (market && market_site && model.in_market(instances.get<site>(*it), *market_site, *market))
+                       || inspected == *it;
             instance_attributes.push_back (
                 te::mesh_renderer::instance_attributes {
                     instances.get<site>(*it).position,
@@ -258,7 +261,7 @@ void te::app::render_producer_inspector(const te::producer& producer, const te::
 void te::app::render_market_inspector(const te::market& market) {
     ImGui::Text("Trading at this market:");
     ImGui::Columns(4);
-    
+
     ImGui::Text("Party");
     ImGui::NextColumn();
 
@@ -270,7 +273,7 @@ void te::app::render_market_inspector(const te::market& market) {
     ImGui::Text("Commodity");
     ImGui::NextColumn();
 
-    
+
     for (auto entity : market.trading) {
         if (auto [named, trader] = model.entities.try_get<te::named, te::trader>(entity); named && trader) {
             bool any_bids = std::any_of (
@@ -311,7 +314,7 @@ void te::app::render_market_inspector(const te::market& market) {
     }
     ImGui::Columns(1);
     ImGui::Separator();
-    
+
     ImGui::Text(fmt::format("Population: {}", market.population).c_str());
     ImGui::Text(fmt::format("Growth rate: {}", market.growth_rate).c_str());
     ImGui::Text("Growth: ");
@@ -490,7 +493,7 @@ void te::app::render_merchant_summary(entt::entity merchant_entity) {
         if (status->trading) {
             ImGui::Text(fmt::format("Trading at {}", model.entities.get<te::named>(status->next.where).name).c_str());
         } else {
-            ImGui::Text(fmt::format("En route to {}", model.entities.get<te::named>(status->next.where).name).c_str()); 
+            ImGui::Text(fmt::format("En route to {}", model.entities.get<te::named>(status->next.where).name).c_str());
         }
         ImGui::NextColumn();
         ImGui::Columns();
@@ -556,7 +559,7 @@ void te::app::render_orders_controller() {
     if (ImGui::Button("Clear orders")) {
         playsfx("assets/sfx/route3.wav");
     }
-    
+
     if (ImGui::Button("Show merchant roster")) {
         merchant_ordering.reset();
     }
@@ -672,7 +675,9 @@ void te::app::render_construction_controller() {
         if (auto [named, price, footprint] = model.entities.try_get<te::named, te::price, te::footprint>(blueprint); named && price && footprint) {
             if (ImGui::Button(fmt::format("{}: ¤{}", named->name, price->price).c_str()) && !ghost) {
                 playsfx("assets/sfx/misc5.wav");
-                ghost = model.entities.create<te::site, te::footprint, te::render_mesh>(blueprint, model.entities);
+                ghost = model.entities.create();
+                model.entities.assign<te::footprint>(*ghost, model.entities.get<te::footprint>(blueprint));
+                model.entities.assign<te::render_mesh>(*ghost, model.entities.get<te::render_mesh>(blueprint));
                 model.entities.assign<te::ghost>(*ghost, blueprint);
             }
         }
@@ -691,7 +696,7 @@ void te::app::render_technology_controller() {
 
 void te::app::render_controller() {
     ImGui::Begin("Controller", nullptr, 0);
-    ImGui::Text(fmt::format("¤{}", model.families[family_ix].balance).c_str());
+    ImGui::Text(fmt::format("¤{}", client && client->family() ? model.families[*client->family()].balance : -1).c_str());
     if (ImGui::BeginTabBar("MainTabbar")) {
         if (ImGui::BeginTabItem("Merchants")) render_merchants_controller();
         if (ImGui::BeginTabItem("Routes")) render_routes_controller();
@@ -702,14 +707,67 @@ void te::app::render_controller() {
     ImGui::End();
 }
 
+#include <te/server.hpp>
+#include <te/client.hpp>
+#include <te/net.hpp>
+#include <cereal/types/string.hpp>
+#include <chrono>
+bool te::app::render_main_menu() {
+    static bool menu_open = false;
+    static bool game_started = false;
+    if (!menu_open && !game_started) {
+        ImGui::OpenPopup("Main Menu");
+        menu_open = true;
+    }
+    if (ImGui::BeginPopupModal("Main Menu")) {
+        if (ImGui::Button("Host Server")) {
+            server.emplace(te::port, model);
+            client = server->make_local(model);
+            client->send(te::hello{1, "MrServer"});
+            ImGui::OpenPopup("Starting");
+        }
+        if (ImGui::Button("Connect to Server")) {
+            using namespace te;
+            client = std::make_unique<te::net_client>(server_addr, model);
+            client->send(hello{2, "MrClient"});
+            ImGui::OpenPopup("Starting");
+        }
+        if (ImGui::Button("Quit")) {
+            win.close();
+        }
+        if (ImGui::BeginPopupModal("Starting")) {
+            static std::chrono::seconds last = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
+            static int dots = 3;
+            auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
+            if (now != last) {
+                dots = (dots + 1) % 4;
+                last = now;
+            }
+            ImGui::Text(fmt::format("Starting{}", std::string(dots, '.')).c_str());
+            ImGui::EndPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    if (!game_started && client && client->family()) {
+        menu_music->stop();
+        playsfx("assets/music/chinese4.ogg");
+        game_started = true;
+    }
+
+    return game_started;
+}
+
 void te::app::render_ui() {
     //render_ui_demo(); return;
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    render_inspectors();
-    render_controller();
     render_console();
+    if (render_main_menu()) {
+        render_inspectors();
+        render_controller();
+    }
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
@@ -754,7 +812,8 @@ void te::app::run() {
     while (!glfwWindowShouldClose(win.hnd.get())) {
         input();
         if (frames == 30) {
-            peer.poll();
+            if (server) server->poll();
+            if (client) client->poll();
             auto now = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> secs = now - then;
             fps = static_cast<double>(frames) / secs.count();
@@ -775,7 +834,7 @@ glm::vec2 te::app::cast_ray(glm::vec2 ray_screen) const {
         1.0f
     };
     auto [ray_origin, ray_direction] = cam.cast(ray_ndc);
-    
+
     const glm::vec3 ground_normal {0.0f, 0.0f, 1.0f};
     const auto t = -dot(ray_origin, ground_normal) / dot(ray_direction, ground_normal);
     const glm::vec3 intersection = ray_origin + ray_direction * t;
