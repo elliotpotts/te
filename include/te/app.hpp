@@ -37,6 +37,10 @@ namespace te {
     struct noisy {
         std::string filename;
     };
+    template<typename Ar>
+    void serialize(Ar& ar, noisy& x){
+        ar(x.filename);
+    }
 
     struct pickable {
     };

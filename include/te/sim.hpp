@@ -12,6 +12,17 @@
 #include <boost/signals2.hpp>
 #include <te/net.hpp>
 
+
+#include <cereal/types/unordered_map.hpp>
+#include <cereal/types/vector.hpp>
+#include <cereal/types/string.hpp>
+#include <cereal/types/optional.hpp>
+
+template<typename Ar>
+void serialize(Ar& ar, entt::entity x){
+    ar(static_cast<ENTT_ID_TYPE>(x));
+}
+
 namespace te {
     struct family {
         double balance;
@@ -21,6 +32,10 @@ namespace te {
     struct owned {
         unsigned family_ix;
     };
+    template<typename Ar>
+    void serialize(Ar& ar, owned& x){
+        ar(x.family_ix);
+    }
 
     struct named {
         std::string name;
@@ -33,11 +48,15 @@ namespace te {
     struct price {
         double price;
     };
+    template<typename Ar>
+    void serialize(Ar& ar, price& x){
+        ar(x.price);
+    }
 
     struct footprint {
         glm::vec2 dimensions;
     };
-    template<typename Ar>
+    template<typename  Ar>
     void serialize(Ar& ar, footprint& x){
         ar(x.dimensions);
     }    
@@ -59,6 +78,10 @@ namespace te {
     struct demander {
         std::unordered_map<entt::entity, double> rate;
     };
+    template<typename Ar>
+    void serialize(Ar& ar, demander& x){
+        ar(x.rate);
+    }
 
     // A trader stores the current demand of entities
     struct trader {
@@ -69,12 +92,20 @@ namespace te {
         std::unordered_map<entt::entity, double> bid;
         double balance = 0.0;
     };
+    template<typename Ar>
+    void serialize(Ar& ar, trader& x){
+        ar(x.family_ix, x.bid, x.balance);
+    }
 
     struct generator {
         entt::entity output;
         double rate;
         double progress = 0.0;
     };
+    template<typename Ar>
+    void serialize(Ar& ar, generator& x){
+        ar(x.output, x.rate, x.progress);
+    }
 
     struct producer {
         std::unordered_map<entt::entity, double> inputs;
@@ -83,10 +114,18 @@ namespace te {
         bool producing = false;
         double progress = 0.0;
     };
+    template<typename Ar>
+    void serialize(Ar& ar, producer& x){
+        ar(x.inputs, x.outputs, x.rate, x.producing, x.progress);
+    }
 
     struct inventory {
         std::unordered_map<entt::entity, int> stock;
     };
+    template<typename Ar>
+    void serialize(Ar& ar, inventory& x){
+        ar(x.stock);
+    }
 
     struct market {
         std::unordered_map<entt::entity, double> prices;
@@ -98,41 +137,50 @@ namespace te {
         double growth_rate = 0.001;
         double growth = 0.0;
     };
+    template<typename Ar>
+    void serialize(Ar& ar, market& x){
+        ar(x.prices, x.demand, x.commons, x.trading, x.radius, x.population, x.growth_rate, x.growth);
+    }
 
     struct stop {
         entt::entity where;
         std::unordered_map<entt::entity, int> leave_with;
     };
+    template<typename Ar>
+    void serialize(Ar& ar, stop& x){
+        ar(x.where, x.leave_with);
+    }
 
     struct route {
         std::string name;
         std::vector<stop> stops;
     };
+    template<typename Ar>
+    void serialize(Ar& ar, route& x){
+        ar(x.name, x.stops);
+    }
 
     struct merchant_activity {
         bool trading;
         stop next;
     };
+    template<typename Ar>
+    void serialize(Ar& ar, merchant_activity& x){
+        ar(x.trading, x.next);
+    }
 
     struct merchant {
         std::optional<te::route> route;
         std::size_t next_stop_ix = 0;
     };
-
-    // Actions
-    struct build {
-        entt::entity proto;
-        glm::vec2 place;
-    };
     template<typename Ar>
-    void serialize(Ar& ar, build& x){
-        ar(static_cast<ENTT_ID_TYPE>(x.proto));
-        ar(x.place);
-    }    
+    void serialize(Ar& ar, merchant& x){
+        ar(x.route, x.next_stop_ix);
+    }
 
     struct sim {
         std::default_random_engine rengine;
-        
+
         entt::registry entities;
         std::vector<family> families;
         std::vector<entt::entity> commodities;
@@ -163,7 +211,7 @@ namespace te {
 
         bool can_place(entt::entity entity, glm::vec2 where);
         std::optional<entt::entity> try_place(entt::entity entity, glm::vec2 where);
-        
+
         bool spawn_dwelling(entt::entity market);
         void spawn(entt::entity proto);
 
@@ -173,7 +221,7 @@ namespace te {
 
         boost::signals2::signal<void()> on_trade;
         boost::signals2::signal<void(unsigned)> on_family_join;
-    };    
+    };
 }
 
 #endif

@@ -28,7 +28,7 @@ namespace te {
     using message_ptr = std::unique_ptr<ISteamNetworkingMessage, message_deleter>;
 
     template<typename T>
-    T deserialize(std::span<const char> buffer) {
+    T deserialize_bytes(std::span<const char> buffer) {
         std::stringstream strmsg;
         auto strmsg_writer = std::ostreambuf_iterator { strmsg.rdbuf() };
         std::copy(buffer.begin(), buffer.end(), strmsg_writer);
@@ -38,6 +38,17 @@ namespace te {
             input(deserialized);
         }
         return deserialized;
+    }
+
+    template<typename T>
+    std::string serialize_msg(const T& msg) {
+        std::stringstream buffer;
+        buffer.put(static_cast<unsigned char>(T::type));
+        {
+            cereal::BinaryOutputArchive output { buffer };
+            output(msg);
+        }
+        return buffer.str();
     }
         
     enum class msg_type : unsigned char {
@@ -64,17 +75,26 @@ namespace te {
         static constinit const auto type = msg_type::okay;
     };
 
+    struct full_update {
+        static constinit const auto type = msg_type::full_update;
+        std::string entities;
+        template <typename Ar>
+        void serialize(Ar& ar) {
+            ar(entities);
+        }
+    };
+
     template<typename F>
-    auto deserialize(std::span<const char> buffer, F&& f) {
+    auto deserialize_to(std::span<const char> buffer, F&& f) {
         auto data = buffer.begin();
         const auto type = static_cast<msg_type>(*data++);
         std::span<const char> msg {data, buffer.end()};
         switch (type) {
-        case msg_type::hello: return std::invoke(f, deserialize<hello>(msg));
+        case msg_type::hello: return std::invoke(f, deserialize_bytes<hello>(msg));
         case msg_type::okay:
         case msg_type::ignored:
         case msg_type::fatal:
-        case msg_type::full_update:
+        case msg_type::full_update: return std::invoke(f, deserialize_bytes<full_update>(msg));
         case msg_type::chat:
             break;
         default:

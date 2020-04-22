@@ -36,41 +36,37 @@ te::net_client::~net_client() {
     netio->CloseConnection(conn, 0, "quit", true);
 }
 
+void te::net_client::handle(te::hello msg) {
+    spdlog::debug("got hello from server!");
+    my_family = msg.family;
+}
+
+void te::net_client::handle(te::full_update update) {
+    std::stringstream strmsg;
+    auto strmsg_writer = std::ostreambuf_iterator { strmsg.rdbuf() };
+    std::copy(update.entities.begin(), update.entities.end(), strmsg_writer);
+    {
+        cereal::BinaryInputArchive input { strmsg };
+        model.entities.loader().component<te::owned, te::named, te::price, te::footprint, te::site, te::demander, te::generator, te::producer, te::inventory, te::market, te::merchant, te::render_tex, te::render_mesh, te::noisy, te::pickable>(input);
+    }
+}
+
+void te::net_client::handle(te::msg_type type) {
+    spdlog::error("Unknown message type {}", static_cast<int>(type));
+}
+
 void te::net_client::poll() {
     netio->RunCallbacks(this);
     ISteamNetworkingMessage* incoming = nullptr;
     int count_received = netio->ReceiveMessagesOnConnection(conn, &incoming, 1);
     while (count_received == 1) {
         message_ptr received { incoming };
-        
-        char* const data_begin = static_cast<char*>(received->m_pData);
-        char* data = data_begin;
-        char* const data_end = data_begin + received->m_cbSize;
-
-        auto type = static_cast<msg_type>(*data++);
-        switch (type) {
-        case msg_type::hello:
-            break;
-        case msg_type::okay:
-            break;
-        case msg_type::ignored:
-            break;
-        case msg_type::fatal:
-            break;
-        case msg_type::full_update: {
-            std::stringstream strmsg;
-            auto strmsg_writer = std::ostreambuf_iterator { strmsg.rdbuf() };
-            std::copy(data, data_end, strmsg_writer);
-            {
-                cereal::BinaryInputArchive input { strmsg };
-                model.entities.loader().component<te::named, te::site, te::footprint, te::render_mesh>(input);
+        deserialize_to (
+            std::span{static_cast<const char*>(received->m_pData), static_cast<std::size_t>(received->m_cbSize)},
+            [&](const auto& msg) {
+                handle(msg);
             }
-            break;
-        }
-        case msg_type::chat:
-        default:
-            spdlog::error("Unknown message type {}", static_cast<int>(type));
-        }
+        );
         count_received = netio->ReceiveMessagesOnConnection(conn, &incoming, 1);
     }
     if (count_received < 0) {
@@ -79,7 +75,7 @@ void te::net_client::poll() {
 }
 
 std::optional<unsigned> te::net_client::family() {
-    return std::nullopt;
+    return my_family;
 }
 
 void te::net_client::OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* info) {

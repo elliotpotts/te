@@ -1,6 +1,7 @@
 #include <te/server.hpp>
 #include <te/app.hpp>
 #include <spdlog/spdlog.h>
+#include <algorithm>
 #include <sstream>
 #include <cereal/types/map.hpp>
 #include <cereal/types/vector.hpp>
@@ -64,11 +65,21 @@ void te::server::send_bytes_all(std::span<const char> buffer, HSteamNetConnectio
 void te::server::run() {
 }
 
-void te::server::handle(client_handle& client, te::hello msg) {
+void te::server::handle(HSteamNetConnection conn, te::hello msg) {
     spdlog::debug("hello: family {}, {}", msg.family, msg.nick);
+    netio->SetConnectionName(conn, msg.nick.c_str());
+    auto player_it = net_clients.find(conn);
+    if (!player_it->second) {
+        player_it->second = player{msg.family, msg.nick};
+    } else {
+        spdlog::error("client {{}, {}}trying to hello twice", player_it->second->nick, player_it->second->family);
+    }
 }
 
-void te::server::handle(client_handle& client, msg_type type) {
+void te::server::handle(HSteamNetConnection, te::full_update) {
+}
+
+void te::server::handle(HSteamNetConnection conn, msg_type type) {
     spdlog::error("Unknown message type {}", static_cast<int>(type));
 }
 
@@ -84,7 +95,7 @@ std::unique_ptr<te::client> te::server::make_local(te::sim& model) {
     if (!netio->SetConnectionPollGroup(server_end, poll_group)) {
         spdlog::error("error setting poll group");
     }
-    net_clients[server_end] = { .nick = "server" };
+    net_clients[server_end] = player { .nick = "server" };
     return std::make_unique<te::net_client>(client_end, model);
 }
 
@@ -94,11 +105,10 @@ void te::server::poll() {
     int count_received = netio->ReceiveMessagesOnPollGroup(poll_group, &incoming, 1);
     while (count_received == 1) {
         message_ptr received { incoming };
-        auto client_it = net_clients.find(received->m_conn);
-        deserialize (
-            std::span{static_cast<const char*>(received->m_pData), received->m_cbSize},
+        deserialize_to (
+            std::span{static_cast<const char*>(received->m_pData), static_cast<std::size_t>(received->m_cbSize)},
             [&](const auto& msg) {
-                handle(client_it->second, msg);
+                handle(received->m_conn, msg);
             }
         );
         count_received = netio->ReceiveMessagesOnPollGroup(poll_group, &incoming, 1);
@@ -107,15 +117,36 @@ void te::server::poll() {
         throw std::runtime_error{"Error checking for messages"};
     }
 
-    if (net_clients.size() == 2) {
+    int players_hellod = std::count_if (
+        net_clients.begin(),
+        net_clients.end(),
+        [](auto& pair) {
+            auto& [conn, player] = pair;
+            return player.has_value();
+        }
+    );
+    if (players_hellod == 2) {
+        static bool started = false;
+        if (!started) {
+            started = true;
+            spdlog::debug("We have two players. Starting game with:");
+            for (auto [conn, player] : net_clients) {
+                if (player) {
+                    spdlog::debug("*  {} as family {}", player->nick, player->family);
+                    send_msg(conn, te::hello{player->family, player->nick});
+                } else {
+                    spdlog::debug("*  <spectator>");
+                }
+            }
+        }
+        
         std::stringstream buffer;
-        buffer.put(static_cast<unsigned char>(te::msg_type::full_update));
         {
             cereal::BinaryOutputArchive output { buffer };
-            auto interesting = model.entities.view<te::named, te::site, te::footprint, te::render_mesh>();
-            model.entities.snapshot().component<te::named, te::site, te::footprint, te::render_mesh>(output, interesting.begin(), interesting.end());
+            model.entities.snapshot().component<te::owned, te::named, te::price, te::footprint, te::site, te::demander, te::generator, te::producer, te::inventory, te::market, te::merchant, te::render_tex, te::render_mesh, te::noisy, te::pickable>(output);
         }
-        send_bytes_all(buffer.str());
+        te::full_update update { buffer.str() };
+        send_msg_all(update);
     }
 }
 
@@ -165,20 +196,12 @@ void te::server::OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChang
             spdlog::info("Can't accept connection. (It was already closed?)");
             break;
         }
-
-        // Assign the poll group
         if (!netio->SetConnectionPollGroup(info->m_hConn, poll_group)) {
             netio->CloseConnection(info->m_hConn, 0, nullptr, false);
             spdlog::info("Failed to set poll group?");
             break;
         }
-
-        // Generate a random nick.
-        std::string nick = fmt::format("BraveWarrior{}", 10000 + (rand() % 100000));
-        spdlog::debug("{} joined", nick);
-
-        net_clients.emplace(info->m_hConn, client_handle{0, nick});
-        netio->SetConnectionName(info->m_hConn, nick.c_str());
+        net_clients.emplace(info->m_hConn, std::nullopt);
         break;
     }
     case k_ESteamNetworkingConnectionState_Connected:

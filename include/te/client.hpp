@@ -19,15 +19,8 @@ namespace te {
         
         template<typename T>
         void send(const T& msg) {
-            std::stringstream buffer;
-            buffer.put(static_cast<unsigned char>(T::type));
-            {
-                cereal::BinaryOutputArchive output { buffer };
-                output(msg);
-            }
-            std::string as_str = buffer.str();
-            std::span<const char> as_char_span {as_str.cbegin(), as_str.cend()};
-            std::span<const std::byte> as_byte_span {reinterpret_cast<const std::byte*>(as_char_span.data()), as_char_span.size_bytes()};
+            std::string as_str = serialize_msg(msg);
+            std::span<const std::byte> as_byte_span {reinterpret_cast<const std::byte*>(std::to_address(as_str.begin())), as_str.size()};
             send(as_byte_span);
         }
     };
@@ -36,6 +29,7 @@ namespace te {
         ISteamNetworkingSockets* netio;
         te::sim& model;
         HSteamNetConnection conn;
+        std::optional<unsigned> my_family;
         virtual void OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* info);
     public:
         virtual void send(std::span<const std::byte>) override;
@@ -43,6 +37,9 @@ namespace te {
         net_client(const SteamNetworkingIPAddr &serverAddr, te::sim& model);
         net_client(HSteamNetConnection conn, te::sim& model);
         virtual ~net_client();
+        void handle(te::hello);
+        void handle(te::full_update);
+        void handle(te::msg_type);
         virtual void poll() override;
         virtual std::optional<unsigned> family() override;
     };
