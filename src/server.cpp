@@ -8,9 +8,10 @@
 #include <cereal/types/string.hpp>
 #include <cereal/archives/binary.hpp>
 
-te::server::server(std::uint16_t port, te::sim& model) :
-    netio { SteamNetworkingSockets() },
-    model { model } {
+te::server::server(ISteamNetworkingSockets* netio, std::uint16_t port) :
+    netio { netio },
+    //TODO: figure seed shit out
+    model { 42 } {
     listen(port);
     model.generate_map();
 }
@@ -20,7 +21,7 @@ te::server::~server() {
         shutdown();
     }
 }
-    
+
 void te::server::listen(std::uint16_t port) {
     SteamNetworkingIPAddr local_addr;
     local_addr.Clear();
@@ -35,21 +36,21 @@ void te::server::listen(std::uint16_t port) {
     }
     spdlog::info("Server listening on port {}", port);
 }
-    
+
 void te::server::shutdown() {
     spdlog::info("Closing connections...");
     for (auto [conn, client] : net_clients) {
         netio->CloseConnection(conn, 0, "Server Shutdown", true /* linger */);
     }
     net_clients.clear();
-    
+
     netio->CloseListenSocket(listen_sock);
     listen_sock = k_HSteamListenSocket_Invalid;
 
     netio->DestroyPollGroup(poll_group);
     poll_group = k_HSteamNetPollGroup_Invalid;
 }
-    
+
 void te::server::send_bytes(HSteamNetConnection conn, std::span<const char> buffer) {
     netio->SendMessageToConnection(conn, buffer.data(), buffer.size(), k_nSteamNetworkingSend_Reliable, nullptr);
 }
@@ -62,6 +63,20 @@ void te::server::send_bytes_all(std::span<const char> buffer, HSteamNetConnectio
     }
 }
 
+void te::server::send(HSteamNetConnection conn, const te::msg& msg) {
+    std::string as_str = serialized(msg);
+    std::span<const char> as_char_span {as_str.cbegin(), as_str.cend()};
+    send_bytes(conn, as_char_span);
+}
+
+void te::server::send_all(const te::msg& msg, HSteamNetConnection except) {
+    for (auto [conn, client] : net_clients) {
+        if (conn != except) {
+            send(conn, msg);
+        }
+    }
+}
+
 void te::server::run() {
 }
 
@@ -70,20 +85,22 @@ void te::server::handle(HSteamNetConnection conn, te::hello msg) {
     netio->SetConnectionName(conn, msg.nick.c_str());
     auto player_it = net_clients.find(conn);
     if (!player_it->second) {
-        player_it->second = player{msg.family, msg.nick};
+        player_it->second.emplace(msg.family, msg.nick);
     } else {
-        spdlog::error("client {{}, {}}trying to hello twice", player_it->second->nick, player_it->second->family);
+        spdlog::error("client <{}, {}> trying to hello twice", player_it->second->nick, player_it->second->family);
     }
 }
-
-void te::server::handle(HSteamNetConnection, te::full_update) {
+void te::server::handle(HSteamNetConnection conn, te::chat msg) {
+    send_all(msg);
+}
+void te::server::handle(HSteamNetConnection conn, te::entity_create) {
+}
+void te::server::handle(HSteamNetConnection conn, te::entity_delete) {
+}
+void te::server::handle(HSteamNetConnection conn, te::component_replace) {
 }
 
-void te::server::handle(HSteamNetConnection conn, msg_type type) {
-    spdlog::error("Unknown message type {}", static_cast<int>(type));
-}
-
-std::unique_ptr<te::client> te::server::make_local(te::sim& model) {
+te::client te::server::make_local(te::sim& model) {
     HSteamNetConnection server_end;
     HSteamNetConnection client_end;
     if (!netio->CreateSocketPair(&server_end, &client_end, false, nullptr, nullptr)) {
@@ -95,28 +112,37 @@ std::unique_ptr<te::client> te::server::make_local(te::sim& model) {
     if (!netio->SetConnectionPollGroup(server_end, poll_group)) {
         spdlog::error("error setting poll group");
     }
-    net_clients[server_end] = player { .nick = "server" };
-    return std::make_unique<te::net_client>(client_end, model);
+    net_clients.emplace(server_end, std::nullopt);
+    return te::client{netio, client_end, model};
 }
 
-void te::server::poll() {
-    netio->RunCallbacks(this);
+void te::server::recv() {
     ISteamNetworkingMessage* incoming = nullptr;
     int count_received = netio->ReceiveMessagesOnPollGroup(poll_group, &incoming, 1);
     while (count_received == 1) {
         message_ptr received { incoming };
-        deserialize_to (
-            std::span{static_cast<const char*>(received->m_pData), static_cast<std::size_t>(received->m_cbSize)},
-            [&](const auto& msg) {
-                handle(received->m_conn, msg);
-            }
-        );
+        std::span payload {
+            static_cast<const char*>(received->m_pData),
+            static_cast<std::size_t>(received->m_cbSize)
+        };
+        auto received_msg = te::deserialized<te::msg>(payload);
+        std::visit([&](auto& m) {
+            handle(received->m_conn, m);
+        }, received_msg);
         count_received = netio->ReceiveMessagesOnPollGroup(poll_group, &incoming, 1);
     }
     if (count_received < 0) {
         throw std::runtime_error{"Error checking for messages"};
     }
+}
 
+void te::server::poll(double dt) {
+    netio->RunCallbacks(this);
+    recv();
+    tick(dt);
+}
+
+void te::server::tick(double dt) {
     int players_hellod = std::count_if (
         net_clients.begin(),
         net_clients.end(),
@@ -125,32 +151,31 @@ void te::server::poll() {
             return player.has_value();
         }
     );
-    if (players_hellod == 2) {
-        static bool started = false;
-        if (!started) {
-            started = true;
-            spdlog::debug("We have two players. Starting game with:");
-            for (auto [conn, player] : net_clients) {
-                if (player) {
-                    spdlog::debug("*  {} as family {}", player->nick, player->family);
-                    send_msg(conn, te::hello{player->family, player->nick});
-                } else {
-                    spdlog::debug("*  <spectator>");
-                }
+
+    if (players_hellod == 1 && !started) {
+        started = true;
+        spdlog::debug("We have {} players. Starting game with:", players_hellod);
+        for (auto [conn, player] : net_clients) {
+            if (player) {
+                spdlog::debug("*  {} as family {}", player->nick, player->family);
+                send(conn, te::hello{player->family, player->nick});
+            } else {
+                spdlog::debug("*  <spectator>");
             }
         }
-        
-        std::stringstream buffer;
-        {
-            cereal::BinaryOutputArchive output { buffer };
-            model.entities.snapshot().component<te::owned, te::named, te::price, te::footprint, te::site, te::demander, te::generator, te::producer, te::inventory, te::market, te::merchant, te::render_tex, te::render_mesh, te::noisy, te::pickable>(output);
-        }
-        te::full_update update { buffer.str() };
-        send_msg_all(update);
+    }
+
+    if (started) {
+        model.tick(dt);
     }
 }
 
 void te::server::OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* info) {
+    if (info->m_hConn != listen_sock) {
+        // this status change is probably intended for a client on the same host as the server
+        spdlog::debug("hmmm...?");
+        //return;
+    }
     switch (info->m_info.m_eState) {
     case k_ESteamNetworkingConnectionState_None:
         // NOTE: We will get callbacks here when we destroy connections.  You can ignore these.
@@ -205,6 +230,7 @@ void te::server::OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChang
         break;
     }
     case k_ESteamNetworkingConnectionState_Connected:
+        spdlog::debug("k_ESteamNetworkingConnectionState_Connected");
         break;
 
     default:

@@ -4,44 +4,40 @@
 #include <te/net.hpp>
 #include <te/sim.hpp>
 #include <span>
-#include <string_view>
-
-#include <sstream>
+#include <boost/signals2.hpp>
 
 namespace te {
-    class client {
-    protected:
-        virtual void send(std::span<const std::byte>) = 0;
-    public:
-        virtual ~client();
-        virtual void poll() = 0;
-        virtual std::optional<unsigned> family() = 0;
-        
-        template<typename T>
-        void send(const T& msg) {
-            std::string as_str = serialize_msg(msg);
-            std::span<const std::byte> as_byte_span {reinterpret_cast<const std::byte*>(std::to_address(as_str.begin())), as_str.size()};
-            send(as_byte_span);
-        }
-    };
-    
-    class net_client : private ISteamNetworkingSocketsCallbacks, public client {
+    class client : private ISteamNetworkingSocketsCallbacks {
         ISteamNetworkingSockets* netio;
-        te::sim& model;
         HSteamNetConnection conn;
-        std::optional<unsigned> my_family;
-        virtual void OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* info);
+    protected:
+        virtual void OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* info) override;
+
     public:
-        virtual void send(std::span<const std::byte>) override;
-    public:
-        net_client(const SteamNetworkingIPAddr &serverAddr, te::sim& model);
-        net_client(HSteamNetConnection conn, te::sim& model);
-        virtual ~net_client();
+        void send(std::span<const std::byte>);
+
         void handle(te::hello);
-        void handle(te::full_update);
-        void handle(te::msg_type);
-        virtual void poll() override;
-        virtual std::optional<unsigned> family() override;
+        void handle(te::chat);
+        void handle(te::entity_create);
+        void handle(te::entity_delete);
+        void handle(te::component_replace);
+
+        te::sim& model;
+        std::optional<unsigned> my_family;
+        std::optional<std::string> my_nick;
+
+        static HSteamNetConnection connect_to_addr(ISteamNetworkingSockets* netio, const SteamNetworkingIPAddr &serverAddr);
+
+    public:
+        client(ISteamNetworkingSockets* netio, HSteamNetConnection conn, te::sim& model);
+        client(ISteamNetworkingSockets* netio, const SteamNetworkingIPAddr &serverAddr, te::sim& model);
+        client(client&& rhs);
+        virtual ~client();
+        void poll();
+        void send(te::msg&& m);
+        std::optional<unsigned> family();
+        std::optional<std::string> nick();
+        boost::signals2::signal<void(te::chat)> on_chat;
     };
 }
 

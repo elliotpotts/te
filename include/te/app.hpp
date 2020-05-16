@@ -16,43 +16,9 @@
 #include <glm/glm.hpp>
 #include <fmod.hpp>
 #include <te/fmod.hpp>
+#include <te/components.hpp>
 
 namespace te {
-    struct render_tex {
-        std::string filename;
-    };
-    template<typename Ar>
-    void serialize(Ar& ar, render_tex& x){
-        ar(x.filename);
-    }
-
-    struct render_mesh {
-        std::string filename;
-    };
-    template<typename Ar>
-    void serialize(Ar& ar, render_mesh& x){
-        ar(x.filename);
-    }
-
-    struct noisy {
-        std::string filename;
-    };
-    template<typename Ar>
-    void serialize(Ar& ar, noisy& x){
-        ar(x.filename);
-    }
-
-    struct pickable {
-    };
-    template<typename Ar>
-    void serialize(Ar& ar, pickable& x){
-        ar();
-    }
-
-    struct ghost {
-        entt::entity proto;
-    };
-
     struct app {
         // shared between scenes
         std::default_random_engine rengine;
@@ -63,9 +29,10 @@ namespace te {
         te::asset_loader loader;
         te::cache<asset_loader> resources;
 
+        ISteamNetworkingSockets* netio;
         std::optional<te::server> server;
         SteamNetworkingIPAddr server_addr;
-        std::unique_ptr<te::client> client;
+        std::optional<te::client> client;
 
         // menu scene
         FMOD::Sound* menu_music_src;
@@ -91,6 +58,7 @@ namespace te {
 
         void on_key(int key, int scancode, int action, int mods);
         void on_mouse_button(int button, int action, int mods);
+        void on_chat(te::chat);
 
         std::optional<glm::vec2> pos_under_mouse;
         void mouse_pick();
@@ -107,6 +75,7 @@ namespace te {
         void render_market_inspector(const te::market&);
         void render_inspectors();
 
+        bool scroll_console_to_bottom = false;
         void render_console();
 
         std::optional<entt::entity> merchant_ordering;

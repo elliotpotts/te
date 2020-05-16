@@ -16,44 +16,35 @@ namespace te {
             unsigned family;
             std::string nick;
         };
-        
+
         ISteamNetworkingSockets* netio;
         HSteamListenSocket listen_sock;
         HSteamNetPollGroup poll_group;
         std::unordered_map<HSteamNetConnection, std::optional<player>> net_clients;
 
-        void recv(message_ptr incoming);
+        void recv();
         void handle(HSteamNetConnection, te::hello);
-        void handle(HSteamNetConnection, te::full_update);
-        void handle(HSteamNetConnection, te::msg_type);
+        void handle(HSteamNetConnection, te::chat);
+        void handle(HSteamNetConnection, te::entity_create);
+        void handle(HSteamNetConnection, te::entity_delete);
+        void handle(HSteamNetConnection, te::component_replace);
+        sim model;
+        bool started = false;
+        void tick(double dt);
 
-        sim& model;
-        
         void listen(std::uint16_t port);
-        
+
         void send_bytes(HSteamNetConnection conn, std::span<const char> buffer);
         void send_bytes_all(std::span<const char> buffer, HSteamNetConnection except = k_HSteamNetConnection_Invalid);
-        template<typename T>
-        void send_msg(HSteamNetConnection conn, const T& msg) {
-            std::string as_str = serialize_msg(msg);
-            std::span<const char> as_char_span {as_str.cbegin(), as_str.cend()};
-            send_bytes(conn, as_char_span);
-        }
-        template<typename T>
-        void send_msg_all(const T& msg, HSteamNetConnection except = k_HSteamNetConnection_Invalid) {
-            for (auto [conn, client] : net_clients) {
-                if (conn != except) {
-                    send_msg(conn, msg);
-                }
-            }
-        }
-        
+        void send(HSteamNetConnection conn, const te::msg& msg);
+        void send_all(const te::msg& msg, HSteamNetConnection except = k_HSteamNetConnection_Invalid);
+
         virtual void OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* info) override;
     public:
-        server(std::uint16_t port, te::sim& model);
-        std::unique_ptr<client> make_local(te::sim& model);
+        server(ISteamNetworkingSockets* netio, std::uint16_t port);
+        client make_local(te::sim& model);
         virtual ~server();
-        void poll();
+        void poll(double dt);
         void run();
         void shutdown();
     };

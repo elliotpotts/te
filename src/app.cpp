@@ -1,5 +1,8 @@
 #include <te/app.hpp>
 #include <te/util.hpp>
+#include <te/server.hpp>
+#include <te/client.hpp>
+#include <te/net.hpp>
 #include <fmt/format.h>
 #include <examples/imgui_impl_glfw.h>
 #include <examples/imgui_impl_opengl3.h>
@@ -43,8 +46,8 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     loader { win.gl, *fmod },
     resources { loader },
 
+    netio { SteamNetworkingSockets() },
     server_addr { server_addr },
-    client { nullptr },
 
     model { model },
     cam {
@@ -123,6 +126,11 @@ void te::app::on_mouse_button(int button, int action, int mods) {
         }
         inspected.reset();
     }
+}
+
+void te::app::on_chat(te::chat msg) {
+    console.emplace_back(console_line{ImColor{255, 255, 255}, fmt::format("[{}]: ", msg.from), msg.content});
+    scroll_console_to_bottom = true;
 }
 
 glm::mat4 rotate_zup = glm::mat4_cast(te::rotation_between_units (
@@ -447,7 +455,6 @@ void te::app::render_console() {
         ImGui::EndPopup();
     }
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4,1));
-    static bool scroll_to_bottom = false;
     for (auto& line : console) {
         ImGui::PushStyleColor(ImGuiCol_Text, static_cast<ImVec4>(light_blue));
         ImGui::TextUnformatted(line.prefix.c_str());
@@ -455,19 +462,22 @@ void te::app::render_console() {
         ImGui::SameLine();
         ImGui::TextUnformatted(line.content.c_str());
     }
-    if (scroll_to_bottom) {
+    if (scroll_console_to_bottom) {
         ImGui::SetScrollHereY(1.0f);
-        scroll_to_bottom = false;
+        scroll_console_to_bottom = false;
     }
     ImGui::PopStyleVar();
     ImGui::EndChild();
     ImGui::Separator();
     static std::array<char, 200> line_buf {'\0'};
-    if (ImGui::InputText("Input", line_buf.data(), line_buf.size(), ImGuiInputTextFlags_EnterReturnsTrue, nullptr, nullptr)) {
-        console.emplace_back(console_line{ImColor{255, 255, 255}, std::string{"[chat]: "}, std::string{line_buf.data(), line_buf.size()}});
+    if (ImGui::InputText("Input", line_buf.data(), line_buf.size(), ImGuiInputTextFlags_EnterReturnsTrue, nullptr, nullptr) && client && client->nick()) {
+        te::chat msg;
+        msg.from = *client->nick();
+        msg.content = std::string{line_buf.data(), line_buf.size()};
+        client->send(msg);
         line_buf.fill('\0');
         ImGui::SetKeyboardFocusHere(-1);
-        scroll_to_bottom = true;
+        scroll_console_to_bottom = true;
     }
     ImGui::End();
 }
@@ -707,11 +717,6 @@ void te::app::render_controller() {
     ImGui::End();
 }
 
-#include <te/server.hpp>
-#include <te/client.hpp>
-#include <te/net.hpp>
-#include <cereal/types/string.hpp>
-#include <chrono>
 bool te::app::render_main_menu() {
     static bool menu_open = false;
     static bool game_started = false;
@@ -721,14 +726,16 @@ bool te::app::render_main_menu() {
     }
     if (ImGui::BeginPopupModal("Main Menu")) {
         if (ImGui::Button("Host Server")) {
-            server.emplace(te::port, model);
-            client = server->make_local(model);
-            client->send(te::hello{1, "MrServer"});
+            server.emplace(netio, te::port);
+            client.emplace(server->make_local(model));
+            client->on_chat.connect([&](te::chat c) { on_chat(c); });
+            client->send(hello{1, "MrServer"});
             ImGui::OpenPopup("Starting");
         }
         if (ImGui::Button("Connect to Server")) {
             using namespace te;
-            client = std::make_unique<te::net_client>(server_addr, model);
+            client.emplace(netio, server_addr, model);
+            client->on_chat.connect([&](te::chat c) { on_chat(c); });
             client->send(hello{2, "MrClient"});
             ImGui::OpenPopup("Starting");
         }
@@ -812,11 +819,11 @@ void te::app::run() {
     while (!glfwWindowShouldClose(win.hnd.get())) {
         input();
         if (frames == 30) {
-            if (server) server->poll();
-            if (client) client->poll();
             auto now = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double> secs = now - then;
-            fps = static_cast<double>(frames) / secs.count();
+            std::chrono::duration<double> elapsed = now - then;
+            if (server) server->poll(elapsed.count());
+            if (client) client->poll();
+            fps = static_cast<double>(frames) / elapsed.count();
             frames = 0;
             then = std::chrono::high_resolution_clock::now();
         }

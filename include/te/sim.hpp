@@ -10,9 +10,6 @@
 #include <glm/vec2.hpp>
 #include <entt/entt.hpp>
 #include <boost/signals2.hpp>
-#include <te/net.hpp>
-
-
 #include <cereal/types/unordered_map.hpp>
 #include <cereal/types/vector.hpp>
 #include <cereal/types/string.hpp>
@@ -59,7 +56,7 @@ namespace te {
     template<typename  Ar>
     void serialize(Ar& ar, footprint& x){
         ar(x.dimensions);
-    }    
+    }
 
     struct site {
         glm::vec2 position;

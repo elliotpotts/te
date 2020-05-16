@@ -173,13 +173,13 @@ std::optional<entt::entity> te::sim::try_place(entt::entity proto, glm::vec2 cen
     if (!can_place(proto, centre)) {
         return {};
     }
-    
+
     auto instantiated = entities.create();
     entities.stamp(instantiated, entities, proto);
 
     entities.assign<site>(instantiated, centre);
     entities.get<named>(instantiated) = named{fmt::format("{} (#{})", entities.get<named>(instantiated).name, static_cast<unsigned>(instantiated))};
-    
+
     auto& print = entities.get<footprint>(instantiated);
     glm::vec2 topleft = centre - print.dimensions / 2.0f;
     for (int x = 0; x < print.dimensions.x; x++) {
