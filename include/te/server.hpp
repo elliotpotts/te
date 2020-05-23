@@ -28,6 +28,7 @@ namespace te {
         void handle(HSteamNetConnection, te::entity_create);
         void handle(HSteamNetConnection, te::entity_delete);
         void handle(HSteamNetConnection, te::component_replace);
+        void handle(HSteamNetConnection, te::build);
         sim model;
         bool started = false;
         void tick(double dt);

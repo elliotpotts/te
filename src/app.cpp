@@ -76,9 +76,6 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
                                         on_mouse_button(button, action, mods);
                                     }
                                 });
-    model.on_family_join.connect([&](unsigned new_ix) {
-        console.emplace_back(console_line{ImColor{255, 255, 255}, std::string{"A new family has joined!"}, std::string{}});
-    });
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
@@ -106,7 +103,33 @@ void te::app::on_mouse_button(int button, int action, int mods) {
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
         if (ghost) {
             auto proto = model.entities.get<te::ghost>(*ghost).proto;
-            model.try_place(proto, model.entities.get<te::site>(*ghost).position);
+            client->send(build {*client->family(), proto, model.entities.get<site>(*ghost).position} );
+            /*
+            auto maybe_created = model.try_place(*client->family(), proto, model.entities.get<site>(*ghost).position);
+            if (maybe_created) {
+                auto created = *maybe_created;
+                client->send(entity_create { created });
+                if (auto c_ptr = model.entities.try_get<te::footprint>(created)) client->send(component_replace{created, *c_ptr});
+                if (auto c_ptr = model.entities.try_get<te::generator>(created)) client->send(component_replace{created, *c_ptr});
+                if (auto c_ptr = model.entities.try_get<te::trader>(created)) client->send(component_replace{created, *c_ptr});
+                if (auto c_ptr = model.entities.try_get<te::inventory>(created)) client->send(component_replace{created, *c_ptr});
+                if (auto c_ptr = model.entities.try_get<te::producer>(created)) client->send(component_replace{created, *c_ptr});
+                if (auto c_ptr = model.entities.try_get<te::trader>(created)) client->send(component_replace{created, *c_ptr});
+                if (auto c_ptr = model.entities.try_get<te::render_mesh>(created)) client->send(component_replace{created, *c_ptr});
+                if (auto c_ptr = model.entities.try_get<te::pickable>(created)) client->send(component_replace{created, *c_ptr});
+                if (auto c_ptr = model.entities.try_get<te::noisy>(created)) client->send(component_replace{created, *c_ptr});
+                if (auto c_ptr = model.entities.try_get<te::market>(created)) {
+                    client->send(component_replace{created, *c_ptr});
+                    client->send(entity_create{c_ptr->commons});
+                    client->send(component_replace{c_ptr->commons, model.entities.get<trader>(c_ptr->commons)});
+                    client->send(component_replace{c_ptr->commons, model.entities.get<named>(c_ptr->commons)});
+                    client->send(component_replace{c_ptr->commons, model.entities.get<inventory>(c_ptr->commons)});
+                }
+                client->send(component_replace { created, model.entities.get<te::footprint>(created) });
+                client->send(component_replace { created, model.entities.get<te::site>(*ghost) });
+                client->send(component_replace { created, model.entities.get<te::render_mesh>(created) });
+            }
+            */
             model.entities.destroy(*ghost);
             ghost.reset();
             /* TODO: figure out how to play sound effecs when things fail/don't fail.
@@ -292,6 +315,7 @@ void te::app::render_market_inspector(const te::market& market) {
                     return bid != 0.0;
                 }
             );
+            any_bids = true;
             if (!any_bids) {
                 continue;
             }
@@ -584,6 +608,7 @@ void te::app::render_roster_controller() {
     static auto merch_name = merch_names.begin();
     if (ImGui::Button("Hire new merchant: ¤600") && merch_name != merch_names.end()) {
         playsfx("assets/sfx/misc5.wav");
+        //TODO: move to server
         auto merchant_e = model.entities.create();
         model.entities.assign<te::named>(merchant_e, *merch_name++);
         model.entities.assign<te::site>(merchant_e, glm::vec2{0.0f, 0.0f});
@@ -758,7 +783,7 @@ bool te::app::render_main_menu() {
 
     if (!game_started && client && client->family()) {
         menu_music->stop();
-        playsfx("assets/music/chinese4.ogg");
+        //playsfx("assets/music/drums-flute3.ogg");
         game_started = true;
     }
 
@@ -822,7 +847,7 @@ void te::app::run() {
             auto now = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed = now - then;
             if (server) server->poll(elapsed.count());
-            if (client) client->poll();
+            if (client) client->poll(elapsed.count());
             fps = static_cast<double>(frames) / elapsed.count();
             frames = 0;
             then = std::chrono::high_resolution_clock::now();

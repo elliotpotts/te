@@ -62,16 +62,27 @@ namespace te {
     };
 
     //TODO: expand
-    using cmpnt = std::variant<footprint, site, render_mesh>;
+    using cmpnt = std::variant<footprint, site, render_mesh, generator, inventory, trader, pickable, noisy, market, named, producer>;
     struct component_replace {
+        entt::entity name;
         cmpnt component;
         template<typename Ar>
         void serialize(Ar& ar) {
-            ar(component);
+            ar(name, component);
         }
     };
 
-    using msg = std::variant<hello, chat, entity_create, entity_delete, component_replace>;
+    struct build {
+        unsigned family;
+        entt::entity proto;
+        glm::vec2 where;
+        template<typename Ar>
+        void serialize(Ar& ar) {
+            ar(family, proto, where);
+        }
+    };
+
+    using msg = std::variant<hello, chat, entity_create, entity_delete, component_replace, build>;
 
     template<typename T>
     std::string serialized(const T& msg) {

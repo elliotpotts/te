@@ -28,10 +28,11 @@ namespace te {
     }
 
     struct pickable {
+        int dummy = 0;
     };
     template<typename Ar>
     void serialize(Ar& ar, pickable& x){
-        ar();
+        ar(x.dummy);
     }
 
     struct ghost {

@@ -19,7 +19,7 @@ void te::sim::generate_map() {
     std::discrete_distribution<std::size_t> select_blueprint {7, 7, 2, 0, 2};
     for (int i = 0; i < 40; i++) spawn(blueprints[select_blueprint(rengine)]);
     // create a roaming merchant
-    auto merchant_e = entities.create();
+    /*auto merchant_e = entities.create();
     entities.assign<named>(merchant_e, "Nebuchadnezzar");
     entities.assign<site>(merchant_e, glm::vec2{0.0f, 0.0f});
     entities.assign<footprint>(merchant_e, glm::vec2{1.0f, 1.0f});
@@ -27,7 +27,15 @@ void te::sim::generate_map() {
     entities.assign<pickable>(merchant_e);
     entities.assign<trader>(merchant_e, 1u);
     entities.assign<inventory>(merchant_e);
-    entities.assign<merchant>(merchant_e, std::nullopt);
+    entities.assign<merchant>(merchant_e, std::nullopt);*/
+}
+
+entt::entity te::sim::make_net_entity(unsigned family) {
+    static int counter = 2000 + 2000 * family;
+    auto created = entities.create(entt::entity { ++counter });
+    new_entities.push_back(created);
+    spdlog::debug("Created net entity for family {} as {}", family, counter);
+    return created;
 }
 
 void te::sim::load_commodities() {
@@ -68,7 +76,7 @@ void te::sim::init_blueprints() {
     entities.assign<trader>(barley_field, 0u);
     entities.assign<render_mesh>(barley_field, "assets/barley.glb");
     entities.assign<pickable>(barley_field);
-    
+
     auto flax_field = blueprints.emplace_back(entities.create());
     entities.assign<named>(flax_field, "Flax Field");
     entities.assign<footprint>(flax_field, glm::vec2{2.0f,2.0f});
@@ -88,7 +96,7 @@ void te::sim::init_blueprints() {
     entities.assign<dweller>(dwelling);
     entities.assign<render_mesh>(dwelling, "assets/dwelling.glb");
     entities.assign<pickable>(dwelling);
-    
+
     auto market = blueprints.emplace_back(entities.create());
     entities.assign<named>(market, "Trading Post");
     entities.assign<price>(market, 200.0);
@@ -169,12 +177,13 @@ bool te::sim::can_place(entt::entity entity, glm::vec2 centre) {
     return true;
 }
 
-std::optional<entt::entity> te::sim::try_place(entt::entity proto, glm::vec2 centre) {
+std::optional<entt::entity> te::sim::try_place(unsigned owner, entt::entity proto, glm::vec2 centre) {
     if (!can_place(proto, centre)) {
         return {};
     }
 
-    auto instantiated = entities.create();
+    auto instantiated = make_net_entity(owner);
+    //TODO: replace
     entities.stamp(instantiated, entities, proto);
 
     entities.assign<site>(instantiated, centre);
@@ -190,7 +199,7 @@ std::optional<entt::entity> te::sim::try_place(entt::entity proto, glm::vec2 cen
 
     //TODO: somehow get rid of this special casing
     if (auto market = entities.try_get<te::market>(instantiated); market) {
-        auto commons = entities.create();
+        auto commons = make_net_entity(owner);
         entities.assign<trader>(commons, 0u);
         entities.assign<named>(commons, fmt::format("Commons (#{})", static_cast<unsigned>(commons)));
         entities.assign<inventory>(commons);
@@ -213,7 +222,6 @@ std::optional<entt::entity> te::sim::try_place(entt::entity proto, glm::vec2 cen
             }
         }
     }
-    
     return instantiated;
 }
 
@@ -233,7 +241,7 @@ try_again:
         std::round(select_y_pos(rengine))
     };
     const glm::vec2 centre = topleft + print.dimensions / 2.0f;
-    if (!try_place(proto, centre))
+    if (!try_place(0, proto, centre))
         goto try_again;
 }
 
@@ -256,7 +264,7 @@ try_again:
         std::round(select_y_pos(rengine))
     };
     const glm::vec2 centre = topleft + glm::vec2{1.0f, 1.0f} / 2.0f;
-    if (!try_place(dwelling_blueprint, centre)) {
+    if (!try_place(0, dwelling_blueprint, centre)) {
         if (attempts++ >= 5) {
             return false;
         } else {
@@ -349,7 +357,7 @@ void te::sim::tick_merchants(double dt) {
     }
 }
 
-void te::sim::tick(double dt) {
+void te::sim::tick(double dt, bool quiet) {
     tick_merchants(dt);
     entities.view<market, site>().each (
         [&](entt::entity market_e, auto& market, auto& market_site) {
@@ -369,43 +377,45 @@ void te::sim::tick(double dt) {
             );
 
             // advance producers
-            entities.view<producer, inventory, site, trader>().each (
-                [&](auto& producer, auto& inventory, auto& site, auto& trader) {
-                    if (in_market(site, market_site, market)) {
-                        if (producer.producing) {
-                            producer.progress += producer.rate * dt;
-                            if (producer.progress > 1.0) {
-                                for (auto [commodity, produced] : producer.outputs) {
-                                    inventory.stock[commodity] += produced;
-                                    trader.bid[commodity] -= produced;
-                                }
-                                producer.progress = 0.0;
-                                producer.producing = false;
+            for (auto e : entities.view<producer, inventory, site, trader>()) {
+                auto& producer = entities.get<te::producer>(e);
+                auto& inventory = entities.get<te::inventory>(e);
+                auto& site = entities.get<te::site>(e);
+                auto& trader = entities.get<te::trader>(e);
+                if (in_market(site, market_site, market)) {
+                    if (producer.producing) {
+                        producer.progress += producer.rate * dt;
+                        if (producer.progress > 1.0) {
+                            for (auto [commodity, produced] : producer.outputs) {
+                                inventory.stock[commodity] += produced;
+                                trader.bid[commodity] -= produced;
                             }
+                            producer.progress = 0.0;
+                            producer.producing = false;
+                        }
+                    } else {
+                        bool enough = std::all_of (
+                            producer.inputs.begin(),
+                            producer.inputs.end(),
+                            [&](auto pair) {
+                                auto [commodity, needed] = pair;
+                                return inventory.stock[commodity] >= needed;
+                            }
+                        );
+                        if (enough) {
+                            for (auto [commodity, needed] : producer.inputs) {
+                                inventory.stock[commodity] -= needed;
+                            }
+                            producer.producing = true;
                         } else {
-                            bool enough = std::all_of (
-                                producer.inputs.begin(),
-                                producer.inputs.end(),
-                                [&](auto pair) {
-                                    auto [commodity, needed] = pair;
-                                    return inventory.stock[commodity] >= needed;
-                                }
-                            );
-                            if (enough) {
-                                for (auto [commodity, needed] : producer.inputs) {
-                                    inventory.stock[commodity] -= needed;
-                                }
-                                producer.producing = true;
-                            } else {
-                                for (auto [commodity, needed] : producer.inputs) {
-                                    trader.bid[commodity] = std::max(0.0, needed - inventory.stock[commodity]);
-                                }
+                            for (auto [commodity, needed] : producer.inputs) {
+                                trader.bid[commodity] = std::max(0.0, needed - inventory.stock[commodity]);
                             }
                         }
                     }
                 }
-            );
-           
+            }
+
             // demanders cause the market trader to demand more
             entities.view<demander, site>().each (
                 [&](auto& demander, auto& demander_site) {
@@ -449,7 +459,7 @@ void te::sim::tick(double dt) {
                     }
                 }
             }
-            
+
             // market demand is sum of all trader demands
             market.demand = {};
             for (auto trader_e : market.trading) {
@@ -458,7 +468,7 @@ void te::sim::tick(double dt) {
                     market.demand[commodity] += std::max(0.0, std::floor(bid * (1.0 / 0.01)) / (1 / 0.01));
                 }
             }
-            
+
             /* Calculate market prices
              *   - prices should not increase unless there is at least 1 unit of demand */
             for (auto& [commodity, price] : market.prices) {
@@ -472,7 +482,7 @@ void te::sim::tick(double dt) {
                     base_price * 1.5
                 );
             }
-            
+
             // calculate market population
             market.population = 0;
             auto dwellings = entities.view<dweller, site>();

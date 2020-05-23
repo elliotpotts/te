@@ -13,7 +13,6 @@ te::server::server(ISteamNetworkingSockets* netio, std::uint16_t port) :
     //TODO: figure seed shit out
     model { 42 } {
     listen(port);
-    model.generate_map();
 }
 
 te::server::~server() {
@@ -93,11 +92,22 @@ void te::server::handle(HSteamNetConnection conn, te::hello msg) {
 void te::server::handle(HSteamNetConnection conn, te::chat msg) {
     send_all(msg);
 }
-void te::server::handle(HSteamNetConnection conn, te::entity_create) {
+void te::server::handle(HSteamNetConnection conn, te::entity_create msg) {
+    model.entities.create(msg.name);
+    send_all(msg);
 }
 void te::server::handle(HSteamNetConnection conn, te::entity_delete) {
 }
-void te::server::handle(HSteamNetConnection conn, te::component_replace) {
+void te::server::handle(HSteamNetConnection conn, te::component_replace msg) {
+    std::visit([&](auto& c) {
+        using C = std::decay_t<decltype(c)>;
+        model.entities.assign_or_replace<C>(msg.name, c);
+    }, msg.component);
+    send_all(msg);
+}
+void te::server::handle(HSteamNetConnection conn, te::build msg) {
+    model.try_place(msg.family, msg.proto, msg.where);
+    //send_all(msg);
 }
 
 te::client te::server::make_local(te::sim& model) {
@@ -140,6 +150,51 @@ void te::server::poll(double dt) {
     netio->RunCallbacks(this);
     recv();
     tick(dt);
+
+    for (auto e : model.new_entities) {
+        send_all(entity_create{e});
+    }
+    model.new_entities.clear();
+    {
+        auto v = model.entities.view<te::generator>();
+        for (auto e : v) send_all(component_replace{e, v.get<te::generator>(e)});
+    }
+    {
+        auto v = model.entities.view<te::trader>();
+        for (auto e : v) send_all(component_replace{e, v.get<te::trader>(e)});
+    }
+    {
+        auto v = model.entities.view<te::inventory>();
+        for (auto e : v) send_all(component_replace{e, v.get<te::inventory>(e)});
+    }
+    {
+        auto v = model.entities.view<te::producer>();
+        for (auto e : v) send_all(component_replace{e, v.get<te::producer>(e)});
+    }
+    {
+        auto v = model.entities.view<te::market>();
+        for (auto e : v) send_all(component_replace{e, v.get<te::market>(e)});
+    }
+    {
+        auto v = model.entities.view<te::site>();
+        for (auto e : v) send_all(component_replace{e, v.get<te::site>(e)});
+    }
+    {
+        auto v = model.entities.view<te::render_mesh>();
+        for (auto e : v) send_all(component_replace{e, v.get<te::render_mesh>(e)});
+    }
+    {
+        auto v = model.entities.view<te::pickable>();
+        for (auto e : v) send_all(component_replace{e, v.get<te::pickable>(e)});
+    }
+    {
+        auto v = model.entities.view<te::site>();
+        for (auto e : v) send_all(component_replace{e, v.get<te::site>(e)});
+    }
+    {
+        auto v = model.entities.view<te::footprint>();
+        for (auto e : v) send_all(component_replace{e, v.get<te::footprint>(e)});
+    }
 }
 
 void te::server::tick(double dt) {
@@ -152,7 +207,7 @@ void te::server::tick(double dt) {
         }
     );
 
-    if (players_hellod == 1 && !started) {
+    if (players_hellod == 2 && !started) {
         started = true;
         spdlog::debug("We have {} players. Starting game with:", players_hellod);
         for (auto [conn, player] : net_clients) {
@@ -163,6 +218,7 @@ void te::server::tick(double dt) {
                 spdlog::debug("*  <spectator>");
             }
         }
+        model.generate_map();
     }
 
     if (started) {

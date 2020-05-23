@@ -196,6 +196,9 @@ namespace te {
         void init_blueprints();
         void generate_map();
 
+        std::vector<entt::entity> new_entities;
+        entt::entity make_net_entity(unsigned family);
+
         // total units wanting to be sold
         int market_stock(entt::entity market_e, entt::entity commodity_e);
         int market_demand(entt::entity market_e, entt::entity commodity_e);
@@ -207,17 +210,16 @@ namespace te {
         std::optional<merchant_activity> merchant_status(entt::entity merchant);
 
         bool can_place(entt::entity entity, glm::vec2 where);
-        std::optional<entt::entity> try_place(entt::entity entity, glm::vec2 where);
+        std::optional<entt::entity> try_place(unsigned owner, entt::entity entity, glm::vec2 where);
 
         bool spawn_dwelling(entt::entity market);
         void spawn(entt::entity proto);
 
         void tick_merchants(double dt);
         void tick_markets(double dt);
-        void tick(double delta_t);
+        void tick(double delta_t, bool quiet = true);
 
         boost::signals2::signal<void()> on_trade;
-        boost::signals2::signal<void(unsigned)> on_family_join;
     };
 }
 

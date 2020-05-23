@@ -57,16 +57,25 @@ void te::client::handle(te::chat msg) {
     on_chat(msg);
 }
 void te::client::handle(te::entity_create msg) {
+    spdlog::debug("creating {} by servers instruction", msg.name);
+    model.entities.create(msg.name);
 }
 void te::client::handle(te::entity_delete msg) {
 }
 void te::client::handle(te::component_replace msg) {
+    std::visit([&](auto& c) {
+        using C = std::decay_t<decltype(c)>;
+        model.entities.assign_or_replace<C>(msg.name, c);
+    }, msg.component);
+}
+void te::client::handle(te::build msg) {
+    model.try_place(msg.family, msg.proto, msg.where);
 }
 
 namespace {
     template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 }
-void te::client::poll() {
+void te::client::poll(double elapsed) {
     netio->RunCallbacks(this);
     ISteamNetworkingMessage* incoming = nullptr;
     int count_received = netio->ReceiveMessagesOnConnection(conn, &incoming, 1);
@@ -83,6 +92,9 @@ void te::client::poll() {
     if (count_received < 0) {
         throw std::runtime_error{"Error checking for messages"};
     }
+
+    //TODO: are we gonna predict, or not?
+    model.tick(elapsed);
 }
 
 std::optional<unsigned> te::client::family() {
@@ -126,12 +138,15 @@ void te::client::OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChang
     }
 }
 
-void te::client::send(std::span<const std::byte> buffer) {
-    netio->SendMessageToConnection(conn, buffer.data(), buffer.size(), k_nSteamNetworkingSend_Reliable, nullptr);
+std::int64_t te::client::send(std::span<const std::byte> buffer) {
+    //TODO: int64 is not the same type as std::int64_t lol :rip:
+    int64 number;
+    netio->SendMessageToConnection(conn, buffer.data(), buffer.size(), k_nSteamNetworkingSend_Reliable, &number);
+    return static_cast<std::int64_t>(number);
 }
 
-void te::client::send(te::msg&& m) {
+std::int64_t te::client::send(te::msg&& m) {
     std::string as_str = serialized(m);
     std::span<const std::byte> as_byte_span {reinterpret_cast<const std::byte*>(std::to_address(as_str.begin())), as_str.size()};
-    send(as_byte_span);
+    return send(as_byte_span);
 }
