@@ -1,8 +1,9 @@
 #include <te/camera.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/rotate_vector.hpp>
 
 glm::vec3 te::camera::eye() const {
-    return focus + (offset * zoom_factor);
+    return focus + glm::vec3{radius.real(), radius.imag(), altitude} * zoom_factor;
 }
 
 glm::vec3 te::camera::forward() const {

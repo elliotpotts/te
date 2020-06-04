@@ -17,6 +17,8 @@
 #include <fmod.hpp>
 #include <te/fmod.hpp>
 #include <te/components.hpp>
+#include <te/tween.hpp>
+#include <complex>
 
 namespace te {
     struct app {
@@ -40,6 +42,7 @@ namespace te {
 
         // gameplay scene
         te::sim& model;
+        te::tween<std::complex<double>> yaw_tween;
         te::camera cam;
         te::terrain_renderer terrain_renderer;
         te::mesh_renderer mesh_renderer;

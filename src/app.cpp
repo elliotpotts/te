@@ -50,11 +50,13 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     server_addr { server_addr },
 
     model { model },
+    yaw_tween {{std::polar(0.6, glm::half_pi<double>() / 2.0)}, 20},
     cam {
-        {0.0f, 0.0f, 0.0f},
-        {-0.6f, -0.6f, 1.0f},
-        14.0f,
-        static_cast<float>(win.width()) / win.height()
+        {0.0f, 0.0f, 0.0f}, // focus
+        1.0, // altitude
+        yaw_tween.end, // yaw
+        14.0f, // zoom factor
+        static_cast<float>(win.width()) / win.height() // aspect ratio
     },
     terrain_renderer{ win.gl, rengine, model.map_width, model.map_height },
     mesh_renderer { win.gl }
@@ -86,16 +88,19 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     });
 }
 
+#include <complex>
 void te::app::on_key(int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_ESCAPE) {
         win.close();
         return;
     };
-    if (key == GLFW_KEY_Q && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
-        cam.offset = glm::rotate(cam.offset, -glm::half_pi<float>()/4.0f, glm::vec3{0.0f, 0.0f, 1.0f});
-    }
-    if (key == GLFW_KEY_E && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
-        cam.offset = glm::rotate(cam.offset, glm::half_pi<float>()/4.0f, glm::vec3{0.0f, 0.0f, 1.0f});
+    if (!yaw_tween && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
+        if (key == GLFW_KEY_Q) {
+            yaw_tween.factor(std::polar(1.0, -glm::half_pi<double>()));
+        }
+        if (key == GLFW_KEY_E) {
+            yaw_tween.factor(std::polar(1.0, +glm::half_pi<double>()));
+        }
     }
 }
 
@@ -816,7 +821,7 @@ void te::app::input() {
     }
 
     if (!ImGui::GetIO().WantCaptureKeyboard && !ImGui::GetIO().WantTextInput) {
-        glm::vec3 forward = -cam.offset;
+        glm::vec3 forward = cam.forward();
         forward.z = 0.0f;
         forward = glm::normalize(forward);
         glm::vec3 left = glm::rotate(forward, glm::half_pi<float>(), glm::vec3{0.0f, 0.0f, 1.0f});
@@ -833,6 +838,9 @@ void te::app::input() {
 }
 
 void te::app::draw() {
+    if (yaw_tween) {
+        cam.yaw = yaw_tween();
+    }
     render_scene();
     render_ui();
 }
