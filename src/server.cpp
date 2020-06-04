@@ -101,7 +101,7 @@ void te::server::handle(HSteamNetConnection conn, te::entity_delete) {
 void te::server::handle(HSteamNetConnection conn, te::component_replace msg) {
     std::visit([&](auto& c) {
         using C = std::decay_t<decltype(c)>;
-        model.entities.assign_or_replace<C>(msg.name, c);
+        model.entities.emplace_or_replace<C>(msg.name, c);
     }, msg.component);
     send_all(msg);
 }

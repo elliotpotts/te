@@ -65,7 +65,7 @@ void te::client::handle(te::entity_delete msg) {
 void te::client::handle(te::component_replace msg) {
     std::visit([&](auto& c) {
         using C = std::decay_t<decltype(c)>;
-        model.entities.assign_or_replace<C>(msg.name, c);
+        model.entities.emplace_or_replace<C>(msg.name, c);
     }, msg.component);
 }
 void te::client::handle(te::build msg) {
