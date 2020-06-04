@@ -103,35 +103,21 @@ void te::app::on_mouse_button(int button, int action, int mods) {
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
         if (ghost) {
             auto proto = model.entities.get<te::ghost>(*ghost).proto;
-            client->send(build {*client->family(), proto, model.entities.get<site>(*ghost).position} );
-            /*
-            auto maybe_created = model.try_place(*client->family(), proto, model.entities.get<site>(*ghost).position);
-            if (maybe_created) {
-                auto created = *maybe_created;
-                client->send(entity_create { created });
-                if (auto c_ptr = model.entities.try_get<te::footprint>(created)) client->send(component_replace{created, *c_ptr});
-                if (auto c_ptr = model.entities.try_get<te::generator>(created)) client->send(component_replace{created, *c_ptr});
-                if (auto c_ptr = model.entities.try_get<te::trader>(created)) client->send(component_replace{created, *c_ptr});
-                if (auto c_ptr = model.entities.try_get<te::inventory>(created)) client->send(component_replace{created, *c_ptr});
-                if (auto c_ptr = model.entities.try_get<te::producer>(created)) client->send(component_replace{created, *c_ptr});
-                if (auto c_ptr = model.entities.try_get<te::trader>(created)) client->send(component_replace{created, *c_ptr});
-                if (auto c_ptr = model.entities.try_get<te::render_mesh>(created)) client->send(component_replace{created, *c_ptr});
-                if (auto c_ptr = model.entities.try_get<te::pickable>(created)) client->send(component_replace{created, *c_ptr});
-                if (auto c_ptr = model.entities.try_get<te::noisy>(created)) client->send(component_replace{created, *c_ptr});
-                if (auto c_ptr = model.entities.try_get<te::market>(created)) {
-                    client->send(component_replace{created, *c_ptr});
-                    client->send(entity_create{c_ptr->commons});
-                    client->send(component_replace{c_ptr->commons, model.entities.get<trader>(c_ptr->commons)});
-                    client->send(component_replace{c_ptr->commons, model.entities.get<named>(c_ptr->commons)});
-                    client->send(component_replace{c_ptr->commons, model.entities.get<inventory>(c_ptr->commons)});
+            auto pos = model.entities.get<te::site>(*ghost).position;
+            if (model.can_place(proto, pos)) {
+                model.entities.destroy(*ghost);
+                ghost.reset();
+                playsfx("assets/sfx/build2.wav");
+                client->send(build {*client->family(), proto, pos} );
+                /*
+                auto built = co_await client->build(*client->family(), proto, pos);
+                if (!built) {
+                    playsfx("assets/sfx/notif3.wav");
                 }
-                client->send(component_replace { created, model.entities.get<te::footprint>(created) });
-                client->send(component_replace { created, model.entities.get<te::site>(*ghost) });
-                client->send(component_replace { created, model.entities.get<te::render_mesh>(created) });
+                */
+            } else {
+                playsfx("assets/sfx/notif3.wav");
             }
-            */
-            model.entities.destroy(*ghost);
-            ghost.reset();
             /* TODO: figure out how to play sound effecs when things fail/don't fail.
              *       Do we always have to wait for a response from the server? */
         } else if (pos_under_mouse) {
@@ -600,9 +586,14 @@ void te::app::render_orders_controller() {
 }
 
 void te::app::render_roster_controller() {
-    auto merchants = model.entities.view<te::trader, te::merchant, te::inventory, te::named>();
-    for (auto merchant_entity : merchants) {
-        render_merchant_summary(merchant_entity);
+    if (client && client->family()) {
+        unsigned my_family = *client->family();
+        auto merchants = model.entities.view<te::trader, te::merchant, te::inventory, te::named, te::owned>();
+        for (auto merchant_entity : merchants) {
+            if (model.entities.get<te::owned>(merchant_entity).family_ix == my_family) {
+                render_merchant_summary(merchant_entity);
+            }
+        }
     }
     static const std::vector<std::string> merch_names = { "Zazoo", "Mufasa", "Rafiki" };
     static auto merch_name = merch_names.begin();
@@ -610,14 +601,15 @@ void te::app::render_roster_controller() {
         playsfx("assets/sfx/misc5.wav");
         //TODO: move to server
         auto merchant_e = model.entities.create();
-        model.entities.assign<te::named>(merchant_e, *merch_name++);
-        model.entities.assign<te::site>(merchant_e, glm::vec2{0.0f, 0.0f});
-        model.entities.assign<te::footprint>(merchant_e, glm::vec2{1.0f, 1.0f});
-        model.entities.assign<te::render_mesh>(merchant_e, "assets/merchant.glb");
-        model.entities.assign<te::pickable>(merchant_e);
-        model.entities.assign<te::trader>(merchant_e, 1u);
-        model.entities.assign<te::inventory>(merchant_e);
-        model.entities.assign<te::merchant>(merchant_e, std::nullopt);
+        model.entities.emplace<te::named>(merchant_e, *merch_name++);
+        model.entities.emplace<te::owned>(merchant_e, *client->family());
+        model.entities.emplace<te::site>(merchant_e, glm::vec2{0.0f, 0.0f});
+        model.entities.emplace<te::footprint>(merchant_e, glm::vec2{1.0f, 1.0f});
+        model.entities.emplace<te::render_mesh>(merchant_e, "assets/merchant.glb");
+        model.entities.emplace<te::pickable>(merchant_e);
+        model.entities.emplace<te::trader>(merchant_e, 1u);
+        model.entities.emplace<te::inventory>(merchant_e);
+        model.entities.emplace<te::merchant>(merchant_e, std::nullopt);
     }
 }
 
@@ -711,9 +703,9 @@ void te::app::render_construction_controller() {
             if (ImGui::Button(fmt::format("{}: ¤{}", named->name, price->price).c_str()) && !ghost) {
                 playsfx("assets/sfx/misc5.wav");
                 ghost = model.entities.create();
-                model.entities.assign<te::footprint>(*ghost, model.entities.get<te::footprint>(blueprint));
-                model.entities.assign<te::render_mesh>(*ghost, model.entities.get<te::render_mesh>(blueprint));
-                model.entities.assign<te::ghost>(*ghost, blueprint);
+                model.entities.emplace<te::footprint>(*ghost, model.entities.get<te::footprint>(blueprint));
+                model.entities.emplace<te::render_mesh>(*ghost, model.entities.get<te::render_mesh>(blueprint));
+                model.entities.emplace<te::ghost>(*ghost, blueprint);
             }
         }
     }
@@ -764,6 +756,13 @@ bool te::app::render_main_menu() {
             client->send(hello{2, "MrClient"});
             ImGui::OpenPopup("Starting");
         }
+        if (ImGui::Button("Singleplayer")) {
+            server.emplace(netio, te::port);
+            server->max_players = 1;
+            client.emplace(server->make_local(model));
+            client->send(hello{1, "SinglePringle"});
+            ImGui::OpenPopup("Starting");
+        }
         if (ImGui::Button("Quit")) {
             win.close();
         }
@@ -812,7 +811,7 @@ void te::app::input() {
     if (!ImGui::GetIO().WantCaptureMouse) {
         mouse_pick();
         if (ghost && pos_under_mouse) {
-            model.entities.assign_or_replace<site>(*ghost, model.snap(*pos_under_mouse, model.entities.get<footprint>(*ghost).dimensions));
+            model.entities.emplace_or_replace<site>(*ghost, model.snap(*pos_under_mouse, model.entities.get<footprint>(*ghost).dimensions));
         }
     }
 

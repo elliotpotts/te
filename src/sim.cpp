@@ -18,16 +18,6 @@ te::sim::sim(unsigned int seed) : rengine { seed } {
 void te::sim::generate_map() {
     std::discrete_distribution<std::size_t> select_blueprint {7, 7, 2, 0, 2};
     for (int i = 0; i < 40; i++) spawn(blueprints[select_blueprint(rengine)]);
-    // create a roaming merchant
-    /*auto merchant_e = entities.create();
-    entities.assign<named>(merchant_e, "Nebuchadnezzar");
-    entities.assign<site>(merchant_e, glm::vec2{0.0f, 0.0f});
-    entities.assign<footprint>(merchant_e, glm::vec2{1.0f, 1.0f});
-    entities.assign<render_mesh>(merchant_e, "assets/merchant.glb");
-    entities.assign<pickable>(merchant_e);
-    entities.assign<trader>(merchant_e, 1u);
-    entities.assign<inventory>(merchant_e);
-    entities.assign<merchant>(merchant_e, std::nullopt);*/
 }
 
 entt::entity te::sim::make_net_entity(unsigned family) {
@@ -52,9 +42,9 @@ void te::sim::load_commodities() {
         auto find_name = std::find(only_see.begin(), only_see.end(), name);
         if (find_name != only_see.end()) {
             auto entity = commodities.emplace_back(entities.create());
-            entities.assign<named>(entity, name);
-            entities.assign<price>(entity, csv.parse_double());
-            entities.assign<render_tex>(entity, fmt::format("assets/commodities/icons/{}.png", name));
+            entities.emplace<named>(entity, name);
+            entities.emplace<price>(entity, csv.parse_double());
+            entities.emplace<render_tex>(entity, fmt::format("assets/commodities/icons/{}.png", name));
         }
     }
 }
@@ -69,56 +59,56 @@ void te::sim::init_blueprints() {
 
     // Buildings
     auto barley_field = blueprints.emplace_back(entities.create());
-    entities.assign<named>(barley_field, "Barley Field");
-    entities.assign<footprint>(barley_field, glm::vec2{2.0f,2.0f});
-    entities.assign<generator>(barley_field, commodities[0], 1.0 / 14.0);
-    entities.assign<inventory>(barley_field);
-    entities.assign<trader>(barley_field, 0u);
-    entities.assign<render_mesh>(barley_field, "assets/barley.glb");
-    entities.assign<pickable>(barley_field);
+    entities.emplace<named>(barley_field, "Barley Field");
+    entities.emplace<footprint>(barley_field, glm::vec2{2.0f,2.0f});
+    entities.emplace<generator>(barley_field, commodities[0], 1.0 / 14.0);
+    entities.emplace<inventory>(barley_field);
+    entities.emplace<trader>(barley_field, 0u);
+    entities.emplace<render_mesh>(barley_field, "assets/barley.glb");
+    entities.emplace<pickable>(barley_field);
 
     auto flax_field = blueprints.emplace_back(entities.create());
-    entities.assign<named>(flax_field, "Flax Field");
-    entities.assign<footprint>(flax_field, glm::vec2{2.0f,2.0f});
-    entities.assign<generator>(flax_field, commodities[2], 1.0 / 10.0);
-    entities.assign<inventory>(flax_field);
-    entities.assign<trader>(flax_field, 0u);
-    entities.assign<render_mesh>(flax_field, "assets/wheat.glb");
-    entities.assign<pickable>(flax_field);
+    entities.emplace<named>(flax_field, "Flax Field");
+    entities.emplace<footprint>(flax_field, glm::vec2{2.0f,2.0f});
+    entities.emplace<generator>(flax_field, commodities[2], 1.0 / 10.0);
+    entities.emplace<inventory>(flax_field);
+    entities.emplace<trader>(flax_field, 0u);
+    entities.emplace<render_mesh>(flax_field, "assets/wheat.glb");
+    entities.emplace<pickable>(flax_field);
 
     auto dwelling = blueprints.emplace_back(entities.create());
-    entities.assign<named>(dwelling, "Dwelling");
-    entities.assign<footprint>(dwelling, glm::vec2{1.0f,1.0f});
-    demander& dwelling_demander = entities.assign<demander>(dwelling);
+    entities.emplace<named>(dwelling, "Dwelling");
+    entities.emplace<footprint>(dwelling, glm::vec2{1.0f,1.0f});
+    demander& dwelling_demander = entities.emplace<demander>(dwelling);
     dwelling_demander.rate[commodities[0]] = 1.0 / (2*60.0 + 45.0); // it takes 2m45s to demand 1x wheat
     dwelling_demander.rate[commodities[3]] = 1.0 / (9*60.0);
     dwelling_demander.rate[commodities[4]] = 1.0 / (10*60.0);
-    entities.assign<dweller>(dwelling);
-    entities.assign<render_mesh>(dwelling, "assets/dwelling.glb");
-    entities.assign<pickable>(dwelling);
+    entities.emplace<dweller>(dwelling);
+    entities.emplace<render_mesh>(dwelling, "assets/dwelling.glb");
+    entities.emplace<pickable>(dwelling);
 
     auto market = blueprints.emplace_back(entities.create());
-    entities.assign<named>(market, "Trading Post");
-    entities.assign<price>(market, 200.0);
-    entities.assign<footprint>(market, glm::vec2{2.0f,2.0f});
-    entities.assign<te::market>(market, base_market_prices);
-    entities.assign<render_mesh>(market, "assets/market.glb");
-    entities.assign<noisy>(market, "assets/sfx/market2.wav");
-    entities.assign<pickable>(market);
+    entities.emplace<named>(market, "Trading Post");
+    entities.emplace<price>(market, 200.0);
+    entities.emplace<footprint>(market, glm::vec2{2.0f,2.0f});
+    entities.emplace<te::market>(market, base_market_prices);
+    entities.emplace<render_mesh>(market, "assets/market.glb");
+    entities.emplace<noisy>(market, "assets/sfx/market2.wav");
+    entities.emplace<pickable>(market);
 
     auto weaver = blueprints.emplace_back(entities.create());
-    entities.assign<named>(weaver, "Weaver");
-    entities.assign<footprint>(weaver, glm::vec2{1.0f, 1.0f});
+    entities.emplace<named>(weaver, "Weaver");
+    entities.emplace<footprint>(weaver, glm::vec2{1.0f, 1.0f});
     std::unordered_map<entt::entity, double> inputs;
     inputs[commodities[2]] = 3.0;
     std::unordered_map<entt::entity, double> outputs;
     outputs[commodities[4]] = 1.0;
-    entities.assign<inventory>(weaver);
-    entities.assign<producer>(weaver, inputs, outputs, 1.0 / 12.0);
-    entities.assign<trader>(weaver, 0u);
-    entities.assign<price>(weaver, 1000.0);
-    entities.assign<render_mesh>(weaver, "assets/mill.glb");
-    entities.assign<pickable>(weaver);
+    entities.emplace<inventory>(weaver);
+    entities.emplace<producer>(weaver, inputs, outputs, 1.0 / 12.0);
+    entities.emplace<trader>(weaver, 0u);
+    entities.emplace<price>(weaver, 1000.0);
+    entities.emplace<render_mesh>(weaver, "assets/mill.glb");
+    entities.emplace<pickable>(weaver);
 }
 
 te::market* te::sim::market_at(glm::vec2 x) {
@@ -145,8 +135,8 @@ bool te::sim::in_market(const site& question_site, const site& market_site, cons
 
 bool te::sim::can_place(entt::entity entity, glm::vec2 centre) {
     {
-        auto& print = entities.get<footprint>(entity);
-        glm::vec2 topleft = centre - print.dimensions / 2.0f;
+        const auto& print = entities.get<footprint>(entity);
+        const glm::vec2 topleft = centre - print.dimensions / 2.0f;
         for (int x = 0; x < print.dimensions.x; x++) {
             for (int y = 0; y < print.dimensions.y; y++) {
                 if (
@@ -183,11 +173,19 @@ std::optional<entt::entity> te::sim::try_place(unsigned owner, entt::entity prot
     }
 
     auto instantiated = make_net_entity(owner);
-    //TODO: replace
-    entities.stamp(instantiated, entities, proto);
-
-    entities.assign<site>(instantiated, centre);
-    entities.get<named>(instantiated) = named{fmt::format("{} (#{})", entities.get<named>(instantiated).name, static_cast<unsigned>(instantiated))};
+    entities.emplace<site>(instantiated, centre);
+    if (auto c = entities.try_get<named>(proto)) entities.emplace<named>(instantiated, fmt::format("{} (#{})", c->name, static_cast<unsigned>(instantiated)));
+    if (auto c = entities.try_get<footprint>(proto)) entities.emplace<footprint>(instantiated, *c);
+    if (auto c = entities.try_get<demander>(proto)) entities.emplace<demander>(instantiated, *c);
+    if (auto c = entities.try_get<trader>(proto)) entities.emplace<trader>(instantiated, *c);
+    if (auto c = entities.try_get<generator>(proto)) entities.emplace<generator>(instantiated, *c);
+    if (auto c = entities.try_get<producer>(proto)) entities.emplace<producer>(instantiated, *c);
+    if (auto c = entities.try_get<market>(proto)) entities.emplace<market>(instantiated, *c);
+    if (auto c = entities.try_get<inventory>(proto)) entities.emplace<inventory>(instantiated, *c);
+    //TODO: Move non-sim related stuff out
+    if (auto c = entities.try_get<render_mesh>(proto)) entities.emplace<render_mesh>(instantiated, *c);
+    if (auto c = entities.try_get<pickable>(proto)) entities.emplace<pickable>(instantiated, *c);
+    if (auto c = entities.try_get<noisy>(proto)) entities.emplace<noisy>(instantiated, *c);
 
     auto& print = entities.get<footprint>(instantiated);
     glm::vec2 topleft = centre - print.dimensions / 2.0f;
@@ -200,9 +198,9 @@ std::optional<entt::entity> te::sim::try_place(unsigned owner, entt::entity prot
     //TODO: somehow get rid of this special casing
     if (auto market = entities.try_get<te::market>(instantiated); market) {
         auto commons = make_net_entity(owner);
-        entities.assign<trader>(commons, 0u);
-        entities.assign<named>(commons, fmt::format("Commons (#{})", static_cast<unsigned>(commons)));
-        entities.assign<inventory>(commons);
+        entities.emplace<trader>(commons, 0u);
+        entities.emplace<named>(commons, fmt::format("Commons (#{})", static_cast<unsigned>(commons)));
+        entities.emplace<inventory>(commons);
         market->commons = commons;
         market->trading.push_back(commons);
         // make things trade
@@ -332,7 +330,7 @@ void te::sim::tick_merchants(double dt) {
             );
             if (stop_satisfied) {
                 dest_market.trading.erase(market_it);
-                entities.assign<te::site>(merchant_e, dest);
+                entities.emplace<te::site>(merchant_e, dest);
                 merchant.next_stop_ix = (merchant.next_stop_ix + 1) % merchant.route->stops.size();
                 auto& next_stop = merchant.route->stops[merchant.next_stop_ix];
                 auto& bids = merchant_trader.bid;

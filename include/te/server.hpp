@@ -20,6 +20,7 @@ namespace te {
         ISteamNetworkingSockets* netio;
         HSteamListenSocket listen_sock;
         HSteamNetPollGroup poll_group;
+        int max_players = 2;
         std::unordered_map<HSteamNetConnection, std::optional<player>> net_clients;
 
         void recv();

@@ -24,7 +24,7 @@ SteamNetworkingIPAddr init_net() {
     return server_addr;
 }
 
-int main(const int argc, const char** argv) {    
+int main(const int argc, const char** argv) {
     spdlog::set_level(spdlog::level::debug);
     // enable core dump to file
     rlimit core_limits;

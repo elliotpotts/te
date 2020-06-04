@@ -184,6 +184,10 @@ void te::server::poll(double dt) {
         for (auto e : v) send_all(component_replace{e, v.get<te::render_mesh>(e)});
     }
     {
+        auto v = model.entities.view<te::noisy>();
+        for (auto e : v) send_all(component_replace{e, v.get<te::noisy>(e)});
+    }
+    {
         auto v = model.entities.view<te::pickable>();
         for (auto e : v) send_all(component_replace{e, v.get<te::pickable>(e)});
     }
@@ -207,7 +211,7 @@ void te::server::tick(double dt) {
         }
     );
 
-    if (players_hellod == 2 && !started) {
+    if (players_hellod == max_players && !started) {
         started = true;
         spdlog::debug("We have {} players. Starting game with:", players_hellod);
         for (auto [conn, player] : net_clients) {
