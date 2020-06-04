@@ -160,7 +160,7 @@ namespace {
                 te::primitive {
                     te::input_description {
                         attributes,
-                        load_element_buffer(elements_accessor.bufferView)
+                        &load_element_buffer(elements_accessor.bufferView)
                     },
                     static_cast<GLenum>(doc_primitive.mode),
                     static_cast<GLenum>(elements_accessor.componentType),

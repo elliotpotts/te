@@ -48,7 +48,7 @@ glm::mat4 te::camera::view() const {
 
 glm::mat4 te::camera::projection() const {
     if (use_ortho) {
-        return glm::ortho(-zoom_factor * aspect_ratio, zoom_factor * aspect_ratio, -zoom_factor, zoom_factor, -1000.0f, 1000.0f);
+        return glm::ortho(-zoom_factor * aspect_ratio, zoom_factor * aspect_ratio, -zoom_factor, zoom_factor, 0.1f, 1000.0f);
     } else {
         return glm::perspective(glm::half_pi<float>(), aspect_ratio, 0.1f, 1000.0f);
     }

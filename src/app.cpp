@@ -40,7 +40,7 @@ namespace {
 
 te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     rengine { 42 },
-    win { glfw.make_window((1920 / 2) - 8, 1080 - 200, "Hello, World!", false)},
+    win { glfw.make_window(1024, 768, "Trade Empires", false)},
     fmod { te::make_fmod_system() },
     imgui_io { setup_imgui(win) },
     loader { win.gl, *fmod },
@@ -60,7 +60,8 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
         static_cast<float>(win.width()) / win.height() // aspect ratio
     },
     terrain_renderer{ win.gl, rengine, model.map_width, model.map_height },
-    mesh_renderer { win.gl }
+    mesh_renderer { win.gl },
+    ui { win.gl }
 {
     fmod->createStream("assets/music/main-theme.ogg", FMOD_CREATESTREAM | FMOD_LOOP_NORMAL, nullptr, &menu_music_src);
     fmod->playSound(menu_music_src, nullptr, false, &menu_music);
@@ -82,6 +83,8 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     model.on_trade.connect([&]() {
         static std::uniform_int_distribution select{1, 4};
@@ -802,7 +805,12 @@ bool te::app::render_main_menu() {
 }
 
 void te::app::render_ui() {
+    ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/ui/header.png"), {0, 0}, {1024, 20});
+    ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/ui/panel-construction.png"), {0, 20}, {306, 693});
+    ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/ui/footer-construction.png"), {0, 20+693}, {1024, 55});
     //render_ui_demo(); return;
+
+    /*
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -813,6 +821,7 @@ void te::app::render_ui() {
     }
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    */
 }
 
 void te::app::playsfx(std::string filename) {

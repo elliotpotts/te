@@ -15,7 +15,7 @@ namespace te {
     };
     struct input_description {
         std::list<attribute_source> attributes;
-        gl::buffer<GL_ELEMENT_ARRAY_BUFFER>& elements;
+        gl::buffer<GL_ELEMENT_ARRAY_BUFFER>* elements;
     };
     struct texture_unit_binding {
         gl::texture2d* texture;

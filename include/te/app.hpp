@@ -19,6 +19,7 @@
 #include <te/components.hpp>
 #include <te/tween.hpp>
 #include <complex>
+#include <te/ui_renderer.hpp>
 
 namespace te {
     struct app {
@@ -47,6 +48,7 @@ namespace te {
         te::camera cam;
         te::terrain_renderer terrain_renderer;
         te::mesh_renderer mesh_renderer;
+        te::ui_renderer ui;
 
         std::optional<entt::entity> inspected;
         std::optional<entt::entity> ghost;

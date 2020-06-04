@@ -207,7 +207,7 @@ te::gl::texture<GL_TEXTURE_2D> te::gl::context::make_texture(FIBITMAP* bmp) {
     te::gl::texture<GL_TEXTURE_2D> tex2d {make_hnd<te::gl::texture_hnd>(glGenTextures)};
     tex2d.bind();
     glTexImage2D (
-        GL_TEXTURE_2D, 0, GL_RGB,
+        GL_TEXTURE_2D, 0, GL_RGBA,
         width, height,
         0, GL_BGRA, GL_UNSIGNED_BYTE, rawbits.data()
     );
@@ -300,7 +300,7 @@ void te::gl::vao::bind() const {
 te::gl::vao te::gl::context::make_vertex_array(const te::input_description& inputs) {
     vao array { make_hnd<vao_hnd>(glGenVertexArrays) };
     array.bind();
-    inputs.elements.bind();
+    if (inputs.elements) inputs.elements->bind();
     for (auto& attribute_input : inputs.attributes) {
         attribute_input.source.bind();
         glEnableVertexAttribArray(attribute_input.location);

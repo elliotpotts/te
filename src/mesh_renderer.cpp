@@ -72,12 +72,12 @@ void te::mesh_renderer::draw(instanced& instanced, const glm::mat4& model_mat, c
     }
     instanced.vertex_array.bind();
     //TODO: figure out why element buffer isn't part of VAO state
-    instanced.primitive.inputs.elements.bind();
+    instanced.primitive.inputs.elements->bind();
     glDrawElementsInstanced (
         instanced.primitive.mode,
         instanced.primitive.element_count,
         instanced.primitive.element_type,
         reinterpret_cast<void*>(instanced.primitive.element_offset),
         count
-   );
+    );
 }
