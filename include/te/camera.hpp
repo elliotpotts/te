@@ -21,7 +21,6 @@ namespace te {
         glm::vec3 eye() const;
         glm::vec3 forward() const;
         ray cast(glm::vec3 ndc) const;
-        void zoom(float delta);
         glm::mat4 view() const;
         glm::mat4 projection() const;
     };

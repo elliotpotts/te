@@ -50,12 +50,13 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     server_addr { server_addr },
 
     model { model },
-    yaw_tween {{std::polar(0.6, glm::half_pi<double>() / 2.0)}, 20},
+    radius_tween {{std::polar(0.6, glm::half_pi<double>() / 2.0)}, 20},
+    zoom_tween {12.0, 20},
     cam {
         {0.0f, 0.0f, 0.0f}, // focus
-        1.0, // altitude
-        yaw_tween.end, // yaw
-        14.0f, // zoom factor
+        0.6, // altitude
+        radius_tween.end,
+        zoom_tween.end,
         static_cast<float>(win.width()) / win.height() // aspect ratio
     },
     terrain_renderer{ win.gl, rengine, model.map_width, model.map_height },
@@ -89,17 +90,23 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
 }
 
 #include <complex>
-void te::app::on_key(int key, int scancode, int action, int mods) {
+void te::app::on_key(const int key, const int scancode, const int action, const int mods) {
     if (key == GLFW_KEY_ESCAPE) {
         win.close();
         return;
     };
-    if (!yaw_tween && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
-        if (key == GLFW_KEY_Q) {
-            yaw_tween.factor(std::polar(1.0, -glm::half_pi<double>()));
+    if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+        if (!radius_tween) {
+            if (key == GLFW_KEY_Q) {
+                radius_tween.factor(std::polar(1.0, -glm::half_pi<double>()));
+            }
+            if (key == GLFW_KEY_E) {
+                radius_tween.factor(std::polar(1.0, +glm::half_pi<double>()));
+            }
         }
-        if (key == GLFW_KEY_E) {
-            yaw_tween.factor(std::polar(1.0, +glm::half_pi<double>()));
+        if (!zoom_tween) {
+            if (key == GLFW_KEY_H) zoom_tween.to(glm::clamp(cam.zoom_factor + 4.0f, 4.0f, 20.0f));
+            if (key == GLFW_KEY_J) zoom_tween.to(glm::clamp(cam.zoom_factor - 4.0f, 4.0f, 20.0f));
         }
     }
 }
@@ -831,15 +838,16 @@ void te::app::input() {
         if (win.key(GLFW_KEY_A) == GLFW_PRESS) cam.focus += 0.3f * left;
         if (win.key(GLFW_KEY_S) == GLFW_PRESS) cam.focus -= 0.3f * forward;
         if (win.key(GLFW_KEY_D) == GLFW_PRESS) cam.focus -= 0.3f * left;
-        if (win.key(GLFW_KEY_H) == GLFW_PRESS) cam.zoom(0.15f);
-        if (win.key(GLFW_KEY_J) == GLFW_PRESS) cam.zoom(-0.15f);
         cam.use_ortho = win.key(GLFW_KEY_SPACE) != GLFW_PRESS;
     }
 }
 
 void te::app::draw() {
-    if (yaw_tween) {
-        cam.yaw = yaw_tween();
+    if (radius_tween) {
+        cam.radius = radius_tween();
+    }
+    if (zoom_tween) {
+        cam.zoom_factor = zoom_tween();
     }
     render_scene();
     render_ui();
