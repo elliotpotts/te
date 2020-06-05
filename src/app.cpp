@@ -859,7 +859,9 @@ void te::app::draw() {
         cam.zoom_factor = zoom_tween();
     }
     render_scene();
+    glDisable(GL_DEPTH_TEST);
     render_ui();
+    glEnable(GL_DEPTH_TEST);
 }
 
 void te::app::run() {
