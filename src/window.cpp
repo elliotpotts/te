@@ -1,6 +1,7 @@
 #include <te/window.hpp>
 #include <stdexcept>
 #include <spdlog/spdlog.h>
+
 namespace {
     void glfw_error_callback(int error, const char* description) {
         spdlog::error("glfw3 error[{}]: {}", error, description);
@@ -18,9 +19,11 @@ namespace {
         reinterpret_cast<te::window*>(glfwGetWindowUserPointer(w))->on_mouse_button(button, action, mods);
     }
 }
+
 void te::window_deleter::operator()(GLFWwindow* win) const {
     glfwDestroyWindow(win);
 }
+
 te::window::window(glfw_context& glfw, window_hnd old_hnd) : glfw(glfw), hnd(std::move(old_hnd)) {
     glfwSetWindowUserPointer(hnd.get(), this);
     glfwSetInputMode(hnd.get(), GLFW_STICKY_KEYS, 1);
@@ -30,25 +33,46 @@ te::window::window(glfw_context& glfw, window_hnd old_hnd) : glfw(glfw), hnd(std
     glfwSetCursorPosCallback(hnd.get(), glfw_dispatch_cursor_pos);
     glfwSetMouseButtonCallback(hnd.get(), glfw_dispatch_mouse_button);
 }
+
 int te::window::width() const {
     int width, height;
     glfwGetWindowSize(hnd.get(), &width, &height);
     return width;
 }
+
 int te::window::height() const {
     int width, height;
     glfwGetWindowSize(hnd.get(), &width, &height);
     return height;
 }
+
 void te::window::set_attribute(int attrib, int value) {
     glfwSetWindowAttrib(hnd.get(), attrib, value);
 }
+
+#include <FreeImage.h>
+void te::window::set_cursor(te::unique_bitmap bmp) {
+    auto pitch = FreeImage_GetPitch(bmp.get());
+    GLFWimage cursor_img {
+        .width = FreeImage_GetWidth(bmp.get()),
+        .height = FreeImage_GetHeight(bmp.get()),
+    };
+    std::vector<unsigned char> pixels (pitch * cursor_img.height);
+    cursor_img.pixels = pixels.data();
+    FreeImage_ConvertToRawBits(cursor_img.pixels, bmp.get(), pitch, 32, FI_RGBA_RED_MASK, FI_RGBA_GREEN_MASK, FI_RGBA_BLUE_MASK, TRUE);
+    spdlog::debug("Cursor is {}x{}", cursor_img.width, cursor_img.height);
+    GLFWcursor* cursor = glfwCreateCursor(&cursor_img, 0, 0);
+    glfwSetCursor(hnd.get(), cursor);
+}
+
 int te::window::key(int k) const {
     return glfwGetKey(hnd.get(), k);
 }
+
 void te::window::close() {
     glfwSetWindowShouldClose(hnd.get(), true);
 }
+
 te::glfw_context::glfw_context() {
     if (!glfwInit()) {
         throw std::runtime_error("Could not initialise glfw");
@@ -57,6 +81,7 @@ te::glfw_context::glfw_context() {
     }
     glfwSetErrorCallback(glfw_error_callback);
 }
+
 te::window te::glfw_context::make_window(int width, int height, const char* title, bool fullscreen = true) {
     //glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
@@ -133,6 +158,7 @@ te::window te::glfw_context::make_window(int width, int height, const char* titl
     }
     return te::window{*this, std::move(window)};
 }
+
 te::glfw_context::~glfw_context() {
     glfwTerminate();
 }

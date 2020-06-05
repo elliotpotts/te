@@ -6,6 +6,7 @@
 #include <iterator>
 #include <memory>
 #include <vector>
+#include <te/image.hpp>
 
 struct FIBITMAP;
 
@@ -142,7 +143,7 @@ namespace te::gl {
     struct context {
         shader compile(std::string source, GLenum type);
         program link(const shader&, const shader&, const std::vector<std::pair<string, GLuint>>& locations = {});
-        texture<GL_TEXTURE_2D> make_texture(FIBITMAP* bitmap);
+        texture<GL_TEXTURE_2D> make_texture(unique_bitmap bitmap);
         texture<GL_TEXTURE_2D> make_texture(std::string filename);
         texture<GL_TEXTURE_2D> make_texture(const unsigned char* begin, const unsigned char* end);
         sampler make_sampler();

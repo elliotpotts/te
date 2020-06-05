@@ -63,6 +63,7 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     mesh_renderer { win.gl },
     ui { win.gl }
 {
+    win.set_cursor(make_bitmap("assets/ui/cursor.png"));
     fmod->createStream("assets/music/main-theme.ogg", FMOD_CREATESTREAM | FMOD_LOOP_NORMAL, nullptr, &menu_music_src);
     fmod->playSound(menu_music_src, nullptr, false, &menu_music);
     win.on_framebuffer_size.connect([&](int width, int height) {

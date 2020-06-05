@@ -6,7 +6,7 @@
 #include <cassert>
 #include <spdlog/spdlog.h>
 #include <array>
-#include <FreeImage.h>
+#include <te/image.hpp>
 
 namespace {
     std::string debug_type_to_string(GLenum type) {
@@ -183,27 +183,13 @@ te::gl::sampler te::gl::context::make_sampler() {
 void te::gl::texture_deleter::operator()(GLuint hnd) const {
     glDeleteTextures(1, &hnd);
 }
-#include <FreeImage.h>
-namespace {
-    struct freeimage_bitmap_deleter {
-        void operator()(FIBITMAP* bmp) const {
-            FreeImage_Unload(bmp);
-        }
-    };
-    using unique_bitmap = std::unique_ptr<FIBITMAP, freeimage_bitmap_deleter>;
-    struct freeimage_memory_deleter {
-        void operator()(FIMEMORY* bmp) const {
-            FreeImage_CloseMemory(bmp);
-        }
-    };
-    using unique_memory = std::unique_ptr<FIMEMORY, freeimage_memory_deleter>;
-}
-te::gl::texture<GL_TEXTURE_2D> te::gl::context::make_texture(FIBITMAP* bmp) {
-    auto width = FreeImage_GetWidth(bmp);
-    auto height = FreeImage_GetHeight(bmp);
-    auto pitch = FreeImage_GetPitch(bmp);
+
+te::gl::texture<GL_TEXTURE_2D> te::gl::context::make_texture(unique_bitmap bmp) {
+    auto width = FreeImage_GetWidth(bmp.get());
+    auto height = FreeImage_GetHeight(bmp.get());
+    auto pitch = FreeImage_GetPitch(bmp.get());
     auto rawbits = std::vector<unsigned char>(height * pitch);
-    FreeImage_ConvertToRawBits(rawbits.data(), bmp, pitch, 32, FI_RGBA_RED_MASK, FI_RGBA_GREEN_MASK, FI_RGBA_BLUE_MASK, TRUE);
+    FreeImage_ConvertToRawBits(rawbits.data(), bmp.get(), pitch, 32, FI_RGBA_RED_MASK, FI_RGBA_GREEN_MASK, FI_RGBA_BLUE_MASK, TRUE);
     te::gl::texture<GL_TEXTURE_2D> tex2d {make_hnd<te::gl::texture_hnd>(glGenTextures)};
     tex2d.bind();
     glTexImage2D (
@@ -214,36 +200,13 @@ te::gl::texture<GL_TEXTURE_2D> te::gl::context::make_texture(FIBITMAP* bmp) {
     glGenerateMipmap(GL_TEXTURE_2D);
     return tex2d;
 }
+
 te::gl::texture<GL_TEXTURE_2D> te::gl::context::make_texture(const unsigned char* begin, const unsigned char* end) {
-    //TODO: get rid of this const cast
-    unique_memory memory_img { FreeImage_OpenMemory(const_cast<unsigned char*>(begin), end - begin) };
-    if (!memory_img) {
-        memory_img.release();
-        throw std::runtime_error("Couldn't open memory!");
-    }
-    FREE_IMAGE_FORMAT fmt = FreeImage_GetFileTypeFromMemory(memory_img.get());
-    if(fmt == FIF_UNKNOWN) {
-        throw std::runtime_error("Couldn't determine file format of memory image!");
-    }
-    unique_bitmap bitmap { FreeImage_LoadFromMemory(fmt, memory_img.get(), 0) };
-    if(!bitmap) {
-        bitmap.release();
-        throw std::runtime_error("Couldn't load memory image.");
-    }
-    unique_bitmap bitmap_32 { FreeImage_ConvertTo32Bits(bitmap.get()) };
-    return make_texture(bitmap_32.get());
+    return make_texture(make_bitmap(begin, end));
 }
 
 te::gl::texture<GL_TEXTURE_2D> te::gl::context::make_texture(std::string filename) {
-    FREE_IMAGE_FORMAT fmt = FreeImage_GetFileType(filename.c_str());
-    if(fmt == FIF_UNKNOWN) {
-        throw std::runtime_error(fmt::format("Couldn't determine image file format from filename: {}", filename));
-    }
-    unique_bitmap bitmap {FreeImage_Load(fmt, filename.c_str())};
-    if(!bitmap) {
-        throw std::runtime_error("Couldn't load image.");
-    }
-    return make_texture(bitmap.get());
+    return make_texture(make_bitmap(filename));
 }
 
 void te::gl::framebuffer_deleter::operator()(GLuint hnd) const {

@@ -5,6 +5,7 @@
 #include <memory>
 #include <boost/signals2.hpp>
 #include <te/gl.hpp>
+#include <te/image.hpp>
 
 namespace te {
     struct window_deleter {
@@ -12,6 +13,7 @@ namespace te {
     };
     using window_hnd = std::unique_ptr<GLFWwindow, window_deleter>;
     struct glfw_context;
+
     struct window {
         glfw_context& glfw;
         window_hnd hnd;
@@ -26,8 +28,10 @@ namespace te {
         window(const window&&) = delete; //if implemented, glfwuserpointer must be updated
         int key(int) const;
         void set_attribute(int attrib, int value);
+        void set_cursor(unique_bitmap bmp);
         void close();
     };
+
     struct glfw_context {
         explicit glfw_context();
         window make_window(int w, int h, const char* title, bool fullscreen);
