@@ -806,12 +806,12 @@ bool te::app::render_main_menu() {
 }
 
 void te::app::render_ui() {
-    ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/ui/header.png"), {0, 0}, {1024, 20});
-    ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/ui/panel-construction.png"), {0, 20}, {306, 693});
-    ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/ui/footer-construction.png"), {0, 20+693}, {1024, 55});
+    //ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/168.png"), {0, 0}, {1024, 20});
+    //ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/002.png"), {0, 20}, {306, 693});
+    //ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/169.png"), {0, 20+693}, {1024, 55});
     //render_ui_demo(); return;
 
-    /*
+    
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -822,7 +822,7 @@ void te::app::render_ui() {
     }
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-    */
+    
 }
 
 void te::app::playsfx(std::string filename) {
