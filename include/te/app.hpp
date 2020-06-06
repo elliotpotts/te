@@ -22,6 +22,7 @@
 #include <te/ui_renderer.hpp>
 #include <ft/ft.hpp>
 #include <te/gl.hpp>
+#include <hb/buffer.hpp>
 
 namespace te {
     struct app {
@@ -32,7 +33,9 @@ namespace te {
         te::fmod_system_hnd fmod;
         ft::ft ft;
         ft::face face;
-        te::gl::texture2d a_tex;
+        std::unordered_map<ft::glyph_index, te::gl::texture2d> glyph_textures;
+        hb::buffer shaping_buffer;
+        te::gl::texture2d& glyph_texture(ft::glyph_index);
         ImGuiIO& imgui_io;
         te::asset_loader loader;
         te::cache<asset_loader> resources;

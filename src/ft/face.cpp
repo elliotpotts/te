@@ -33,3 +33,7 @@ FT_GlyphSlotRec ft::face::operator[](glyph_index glyph) {
     }
     return *((*hnd)->glyph);
 }
+
+ft::face::operator hb::font() const {
+    return hb::font { hb::unique_font { hb_ft_font_create(*hnd, nullptr) } };
+}
