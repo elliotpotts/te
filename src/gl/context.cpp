@@ -184,6 +184,32 @@ void te::gl::texture_deleter::operator()(GLuint hnd) const {
     glDeleteTextures(1, &hnd);
 }
 
+//TODO: write  a texture function which can take raw bytes
+te::gl::texture2d te::gl::context::make_texture(FT_GlyphSlotRec glyph) {
+    spdlog::debug("Pixel mode is {}", glyph.bitmap.pixel_mode);
+    //copy to unpadded data
+    // BGRA
+    std::vector<std::array<unsigned char, 4>> pixels (glyph.bitmap.rows * glyph.bitmap.width);
+    for (unsigned y = 0; y < glyph.bitmap.rows; y++) {
+        for (unsigned x = 0; x < glyph.bitmap.width; x++) {
+            unsigned char grey = glyph.bitmap.buffer[y * glyph.bitmap.pitch + x];
+            pixels[y * glyph.bitmap.width + x] = std::array {
+                grey, grey, grey, grey
+            };
+        }
+    }
+
+    te::gl::texture2d tex2d { make_hnd<te::gl::texture_hnd>(glGenTextures) };
+    tex2d.bind();
+    glTexImage2D (
+        GL_TEXTURE_2D, 0, GL_RGBA,
+        glyph.bitmap.width, glyph.bitmap.rows,
+        0, GL_BGRA, GL_UNSIGNED_BYTE, pixels.data()
+    );
+    glGenerateMipmap(GL_TEXTURE_2D);
+    return tex2d;
+}
+
 te::gl::texture<GL_TEXTURE_2D> te::gl::context::make_texture(unique_bitmap bmp) {
     auto width = FreeImage_GetWidth(bmp.get());
     auto height = FreeImage_GetHeight(bmp.get());

@@ -7,8 +7,7 @@
 #include <memory>
 #include <vector>
 #include <te/image.hpp>
-
-struct FIBITMAP;
+#include <ft/face.hpp>
 
 namespace te {
     struct input_description;
@@ -143,9 +142,10 @@ namespace te::gl {
     struct context {
         shader compile(std::string source, GLenum type);
         program link(const shader&, const shader&, const std::vector<std::pair<string, GLuint>>& locations = {});
-        texture<GL_TEXTURE_2D> make_texture(unique_bitmap bitmap);
-        texture<GL_TEXTURE_2D> make_texture(std::string filename);
-        texture<GL_TEXTURE_2D> make_texture(const unsigned char* begin, const unsigned char* end);
+        texture2d make_texture(unique_bitmap bitmap);
+        texture2d make_texture(std::string filename);
+        texture2d make_texture(const unsigned char* begin, const unsigned char* end);
+        texture2d make_texture(FT_GlyphSlotRec glyph);
         sampler make_sampler();
         framebuffer make_framebuffer();
         renderbuffer make_renderbuffer(int w, int h);

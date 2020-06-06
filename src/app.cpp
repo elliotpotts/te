@@ -38,10 +38,20 @@ namespace {
     const auto red = ImColor(ImVec4{1.0, 0.0, 0.0, 1.0});
 }
 
+namespace {
+    te::gl::texture2d make_a_tex(ft::face& face, char32_t code, te::gl::context& gl) {
+        auto glyph_ix = face[code];
+        FT_GlyphSlotRec glyph = face[glyph_ix];
+        return gl.make_texture(glyph);
+    }
+}
+
 te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     rengine { 42 },
     win { glfw.make_window(1024, 768, "Trade Empires", false)},
     fmod { te::make_fmod_system() },
+    face { ft.make_face("assets/Balthazar-Regular.ttf", 16) },
+    a_tex { ::make_a_tex(face, 'X', win.gl) },
     imgui_io { setup_imgui(win) },
     loader { win.gl, *fmod },
     resources { loader },
@@ -806,6 +816,7 @@ bool te::app::render_main_menu() {
 }
 
 void te::app::render_ui() {
+    ui.texquad(a_tex, {0, 0}, {40, 40});
     //ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/168.png"), {0, 0}, {1024, 20});
     //ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/002.png"), {0, 20}, {306, 693});
     //ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/169.png"), {0, 20+693}, {1024, 55});

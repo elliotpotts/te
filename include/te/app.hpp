@@ -20,6 +20,8 @@
 #include <te/tween.hpp>
 #include <complex>
 #include <te/ui_renderer.hpp>
+#include <ft/ft.hpp>
+#include <te/gl.hpp>
 
 namespace te {
     struct app {
@@ -28,6 +30,9 @@ namespace te {
         te::glfw_context glfw;
         te::window win;
         te::fmod_system_hnd fmod;
+        ft::ft ft;
+        ft::face face;
+        te::gl::texture2d a_tex;
         ImGuiIO& imgui_io;
         te::asset_loader loader;
         te::cache<asset_loader> resources;

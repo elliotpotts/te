@@ -16,6 +16,15 @@ namespace te {
         const T& operator*() const {
             return *storage;
         }
+        T& operator*() {
+            return *storage;
+        }
+        const T* operator->() const {
+            return storage.operator->();
+        }
+        T* operator->() {
+            return storage.operator->();
+        }
         void release() {
             storage.reset();
         }
