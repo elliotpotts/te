@@ -31,11 +31,6 @@ namespace te {
         te::glfw_context glfw;
         te::window win;
         te::fmod_system_hnd fmod;
-        ft::ft ft;
-        ft::face face;
-        std::unordered_map<ft::glyph_index, te::gl::texture2d> glyph_textures;
-        hb::buffer shaping_buffer;
-        te::gl::texture2d& glyph_texture(ft::glyph_index);
         ImGuiIO& imgui_io;
         te::asset_loader loader;
         te::cache<asset_loader> resources;

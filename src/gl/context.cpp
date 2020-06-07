@@ -186,15 +186,18 @@ void te::gl::texture_deleter::operator()(GLuint hnd) const {
 
 //TODO: write  a texture function which can take raw bytes
 te::gl::texture2d te::gl::context::make_texture(FT_GlyphSlotRec glyph) {
-    spdlog::debug("Pixel mode is {}", glyph.bitmap.pixel_mode);
+    assert(glyph.bitmap.pixel_mode == FT_PIXEL_MODE_GRAY);
     //copy to unpadded data
     // BGRA
     std::vector<std::array<unsigned char, 4>> pixels (glyph.bitmap.rows * glyph.bitmap.width);
     for (unsigned y = 0; y < glyph.bitmap.rows; y++) {
         for (unsigned x = 0; x < glyph.bitmap.width; x++) {
-            unsigned char grey = glyph.bitmap.buffer[y * glyph.bitmap.pitch + x];
+            double grey = glyph.bitmap.buffer[y * glyph.bitmap.pitch + x] / 255.0;
             pixels[y * glyph.bitmap.width + x] = std::array {
-                grey, grey, grey, grey
+                static_cast<unsigned char>(grey * 67),
+                static_cast<unsigned char>(grey * 194),
+                static_cast<unsigned char>(grey * 255),
+                static_cast<unsigned char>(grey * 255)
             };
         }
     }

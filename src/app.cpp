@@ -38,27 +38,10 @@ namespace {
     const auto red = ImColor(ImVec4{1.0, 0.0, 0.0, 1.0});
 }
 
-te::gl::texture2d& te::app::glyph_texture(ft::glyph_index key) {
-    auto it = glyph_textures.find(key);
-    if (it == glyph_textures.end()) {
-        FT_GlyphSlotRec glyph = face[key];
-        auto emplaced = glyph_textures.emplace (
-            std::piecewise_construct,
-            std::forward_as_tuple(key),
-            std::forward_as_tuple(win.gl.make_texture(glyph))
-        );
-        return emplaced.first->second;
-    } else {
-        return it->second;
-    }
-}
-
 te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     rengine { 42 },
     win { glfw.make_window(1024, 768, "Trade Empires", false)},
     fmod { te::make_fmod_system() },
-    face { ft.make_face("assets/Balthazar-Regular.ttf", 16) },
-    shaping_buffer { hb::buffer::shape(face, "PATHWAYS") },
     imgui_io { setup_imgui(win) },
     loader { win.gl, *fmod },
     resources { loader },
@@ -823,22 +806,20 @@ bool te::app::render_main_menu() {
 }
 
 void te::app::render_ui() {
-    unsigned int len = hb_buffer_get_length (shaping_buffer.hnd.get());
-    hb_glyph_info_t *info = hb_buffer_get_glyph_infos (shaping_buffer.hnd.get(), nullptr);
-    hb_glyph_position_t *pos = hb_buffer_get_glyph_positions (shaping_buffer.hnd.get(), nullptr);
+    ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/168.png"), {0, 0}, {1024, 20});
+    ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/002.png"), {0, 20}, {306, 693});
+    ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/169.png"), {0, 20+693}, {1024, 55});
+    ui.centered_text("CONSTRUCTION", {45, 53}, 195.0);
 
-    double x = 0;
-    double y = 0;
-    for (unsigned int i = 0; i < len; i++) {
-        ft::glyph_index gix { info[i].codepoint };
-        double x_offset = pos[i].x_offset / 64.0;
-        double y_offset = pos[i].y_offset / 64.0;
-        auto glyph = face[gix];
-        ui.texquad(glyph_texture(gix), {x + x_offset + glyph.bitmap_left, 100 + y + y_offset - glyph.bitmap_top}, {glyph.bitmap.width, glyph.bitmap.rows});
-        x += pos[i].x_advance / 64.;
-        y += pos[i].y_advance / 64.;
+    glm::vec2 cursor {13.0, 68.0 + 30.0};
+    static std::vector<std::string_view> strs {
+        "PATHWAYS", "MARKETS", "DEPOTS", "PRODUCTION BUILDINGS", "DEMAND BUILDINGS"
+    };
+    for (auto s : strs) {
+        ui.centered_text(s, cursor, 243.0);
+        cursor.y += 22.0;
     }
-
+    /*
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -849,7 +830,7 @@ void te::app::render_ui() {
     }
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
+    */
 }
 
 void te::app::playsfx(std::string filename) {
@@ -893,6 +874,7 @@ void te::app::draw() {
 }
 
 void te::app::run() {
+    glEnable(GL_MULTISAMPLE);
     auto then = std::chrono::high_resolution_clock::now();
     int frames = 0;
     while (!glfwWindowShouldClose(win.hnd.get())) {

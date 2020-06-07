@@ -36,10 +36,10 @@ ft::face ft::ft::make_face(const char* filename, int pts) {
     }
     if (int err = FT_Set_Char_Size (
             created,
-            0, // width
-            pts*64, // height in 1/64th of points
-            276, // horizontal DPI
-            276) // vertical DPI
+            pts*64, // width
+            static_cast<FT_F26Dot6>((pts * 0.85) * 64.0), // height in 1/64th of points
+            96, //165, // horizontal DPI
+            96) //165) // vertical DPI
         ) {
         throw std::runtime_error(error_string(err));
     }
