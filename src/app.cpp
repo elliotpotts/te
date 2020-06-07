@@ -65,7 +65,7 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
 {
     win.set_cursor(make_bitmap("assets/ui/cursor.png"));
     fmod->createStream("assets/music/main-theme.ogg", FMOD_CREATESTREAM | FMOD_LOOP_NORMAL, nullptr, &menu_music_src);
-    fmod->playSound(menu_music_src, nullptr, false, &menu_music);
+    //fmod->playSound(menu_music_src, nullptr, false, &menu_music);
     win.on_framebuffer_size.connect([&](int width, int height) {
                                         cam.aspect_ratio = static_cast<float>(width) / height;
                                         glViewport(0, 0, width, height);
@@ -116,40 +116,45 @@ void te::app::on_key(const int key, const int scancode, const int action, const 
 }
 
 void te::app::on_mouse_button(int button, int action, int mods) {
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
-        if (ghost) {
-            auto proto = model.entities.get<te::ghost>(*ghost).proto;
-            auto pos = model.entities.get<te::site>(*ghost).position;
-            if (model.can_place(proto, pos)) {
-                model.entities.destroy(*ghost);
-                ghost.reset();
-                playsfx("assets/sfx/build2.wav");
-                client->send(build {*client->family(), proto, pos} );
-                /*
-                auto built = co_await client->build(*client->family(), proto, pos);
-                if (!built) {
+    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+        if (action == GLFW_PRESS) {
+            playsfx("assets/sfx/unknown1.wav");
+        } else if (action == GLFW_RELEASE) {
+            playsfx("assets/sfx/unknown2.wav");
+            if (ghost) {
+                auto proto = model.entities.get<te::ghost>(*ghost).proto;
+                auto pos = model.entities.get<te::site>(*ghost).position;
+                if (model.can_place(proto, pos)) {
+                    model.entities.destroy(*ghost);
+                    ghost.reset();
+                    playsfx("assets/sfx/build2.wav");
+                    client->send(build {*client->family(), proto, pos} );
+                    /*
+                      auto built = co_await client->build(*client->family(), proto, pos);
+                      if (!built) {
+                      playsfx("assets/sfx/notif3.wav");
+                      }
+                    */
+                } else {
                     playsfx("assets/sfx/notif3.wav");
                 }
-                */
-            } else {
-                playsfx("assets/sfx/notif3.wav");
-            }
-            /* TODO: figure out how to play sound effecs when things fail/don't fail.
-             *       Do we always have to wait for a response from the server? */
-        } else if (pos_under_mouse) {
-            auto map_entities = model.entities.view<te::site, te::pickable>();
-            for (auto entity : map_entities) {
-                auto& map_site = map_entities.get<te::site>(entity);
-                if (glm::distance(map_site.position, *pos_under_mouse) <= 1.0f) {
-                    inspected = entity;
-                    if (auto noisy = model.entities.try_get<te::noisy>(entity); noisy) {
-                        playsfx(noisy->filename);
+                /* TODO: figure out how to play sound effecs when things fail/don't fail.
+                 *       Do we always have to wait for a response from the server? */
+            } else if (pos_under_mouse) {
+                auto map_entities = model.entities.view<te::site, te::pickable>();
+                for (auto entity : map_entities) {
+                    auto& map_site = map_entities.get<te::site>(entity);
+                    if (glm::distance(map_site.position, *pos_under_mouse) <= 1.0f) {
+                        inspected = entity;
+                        if (auto noisy = model.entities.try_get<te::noisy>(entity); noisy) {
+                            playsfx(noisy->filename);
+                        }
+                        return;
                     }
-                    return;
                 }
             }
+            inspected.reset();
         }
-        inspected.reset();
     }
 }
 
@@ -811,13 +816,31 @@ void te::app::render_ui() {
     ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/169.png"), {0, 20+693}, {1024, 55});
     ui.centered_text("CONSTRUCTION", {45, 53}, 195.0);
 
-    glm::vec2 cursor {13.0, 68.0 + 30.0};
+    static int selected = 0;
     static std::vector<std::string_view> strs {
         "PATHWAYS", "MARKETS", "DEPOTS", "PRODUCTION BUILDINGS", "DEMAND BUILDINGS"
     };
-    for (auto s : strs) {
-        ui.centered_text(s, cursor, 243.0);
-        cursor.y += 22.0;
+    double mouse_x; double mouse_y;
+    glfwGetCursorPos(win.hnd.get(), &mouse_x, &mouse_y);
+
+    const glm::vec2 row_dims {243, 16};
+    const glm::vec2 border_dims {243, 6};
+    const glm::vec2 row_txt {243, 11};
+    glm::vec2 row_i {13, 88};
+    for (unsigned i = 0; i < strs.size(); i++) {
+        const glm::vec2 tl = row_i;
+        const glm::vec2 br {row_i.x + row_dims.x, row_i.y + row_dims.y};
+        if (glfwGetMouseButton(win.hnd.get(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS
+            && mouse_x >= tl.x && mouse_x <= br.x && mouse_y >= tl.y && mouse_y <= br.y
+            && selected != i) {
+            selected = i;
+        }
+        if (i == selected) {
+            ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/095.png"), tl, row_dims);
+        }
+        const glm::vec2 text_start {row_i.x, row_i.y + row_txt.y};
+        ui.centered_text(strs[i], text_start, row_txt.x);
+        row_i.y += row_dims.y + border_dims.y;
     }
     /*
     ImGui_ImplOpenGL3_NewFrame();
