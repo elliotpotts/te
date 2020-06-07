@@ -9,6 +9,7 @@ std::string ft::error_string(int code) {
 #define FT_ERRORDEF( e, v, s )      case e: return fmt::format(#e ": {}", s);
 #define FT_ERROR_END_LIST       };
 #include FT_ERRORS_H
+    return fmt::format("Unknown FT error: {}", code);
 }
 
 void ft::ft_deleter::operator()(FT_Library p) {
@@ -37,8 +38,8 @@ ft::face ft::ft::make_face(const char* filename, int pts) {
             created,
             0, // width
             pts*64, // height in 1/64th of points
-            300, // horizontal DPI
-            300) // vertical DPI
+            276, // horizontal DPI
+            276) // vertical DPI
         ) {
         throw std::runtime_error(error_string(err));
     }

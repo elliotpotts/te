@@ -827,25 +827,18 @@ void te::app::render_ui() {
     hb_glyph_info_t *info = hb_buffer_get_glyph_infos (shaping_buffer.hnd.get(), nullptr);
     hb_glyph_position_t *pos = hb_buffer_get_glyph_positions (shaping_buffer.hnd.get(), nullptr);
 
-    double current_x = 0;
-    double current_y = 0;
+    double x = 0;
+    double y = 0;
     for (unsigned int i = 0; i < len; i++) {
-        ft::glyph_index gid { info[i].codepoint };
-        unsigned int cluster = info[i].cluster;
-        double x_position = current_x + pos[i].x_offset / 64.0;
-        double y_position = current_y + pos[i].y_offset / 64.0;
-        // draw
-        ui.texquad(glyph_texture(gid), {current_x, current_y}, {16, 20});
-        //
-        current_x += pos[i].x_advance / 64.;
-        current_y += pos[i].y_advance / 64.;
+        ft::glyph_index gix { info[i].codepoint };
+        double x_offset = pos[i].x_offset / 64.0;
+        double y_offset = pos[i].y_offset / 64.0;
+        auto glyph = face[gix];
+        ui.texquad(glyph_texture(gix), {x + x_offset - glyph.bitmap_left, 100 + y + y_offset - glyph.bitmap_top}, {glyph.bitmap.width, glyph.bitmap.rows});
+        x += pos[i].x_advance / 64.;
+        y += pos[i].y_advance / 64.;
     }
-    //ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/168.png"), {0, 0}, {1024, 20});
-    //ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/002.png"), {0, 20}, {306, 693});
-    //ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/169.png"), {0, 20+693}, {1024, 55});
-    //render_ui_demo(); return;
 
-    
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -856,7 +849,7 @@ void te::app::render_ui() {
     }
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-    
+
 }
 
 void te::app::playsfx(std::string filename) {
