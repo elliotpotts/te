@@ -58,7 +58,7 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     win { glfw.make_window(1024, 768, "Trade Empires", false)},
     fmod { te::make_fmod_system() },
     face { ft.make_face("assets/Balthazar-Regular.ttf", 16) },
-    shaping_buffer { hb::buffer::shape(face, "Nothing of interest here, me laddy.") },
+    shaping_buffer { hb::buffer::shape(face, "PATHWAYS") },
     imgui_io { setup_imgui(win) },
     loader { win.gl, *fmod },
     resources { loader },
@@ -834,7 +834,7 @@ void te::app::render_ui() {
         double x_offset = pos[i].x_offset / 64.0;
         double y_offset = pos[i].y_offset / 64.0;
         auto glyph = face[gix];
-        ui.texquad(glyph_texture(gix), {x + x_offset - glyph.bitmap_left, 100 + y + y_offset - glyph.bitmap_top}, {glyph.bitmap.width, glyph.bitmap.rows});
+        ui.texquad(glyph_texture(gix), {x + x_offset + glyph.bitmap_left, 100 + y + y_offset - glyph.bitmap_top}, {glyph.bitmap.width, glyph.bitmap.rows});
         x += pos[i].x_advance / 64.;
         y += pos[i].y_advance / 64.;
     }
