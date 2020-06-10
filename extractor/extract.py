@@ -23,8 +23,63 @@ class PixFormat:
         self.Bpp = Bpp
         self.palette = palette
 
-PIXFORMAT_RGB565 = PixFormat("RGB565", 2)
-PIXFORMAT_RGB555 = PixFormat("RGB555", 2)
+class PixFormatRGB565:
+    def __init__(self):
+        self.name = "RGB565"
+        self.Bpp = 2
+
+    def rgba(self, pixel_bytes):
+        pixel = int.from_bytes(pixel_bytes, byteorder="big")
+        r = round(((pixel >> 11) & 0b11111)  / (0b11111) * 255.0)
+        g = round(((pixel >> 5)  & 0b111111) / (0b111111) * 255.0)
+        b = round(((pixel >> 0)  & 0b11111)  / (0b11111) * 255.0)
+        if (r, g, b) == (255, 0, 255):
+            a = 0
+        else:
+            a = 255
+        return (r,g,b,a)
+
+class PixFormatRGB555:
+    def __init__(self):
+        self.name = "RGB555"
+        self.Bpp = 2
+
+    def rgba(self, pixel_bytes):
+        pixel = int.from_bytes(pixel_bytes, byteorder="big")
+        r = round(((pixel >> 10) & 0b11111) / 0b11111 * 255.0)
+        g = round(((pixel >> 5 ) & 0b11111) / 0b11111 * 255.0)
+        b = round(((pixel >> 0 ) & 0b11111) / 0b11111 * 255.0)
+        if (r, g, b) == (255, 0, 255):
+            a = 0
+        else:
+            a = 255
+        return (r,g,b,a)
+
+class PixFormatARGB4444:
+    def __init__(self):
+        self.name = "ARGB4444"
+        self.Bpp = 2
+
+    def rgba(self, pixel_bytes):
+        pixel = int.from_bytes(pixel_bytes, byteorder="little")
+        a = round(((pixel >> 12) & 0b1111) / 0b1111 * 255.0)
+        r = round(((pixel >> 8 ) & 0b1111) / 0b1111 * 255.0)
+        g = round(((pixel >> 4 ) & 0b1111) / 0b1111 * 255.0)
+        b = round(((pixel >> 0 ) & 0b1111) / 0b1111 * 255.0)
+        return (r,g,b,a)
+
+class PixFormatIndexed:
+    def __init__(self, name, palette):
+        self.name = name
+        self.Bpp = 1
+
+    def rgba(self, pixel_bytes):
+        colour_ix = int.from_bytes(pixel_bytes)
+        return palette.rgba(colour_ix, 0)
+
+PIXFORMAT_RGB565 = PixFormatRGB565()
+PIXFORMAT_RGB555 = PixFormatRGB555()
+PIXFORMAT_ARGB4444 = PixFormatARGB4444()
 
 class Image:
     def __init__(self, format, width, height, bytes):
@@ -32,6 +87,11 @@ class Image:
         self.width = width
         self.height = height
         self.raw = bytes
+
+    def rgba(self, x, y):
+        linear_ix = y * (self.width * self.format.Bpp) + (x * self.format.Bpp)
+        pixel = self.raw[linear_ix : linear_ix + self.format.Bpp]
+        return self.format.rgba(pixel)
 
 class Archive:
     def __init__(self):
@@ -49,8 +109,10 @@ class Archive:
                 return PIXFORMAT_RGB555
             elif format == b"5650":
                 return PIXFORMAT_RGB565
+            elif format == b"4444":
+                return PIXFORMAT_ARGB4444
             else:
-                return PixFormat(f"Palette#{len(ar.palettes) - 1}", 1, ar.palettes[-1])
+                return PixFormat(f"Palette#{len(ar.palettes) - 1}", ar.palettes[-1])
 
         def parse_palette(entries):
             pixformat = parse_pixel_format()
@@ -110,28 +172,8 @@ class Archive:
             pass
         return ar
 
-def rgb565be_to_rgba(pixel):
-    r = round(((pixel >> 11) & 0b11111)  / (0b11111) * 255.0)
-    g = round(((pixel >> 5)  & 0b111111) / (0b111111) * 255.0)
-    b = round(((pixel >> 0)  & 0b11111)  / (0b11111) * 255.0)
-    if (r, g, b) == (255, 0, 255):
-        a = 0
-    else:
-        a = 255
-    return (r,g,b,a)
-
-def rgb555be_to_rgba(pixel):
-    r = round(((pixel >> 10) & 0b11111) / 0b11111 * 255.0)
-    g = round(((pixel >> 5 ) & 0b11111) / 0b11111 * 255.0)
-    b = round(((pixel >> 0 ) & 0b11111) / 0b11111 * 255.0)
-    if (r, g, b) == (255, 0, 255):
-        a = 0
-    else:
-        a = 255
-    return (r,g,b,a)
-
 if __name__ == "__main__":
-    archive_name = "bldg.{}"
+    archive_name = "d_ui,6.{}"
     with open(f"orig/Data/{archive_name}", "rb") as inf:
         ar = Archive.parse(inf)
         outdir = Path(f"processed/{archive_name}")
@@ -139,16 +181,19 @@ if __name__ == "__main__":
 
         for ix, original in enumerate(ar.images):
             out_image = PIL.Image.new("RGBA", (original.width, original.height))
-            palette = original.format.palette[PIXFORMAT_RGB565]
-            for x in range(0, original.width):
-                for y in range(0, original.height):
-                    linear_ix = y * (original.width * original.format.Bpp) + (x * original.format.Bpp)
-                    colour_ix, = struct.unpack("B", original.raw[linear_ix : linear_ix + original.format.Bpp])
-                    colour_linear_ix = colour_ix * palette.format.Bpp
-                    colour, = struct.unpack("<H", palette.raw[colour_linear_ix : colour_linear_ix + palette.format.Bpp])
-                    rgba = rgb565be_to_rgba(colour)
-                    out_image.putpixel((x,y), rgba)
+            for y in range(0, original.height):
+                for x in range(0, original.width):
+                    out_image.putpixel((x, y), original.rgba(x, y))
             with open(outdir / f"{ix:04}.png", "wb") as outf:
                 out_image.save(outf, "PNG")
+            #palette = original.format.palette[PIXFORMAT_RGB565]
+            #for x in range(0, original.width):
+            #    for y in range(0, original.height):
+            #        linear_ix = y * (original.width * original.format.Bpp) + (x * original.format.Bpp)
+            #        colour_ix, = struct.unpack("B", original.raw[linear_ix : linear_ix + original.format.Bpp])
+            #        colour_linear_ix = colour_ix * palette.format.Bpp
+            #        colour, = struct.unpack("<H", palette.raw[colour_linear_ix : colour_linear_ix + palette.format.Bpp])
+            #        rgba = rgb565be_to_rgba(colour)
+            #        out_image.putpixel((x,y), rgba)
 
     print("Done.")
