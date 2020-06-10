@@ -17,19 +17,13 @@ ARCHIVE_MAGIC = b'\x75\xb1\xc0\xba\x00\x00\x01\x00'
 PALETTE_TAG = b'\x61\x70\x30\x31'
 IMAGE_TAG = b'\x62\x67\x36\x61'
 
-class PixFormat:
-    def __init__(self, name, Bpp, palette=None):
-        self.name = name
-        self.Bpp = Bpp
-        self.palette = palette
-
 class PixFormatRGB565:
     def __init__(self):
         self.name = "RGB565"
         self.Bpp = 2
 
     def rgba(self, pixel_bytes):
-        pixel = int.from_bytes(pixel_bytes, byteorder="big")
+        pixel = int.from_bytes(pixel_bytes, byteorder="little")
         r = round(((pixel >> 11) & 0b11111)  / (0b11111) * 255.0)
         g = round(((pixel >> 5)  & 0b111111) / (0b111111) * 255.0)
         b = round(((pixel >> 0)  & 0b11111)  / (0b11111) * 255.0)
@@ -45,7 +39,7 @@ class PixFormatRGB555:
         self.Bpp = 2
 
     def rgba(self, pixel_bytes):
-        pixel = int.from_bytes(pixel_bytes, byteorder="big")
+        pixel = int.from_bytes(pixel_bytes, byteorder="little")
         r = round(((pixel >> 10) & 0b11111) / 0b11111 * 255.0)
         g = round(((pixel >> 5 ) & 0b11111) / 0b11111 * 255.0)
         b = round(((pixel >> 0 ) & 0b11111) / 0b11111 * 255.0)
@@ -72,10 +66,12 @@ class PixFormatIndexed:
     def __init__(self, name, palette):
         self.name = name
         self.Bpp = 1
+        self.palette = palette
 
     def rgba(self, pixel_bytes):
-        colour_ix = int.from_bytes(pixel_bytes)
-        return palette.rgba(colour_ix, 0)
+        colour_ix = int.from_bytes(pixel_bytes, byteorder="little")
+        #TODO: stop hardcoding this
+        return self.palette[PIXFORMAT_RGB565].rgba(colour_ix, 0)
 
 PIXFORMAT_RGB565 = PixFormatRGB565()
 PIXFORMAT_RGB555 = PixFormatRGB555()
@@ -112,7 +108,7 @@ class Archive:
             elif format == b"4444":
                 return PIXFORMAT_ARGB4444
             else:
-                return PixFormat(f"Palette#{len(ar.palettes) - 1}", ar.palettes[-1])
+                return PixFormatIndexed(f"Palette#{len(ar.palettes) - 1}", ar.palettes[-1])
 
         def parse_palette(entries):
             pixformat = parse_pixel_format()
@@ -173,27 +169,18 @@ class Archive:
         return ar
 
 if __name__ == "__main__":
-    archive_name = "d_ui,6.{}"
+    archive_name = "bldg.{}"
     with open(f"orig/Data/{archive_name}", "rb") as inf:
         ar = Archive.parse(inf)
         outdir = Path(f"processed/{archive_name}")
         outdir.mkdir(parents=True, exist_ok=True)
 
-        for ix, original in enumerate(ar.images):
+        for ix, original in take(75, enumerate(ar.images)):
             out_image = PIL.Image.new("RGBA", (original.width, original.height))
             for y in range(0, original.height):
                 for x in range(0, original.width):
                     out_image.putpixel((x, y), original.rgba(x, y))
             with open(outdir / f"{ix:04}.png", "wb") as outf:
                 out_image.save(outf, "PNG")
-            #palette = original.format.palette[PIXFORMAT_RGB565]
-            #for x in range(0, original.width):
-            #    for y in range(0, original.height):
-            #        linear_ix = y * (original.width * original.format.Bpp) + (x * original.format.Bpp)
-            #        colour_ix, = struct.unpack("B", original.raw[linear_ix : linear_ix + original.format.Bpp])
-            #        colour_linear_ix = colour_ix * palette.format.Bpp
-            #        colour, = struct.unpack("<H", palette.raw[colour_linear_ix : colour_linear_ix + palette.format.Bpp])
-            #        rgba = rgb565be_to_rgba(colour)
-            #        out_image.putpixel((x,y), rgba)
 
     print("Done.")
