@@ -34,12 +34,13 @@ ft::face ft::ft::make_face(const char* filename, int pts) {
     if (int err = FT_New_Face(*hnd, filename, 0, &created)) {
         throw std::runtime_error(error_string(err));
     }
+    // pixel_size = point_size * resolution / 72 
     if (int err = FT_Set_Char_Size (
             created,
-            pts*64, // width
-            static_cast<FT_F26Dot6>((pts * 0.85) * 64.0), // height in 1/64th of points
-            96, //165, // horizontal DPI
-            96) //165) // vertical DPI
+            0, // width
+            pts * 64, // height in 1/64th of points
+            165, //horizontal DPI
+            165) //vertical DPI
         ) {
         throw std::runtime_error(error_string(err));
     }

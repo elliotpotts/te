@@ -4,18 +4,23 @@
 
 te::input_description te::ui_renderer::make_quad_input(gl::buffer<GL_ARRAY_BUFFER>& buf) {
     te::input_description inputs;
+    GLsizei stride = sizeof(glm::vec2) + sizeof(glm::vec2) + sizeof(glm::vec4);
     inputs.elements = nullptr;
     inputs.attributes.emplace_back ( te::attribute_source {
-        buf, te::gl::POSITION, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(glm::vec2), 0
+        buf, te::gl::POSITION, 2, GL_FLOAT, GL_FALSE, stride, 0
     });
     inputs.attributes.emplace_back ( te::attribute_source {
-        buf, te::gl::TEXCOORD_0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(glm::vec2), reinterpret_cast<void*>(sizeof(glm::vec2))
+        buf, te::gl::TEXCOORD_0, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void*>(sizeof(glm::vec2))
+    });
+    inputs.attributes.emplace_back ( te::attribute_source {
+        buf, te::gl::COLOUR, 4, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void*>(sizeof(glm::vec4))
     });
     return inputs;
 }
 
-te::ui_renderer::ui_renderer(te::gl::context& ctx):
-    gl { &ctx },
+te::ui_renderer::ui_renderer(te::window& wind):
+    win { &wind },
+    gl { &wind.gl },
     program { gl->link(gl->compile(te::file_contents("shaders/texquad_vertex.glsl"), GL_VERTEX_SHADER),
                        gl->compile(te::file_contents("shaders/texquad_fragment.glsl"), GL_FRAGMENT_SHADER),
                        te::gl::common_attribute_names) },
@@ -24,45 +29,20 @@ te::ui_renderer::ui_renderer(te::gl::context& ctx):
     sampler { gl->make_sampler() },
     quad_attributes { gl->make_buffer<GL_ARRAY_BUFFER>() },
     quad_input { make_quad_input(quad_attributes) },
-    quad_vao { gl->make_vertex_array(quad_input) },
-    face { ft.make_face("assets/fonts/Raleway-Black.ttf", 9) }
+    quad_vao { gl->make_vertex_array(quad_input) }
 {
     sampler.set(GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     sampler.set(GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 }
 
-void te::ui_renderer::texquad(te::gl::texture2d& tex, glm::vec2 pos, glm::vec2 size) {
-    struct vert {
-        glm::vec2 pos;
-        glm::vec2 tex;
-    };
-    static_assert(sizeof(vert) == sizeof(pos) + sizeof(size));
-    std::array<vert, 4> quad = {{
-        {{pos.x,          pos.y},          {0.0f, 0.0f}},
-        {{pos.x         , pos.y + size.y}, {0.0f, 1.0f}},
-        {{pos.x + size.x, pos.y},          {1.0f, 0.0f}},
-        {{pos.x + size.x, pos.y + size.y}, {1.0f, 1.0f}}
-    }};
-    quad_attributes.bind();
-    quad_attributes.upload(quad.begin(), quad.end(), GL_DYNAMIC_READ);
-
-    glUseProgram(*program.hnd);
-    glm::mat4 to_ndc = glm::ortho(0.0f, 1024.0f, 768.0f, 0.0f);
-    glUniformMatrix4fv(projection, 1, GL_FALSE, glm::value_ptr(to_ndc));
-    sampler.bind(0);
-    tex.activate(0);
-    quad_vao.bind();
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-}
-
-te::gl::texture2d& te::ui_renderer::glyph_texture(ft::glyph_index key) {
-    auto it = glyph_textures.find(key);
-    if (it == glyph_textures.end()) {
-        FT_GlyphSlotRec glyph = face[key];
-        auto emplaced = glyph_textures.emplace (
+#include <fmt/format.h>
+ft::face& te::ui_renderer::face(te::face_ref key) {
+    auto it = faces.find(key);
+    if (it == faces.end()) {
+        auto emplaced = faces.emplace (
             std::piecewise_construct,
             std::forward_as_tuple(key),
-            std::forward_as_tuple(gl->make_texture(glyph))
+            std::forward_as_tuple(ft.make_face(fmt::format("assets/fonts/{}", key.first).c_str(), key.second))
         );
         return emplaced.first->second;
     } else {
@@ -70,8 +50,40 @@ te::gl::texture2d& te::ui_renderer::glyph_texture(ft::glyph_index key) {
     }
 }
 
-void te::ui_renderer::text(std::string_view str, glm::vec2 cursor) {
-    auto shaping_buffer = hb::buffer::shape(face, str);
+void te::ui_renderer::image(te::gl::texture2d& tex, glm::vec2 dest_pos, glm::vec2 dest_size, glm::vec2 src_pos, glm::vec2 src_size) {
+    using namespace glm;
+    quads.emplace_back (
+        quad {
+            vertex {dest_pos,                                src_pos + vec2{0.0f, 0.0f} * src_size, vec4{1.0f}},
+            vertex {dest_pos + vec2{0.0f, 1.0f} * dest_size, src_pos + vec2{0.0f, 1.0f} * src_size, vec4{1.0f}},
+            vertex {dest_pos + vec2{1.0f, 0.0f} * dest_size, src_pos + vec2{1.0f, 0.0f} * src_size, vec4{1.0f}},
+            vertex {dest_pos + vec2{1.0f, 1.0f} * dest_size, src_pos + vec2{1.0f, 1.0f} * src_size, vec4{1.0f}}
+        }
+    );
+    textures.emplace_back(&tex);
+}
+
+void te::ui_renderer::image(te::gl::texture2d& tex, glm::vec2 dest_pos, glm::vec2 dest_size) {
+    image(tex, dest_pos, dest_size, glm::vec2{0.0f, 0.0f}, glm::vec2{1.0f, 1.0f});
+}
+
+te::gl::texture2d& te::ui_renderer::glyph_texture(te::face_ref face_key, ft::glyph_index glyph_key) {
+    auto it = glyph_textures.find(glyph_key);
+    if (it == glyph_textures.end()) {
+        FT_GlyphSlotRec glyph = face(face_key)[glyph_key];
+        auto emplaced = glyph_textures.emplace (
+            std::piecewise_construct,
+            std::forward_as_tuple(glyph_key),
+            std::forward_as_tuple(gl->make_texture(glyph))
+        );
+        return emplaced.first->second;
+    } else {
+        return it->second;
+    }
+}
+/*
+void te::ui_renderer::text(std::string_view str, glm::vec2 cursor, double pts) {
+    auto shaping_buffer = hb::buffer::shape(face(pts), str);
     unsigned int len = hb_buffer_get_length (shaping_buffer.hnd.get());
     hb_glyph_info_t* info = hb_buffer_get_glyph_infos (shaping_buffer.hnd.get(), nullptr);
     hb_glyph_position_t* pos = hb_buffer_get_glyph_positions (shaping_buffer.hnd.get(), nullptr);
@@ -80,16 +92,25 @@ void te::ui_renderer::text(std::string_view str, glm::vec2 cursor) {
         ft::glyph_index gix { info[i].codepoint };
         double x_offset = pos[i].x_offset / 64.0;
         double y_offset = pos[i].y_offset / 64.0;
-        auto glyph = face[gix];
-        texquad(glyph_texture(gix), {cursor.x + x_offset + glyph.bitmap_left, cursor.y + y_offset - glyph.bitmap_top}, {glyph.bitmap.width, glyph.bitmap.rows});
-        cursor.x += pos[i].x_advance / 64.0 + 4.0; // added x advance to make it wide
+        auto glyph = face(pts)[gix];
+        texquad (
+            glyph_texture(pts, gix),
+            {
+                cursor.x + x_offset + glyph.bitmap_left,
+                cursor.y + y_offset - glyph.bitmap_top
+            },
+            {
+                glyph.bitmap.width,
+                glyph.bitmap.rows
+            }
+        );
+        cursor.x += pos[i].x_advance / 64.0;
         cursor.y += pos[i].y_advance / 64.0;
     }
 }
 
-
-void te::ui_renderer::centered_text(std::string_view str, glm::vec2 cursor, double max_width) {
-    auto shaping_buffer = hb::buffer::shape(face, str);
+void te::ui_renderer::centered_text(std::string_view str, glm::vec2 cursor, double max_width, double pts) {
+    auto shaping_buffer = hb::buffer::shape(face(pts), str);
     unsigned int len = hb_buffer_get_length (shaping_buffer.hnd.get());
     hb_glyph_info_t* info = hb_buffer_get_glyph_infos (shaping_buffer.hnd.get(), nullptr);
     hb_glyph_position_t* pos = hb_buffer_get_glyph_positions (shaping_buffer.hnd.get(), nullptr);
@@ -106,9 +127,49 @@ void te::ui_renderer::centered_text(std::string_view str, glm::vec2 cursor, doub
         ft::glyph_index gix { info[i].codepoint };
         double x_offset = pos[i].x_offset / 64.0;
         double y_offset = pos[i].y_offset / 64.0;
-        auto glyph = face[gix];
-        texquad(glyph_texture(gix), {cursor.x + x_offset + glyph.bitmap_left, cursor.y + y_offset - glyph.bitmap_top}, {glyph.bitmap.width, glyph.bitmap.rows});
+        auto glyph = face(pts)[gix];
+        texquad(glyph_texture(pts, gix), {cursor.x + x_offset + glyph.bitmap_left, cursor.y + y_offset - glyph.bitmap_top}, {glyph.bitmap.width, glyph.bitmap.rows});
         cursor.x += pos[i].x_advance / 64.0 + 4.0; // added x advance to make it wide
         cursor.y += pos[i].y_advance / 64.0;
     }
+}
+
+bool te::ui_renderer::button(std::string_view label, glm::vec2 tl, double pts) {
+    glm::vec2 baseline = tl + glm::vec2{0.0f, pts};
+    text(label, baseline, pts);
+    glm::vec2 br = baseline + glm::vec2{100.0f, 0.0f};
+    double mouse_x; double mouse_y;
+    glfwGetCursorPos(win->hnd.get(), &mouse_x, &mouse_y);
+    if (glfwGetMouseButton(win->hnd.get(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_RELEASE
+        && mouse_x >= tl.x && mouse_x <= br.x && mouse_y >= tl.y && mouse_y <= br.y) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool te::ui_renderer::button(te::gl::texture2d&, glm::vec2 pos, glm::vec2 size) {
+    return false;
+}*/
+
+#include <spdlog/spdlog.h>
+void te::ui_renderer::render() {
+    quad_attributes.bind();
+    quad_attributes.upload(quads.begin(), quads.end(), GL_DYNAMIC_READ);
+    glUseProgram(*program.hnd);
+    glm::mat4 to_ndc = glm::ortho(0.0f, 1024.0f, 768.0f, 0.0f);
+    glUniformMatrix4fv(projection, 1, GL_FALSE, glm::value_ptr(to_ndc));
+    sampler.bind(0);
+    quad_vao.bind();
+
+    te::gl::texture2d* activated;
+    for (auto i = 0u; i < quads.size(); i++) {
+        if (textures[i] != activated) {
+            textures[i]->activate(0);
+            activated = textures[i];
+        }
+        glDrawArrays(GL_TRIANGLE_STRIP, i*4, 4);
+    }
+    quads.clear();
+    textures.clear();
 }

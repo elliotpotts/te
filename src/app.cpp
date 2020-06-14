@@ -25,8 +25,8 @@ namespace {
         ImGuiIO& io = ImGui::GetIO();
         ImGui_ImplGlfw_InitForOpenGL(win.hnd.get(), true);
         ImGui_ImplOpenGL3_Init("#version 130");
-        io.Fonts->AddFontFromFileTTF("assets/LiberationSans-Regular.ttf", 18);
-        io.Fonts->AddFontFromFileTTF("assets/LiberationMono-Regular.ttf", 18);
+        //io.Fonts->AddFontFromFileTTF("assets/LiberationSans-Regular.ttf", 18);
+        //io.Fonts->AddFontFromFileTTF("assets/LiberationMono-Regular.ttf", 18);
         return io;
     }
 }
@@ -61,7 +61,7 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     },
     terrain_renderer{ win.gl, rengine, model.map_width, model.map_height },
     mesh_renderer { win.gl },
-    ui { win.gl }
+    ui { win }
 {
     win.set_cursor(make_bitmap("assets/ui/cursor.png"));
     fmod->createStream("assets/music/main-theme.ogg", FMOD_CREATESTREAM | FMOD_LOOP_NORMAL, nullptr, &menu_music_src);
@@ -755,105 +755,81 @@ void te::app::render_controller() {
     ImGui::End();
 }
 
+static bool at_main_menu = false;
 bool te::app::render_main_menu() {
-    static bool menu_open = false;
-    static bool game_started = false;
-    if (!menu_open && !game_started) {
-        ImGui::OpenPopup("Main Menu");
-        menu_open = true;
+    /*
+    ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/124.png"), {0, 0}, {1024, 768});
+    glm::vec2 cursor {556, 160};
+    static std::vector<std::string_view> strs {
+        "New Game", "Load Game", "Host Server", "Connect to Server", "Quit"
+    };
+    for (auto s : strs) {
+        if (ui.button(s, cursor, 30.0)) {
+            at_main_menu = false;
+        }
+        cursor.y += 60.0;
     }
-    if (ImGui::BeginPopupModal("Main Menu")) {
-        if (ImGui::Button("Host Server")) {
-            server.emplace(netio, te::port);
-            client.emplace(server->make_local(model));
-            client->on_chat.connect([&](te::chat c) { on_chat(c); });
-            client->send(hello{1, "MrServer"});
-            ImGui::OpenPopup("Starting");
-        }
-        if (ImGui::Button("Connect to Server")) {
-            using namespace te;
-            client.emplace(netio, server_addr, model);
-            client->on_chat.connect([&](te::chat c) { on_chat(c); });
-            client->send(hello{2, "MrClient"});
-            ImGui::OpenPopup("Starting");
-        }
-        if (ImGui::Button("Singleplayer")) {
-            server.emplace(netio, te::port);
-            server->max_players = 1;
-            client.emplace(server->make_local(model));
-            client->send(hello{1, "SinglePringle"});
-            ImGui::OpenPopup("Starting");
-        }
-        if (ImGui::Button("Quit")) {
-            win.close();
-        }
-        if (ImGui::BeginPopupModal("Starting")) {
-            static std::chrono::seconds last = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
-            static int dots = 3;
-            auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
-            if (now != last) {
-                dots = (dots + 1) % 4;
-                last = now;
-            }
-            ImGui::Text(fmt::format("Starting{}", std::string(dots, '.')).c_str());
-            ImGui::EndPopup();
-        }
-        ImGui::EndPopup();
-    }
-
-    if (!game_started && client && client->family()) {
-        menu_music->stop();
-        //playsfx("assets/music/drums-flute3.ogg");
-        game_started = true;
-    }
-
-    return game_started;
+    return false;
+    */
 }
 
 void te::app::render_ui() {
-    ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/168.png"), {0, 0}, {1024, 20});
-    ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/002.png"), {0, 20}, {306, 693});
-    ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/169.png"), {0, 20+693}, {1024, 55});
-    ui.centered_text("CONSTRUCTION", {45, 53}, 195.0);
+    //render_console();
+    if (at_main_menu) {
+        render_main_menu();
+    } else {
+        ui.image(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/168.png"), {0, 0}, {1024, 20});
+        ui.image(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/002.png"), {0, 20}, {306, 693});
+        ui.image(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/169.png"), {0, 20+693}, {1024, 55});
 
-    static int selected = 0;
-    static std::vector<std::string_view> strs {
-        "PATHWAYS", "MARKETS", "DEPOTS", "PRODUCTION BUILDINGS", "DEMAND BUILDINGS"
-    };
-    double mouse_x; double mouse_y;
-    glfwGetCursorPos(win.hnd.get(), &mouse_x, &mouse_y);
+        double mouse_x; double mouse_y;
+        glfwGetCursorPos(win.hnd.get(), &mouse_x, &mouse_y);
+        glm::vec2 cursor {28.0f, 727.0f};
+        for (int i = 176; i <= 179; i++) {
+            if (glfwGetMouseButton(win.hnd.get(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS
+                && mouse_x >= cursor.x && mouse_x <= cursor.x + 35.0f
+                && mouse_y >= cursor.y && mouse_y <= cursor.y + 33.0f) {
+                ui.image(resources.lazy_load<te::gl::texture2d>(fmt::format("assets/a_ui,6.{{}}/{}.png", i)), cursor, {35, 33}, {0.5f, 0.0f}, {0.5f, 1.0f});
+            } else {
+                ui.image(resources.lazy_load<te::gl::texture2d>(fmt::format("assets/a_ui,6.{{}}/{}.png", i)), cursor, {35, 33}, {0.0f, 0.0f}, {0.5f, 1.0f});
+            }
+            cursor.x += 56.0f;
+        }
+        /*
+        ui.centered_text("CONSTRUCTION", {45, 53}, 195.0, 8.0);
 
-    const glm::vec2 row_dims {243, 16};
-    const glm::vec2 border_dims {243, 6};
-    const glm::vec2 row_txt {243, 11};
-    glm::vec2 row_i {13, 88};
-    for (unsigned i = 0; i < strs.size(); i++) {
-        const glm::vec2 tl = row_i;
-        const glm::vec2 br {row_i.x + row_dims.x, row_i.y + row_dims.y};
-        if (glfwGetMouseButton(win.hnd.get(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS
-            && mouse_x >= tl.x && mouse_x <= br.x && mouse_y >= tl.y && mouse_y <= br.y
-            && selected != i) {
-            selected = i;
+        static int selected = 0;
+        static std::vector<std::string_view> strs {
+            "PATHWAYS", "MARKETS", "DEPOTS", "PRODUCTION BUILDINGS", "DEMAND BUILDINGS"
+        };
+        double mouse_x; double mouse_y;
+        glfwGetCursorPos(win.hnd.get(), &mouse_x, &mouse_y);
+
+        const glm::vec2 row_dims {243, 16};
+        const glm::vec2 border_dims {243, 6};
+        const glm::vec2 row_txt {243, 11};
+        glm::vec2 row_i {13, 88};
+        for (unsigned i = 0; i < strs.size(); i++) {
+            const glm::vec2 tl = row_i;
+            const glm::vec2 br {row_i.x + row_dims.x, row_i.y + row_dims.y};
+            if (glfwGetMouseButton(win.hnd.get(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS
+                && mouse_x >= tl.x && mouse_x <= br.x && mouse_y >= tl.y && mouse_y <= br.y
+                && selected != i) {
+                selected = i;
+            }
+            if (i == selected) {
+                ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/095.png"), tl, row_dims);
+            }
+            const glm::vec2 text_start {row_i.x, row_i.y + row_txt.y};
+            ui.centered_text(strs[i], text_start, row_txt.x, 6.0);
+            row_i.y += row_dims.y + border_dims.y;
         }
-        if (i == selected) {
-            ui.texquad(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/095.png"), tl, row_dims);
-        }
-        const glm::vec2 text_start {row_i.x, row_i.y + row_txt.y};
-        ui.centered_text(strs[i], text_start, row_txt.x);
-        row_i.y += row_dims.y + border_dims.y;
+        */
+
+        //render_inspectors();
+        //render_controller();
     }
-    /*
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-    render_console();
-    if (render_main_menu()) {
-        render_inspectors();
-        render_controller();
-    }
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-    */
+    ui.render();
 }
 
 void te::app::playsfx(std::string filename) {

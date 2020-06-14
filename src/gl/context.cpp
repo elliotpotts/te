@@ -194,9 +194,9 @@ te::gl::texture2d te::gl::context::make_texture(FT_GlyphSlotRec glyph) {
         for (unsigned x = 0; x < glyph.bitmap.width; x++) {
             double grey = glyph.bitmap.buffer[y * glyph.bitmap.pitch + x] / 255.0;
             pixels[y * glyph.bitmap.width + x] = std::array {
-                static_cast<unsigned char>(grey * 67),
-                static_cast<unsigned char>(grey * 194),
-                static_cast<unsigned char>(grey * 255),
+                static_cast<unsigned char>(grey * 255),// * 67),
+                static_cast<unsigned char>(grey * 255),// * 194),
+                static_cast<unsigned char>(grey * 255),// * 255),
                 static_cast<unsigned char>(grey * 255)
             };
         }

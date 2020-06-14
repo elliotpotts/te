@@ -42,7 +42,8 @@ namespace te::gl {
         TANGENT,
         TEXCOORD_0,
         INSTANCE_OFFSET,
-        INSTANCE_COLOUR
+        INSTANCE_COLOUR,
+        COLOUR
     };
     inline const std::vector<std::pair<te::gl::string, GLuint>> common_attribute_names = {
         {"POSITION", POSITION},
@@ -50,7 +51,8 @@ namespace te::gl {
         {"TANGENT", TANGENT},
         {"TEXCOORD_0", TEXCOORD_0},
         {"INSTANCE_OFFSET", INSTANCE_OFFSET},
-        {"INSTANCE_COLOUR", INSTANCE_COLOUR}
+        {"INSTANCE_COLOUR", INSTANCE_COLOUR},
+        {"COLOUR", COLOUR}
     };
 
     struct buffer_deleter {
