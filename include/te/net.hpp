@@ -62,7 +62,7 @@ namespace te {
     };
 
     //TODO: expand
-    using cmpnt = std::variant<footprint, site, render_mesh, generator, inventory, trader, pickable, noisy, market, named, producer>;
+    using cmpnt = std::variant<footprint, site, render_mesh, render_tex, generator, inventory, trader, pickable, noisy, market, named, producer>;
     struct component_replace {
         entt::entity name;
         cmpnt component;

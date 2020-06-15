@@ -16,6 +16,14 @@
 
 namespace te {
     using face_ref = std::pair<std::string, double>;
+
+    struct fontspec {
+        std::string filename;
+        double pts;
+        double aspect;
+        glm::vec4 colour;
+    };
+
     class ui_renderer {
         te::window* win;
         gl::context* gl;
@@ -23,6 +31,8 @@ namespace te {
         GLint projection;
         GLint sampler_uform;
         gl::sampler sampler;
+        static te::gl::texture2d make_white1(te::gl::context&);
+        gl::texture2d white1;
 
         struct vertex {
             glm::vec2 pos;
@@ -43,16 +53,25 @@ namespace te {
         ft::face& face(face_ref fref);
         std::unordered_map<ft::glyph_index, te::gl::texture2d> glyph_textures;
         te::gl::texture2d& glyph_texture(face_ref, ft::glyph_index);
+
+        glm::vec2 mouse;
+        bool mouse_down = false;
+        bool last_mouse_down = false;
     public:
         ui_renderer(window&);
         void image(te::gl::texture2d&, glm::vec2 dest_pos, glm::vec2 dest_size, glm::vec2 tex_pos, glm::vec2 tex_size);
         void image(te::gl::texture2d&, glm::vec2 dest_pos, glm::vec2 dest_size);
+        bool image_button(te::gl::texture2d&, glm::vec2 dest_pos, glm::vec2 dest_size, glm::vec2 tex_pos_up, glm::vec2 tex_pos_down, glm::vec2 tex_size);
+        void rect(glm::vec2 dest_pos, glm::vec2 dest_size, glm::vec4 colour);
+        void text(std::string_view str, glm::vec2 cursor, face_ref fref);
+
         /*
-        void text(std::string_view str, glm::vec2 pos, double pts);
         void centered_text(std::string_view str, glm::vec2 pos, double max_width, double pts);
         bool button(std::string_view label, glm::vec2 pos, double pts);
         bool button(te::gl::texture2d&, glm::vec2 pos, glm::vec2 size);
         */
+
+        void input();
         void render();
     };
 }

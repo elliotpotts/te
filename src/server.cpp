@@ -11,7 +11,7 @@
 te::server::server(ISteamNetworkingSockets* netio, std::uint16_t port) :
     netio { netio },
     //TODO: figure seed shit out
-    model { 42 } {
+    model { 44 } {
     listen(port);
 }
 
@@ -184,6 +184,10 @@ void te::server::poll(double dt) {
         for (auto e : v) send_all(component_replace{e, v.get<te::render_mesh>(e)});
     }
     {
+        auto v = model.entities.view<te::render_tex>();
+        for (auto e : v) send_all(component_replace{e, v.get<te::render_tex>(e)});
+    }
+    {
         auto v = model.entities.view<te::noisy>();
         for (auto e : v) send_all(component_replace{e, v.get<te::noisy>(e)});
     }
@@ -198,6 +202,10 @@ void te::server::poll(double dt) {
     {
         auto v = model.entities.view<te::footprint>();
         for (auto e : v) send_all(component_replace{e, v.get<te::footprint>(e)});
+    }
+    {
+        auto v = model.entities.view<te::named>();
+        for (auto e : v) send_all(component_replace{e, v.get<te::named>(e)});
     }
 }
 
@@ -223,6 +231,14 @@ void te::server::tick(double dt) {
             }
         }
         model.generate_map();
+
+        auto named_es = model.entities.view<te::named>();
+        for (auto e : named_es) {
+            if (named_es.get<te::named>(e).name == "Trading Post") {
+                model.spawn(e);
+                break;
+            }
+        }
     }
 
     if (started) {

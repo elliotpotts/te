@@ -37,8 +37,8 @@ ft::face ft::ft::make_face(const char* filename, int pts) {
     // pixel_size = point_size * resolution / 72 
     if (int err = FT_Set_Char_Size (
             created,
-            0, // width
-            pts * 64, // height in 1/64th of points
+            pts * 64 * 1.2, // width
+            pts * 64 * 0.9, // height in 1/64th of points
             165, //horizontal DPI
             165) //vertical DPI
         ) {
