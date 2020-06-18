@@ -16,7 +16,7 @@ namespace te {
         GLint view_uniform;
         GLint proj_uniform;
         gl::sampler sampler;
-        gl::texture<GL_TEXTURE_2D> texture;
+        gl::texture2d texture;
         GLuint vao;
     public:
         const int width;

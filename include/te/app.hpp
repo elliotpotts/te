@@ -51,7 +51,9 @@ namespace te {
         te::camera cam;
         te::terrain_renderer terrain_renderer;
         te::mesh_renderer mesh_renderer;
-        te::ui_renderer ui;
+
+        te::ui_renderer ui_renderer;
+        te::classic_ui ui;
 
         std::optional<entt::entity> inspected;
         std::optional<entt::entity> ghost;

@@ -96,20 +96,14 @@ namespace te::gl {
         void operator()(GLuint) const;
     };
     using texture_hnd = unique<GLuint, texture_deleter>;
-    template<GLenum target>
-    struct texture {
+    struct texture2d {
         texture_hnd hnd;
-        explicit texture(texture_hnd texture) : hnd(std::move(texture)) {
-        }
-        void bind() const {
-            glBindTexture(target, *hnd);
-        }
-        void activate(GLuint texture_unit) const {
-            glActiveTexture(GL_TEXTURE0 + texture_unit);
-            bind();
-        }
+        const int width;
+        const int height;
+        explicit texture2d(texture_hnd texture, int width, int height);
+        void bind() const;
+        void activate(GLuint texture_unit) const;
     };
-    using texture2d = texture<GL_TEXTURE_2D>;
 
     struct framebuffer_deleter {
         void operator()(GLuint) const;

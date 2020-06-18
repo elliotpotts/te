@@ -202,7 +202,7 @@ te::gl::texture2d te::gl::context::make_texture(FT_GlyphSlotRec glyph) {
         }
     }
 
-    te::gl::texture2d tex2d { make_hnd<te::gl::texture_hnd>(glGenTextures) };
+    te::gl::texture2d tex2d { make_hnd<te::gl::texture_hnd>(glGenTextures), glyph.bitmap.width, glyph.bitmap.rows };
     tex2d.bind();
     glTexImage2D (
         GL_TEXTURE_2D, 0, GL_RGBA,
@@ -213,13 +213,13 @@ te::gl::texture2d te::gl::context::make_texture(FT_GlyphSlotRec glyph) {
     return tex2d;
 }
 
-te::gl::texture<GL_TEXTURE_2D> te::gl::context::make_texture(unique_bitmap bmp) {
+te::gl::texture2d te::gl::context::make_texture(unique_bitmap bmp) {
     auto width = FreeImage_GetWidth(bmp.get());
     auto height = FreeImage_GetHeight(bmp.get());
     auto pitch = FreeImage_GetPitch(bmp.get());
     auto rawbits = std::vector<unsigned char>(height * pitch);
     FreeImage_ConvertToRawBits(rawbits.data(), bmp.get(), pitch, 32, FI_RGBA_RED_MASK, FI_RGBA_GREEN_MASK, FI_RGBA_BLUE_MASK, TRUE);
-    te::gl::texture<GL_TEXTURE_2D> tex2d {make_hnd<te::gl::texture_hnd>(glGenTextures)};
+    te::gl::texture2d tex2d {make_hnd<te::gl::texture_hnd>(glGenTextures), width, height};
     tex2d.bind();
     glTexImage2D (
         GL_TEXTURE_2D, 0, GL_RGBA,
@@ -230,12 +230,24 @@ te::gl::texture<GL_TEXTURE_2D> te::gl::context::make_texture(unique_bitmap bmp) 
     return tex2d;
 }
 
-te::gl::texture<GL_TEXTURE_2D> te::gl::context::make_texture(const unsigned char* begin, const unsigned char* end) {
+te::gl::texture2d te::gl::context::make_texture(const unsigned char* begin, const unsigned char* end) {
     return make_texture(make_bitmap(begin, end));
 }
 
-te::gl::texture<GL_TEXTURE_2D> te::gl::context::make_texture(std::string filename) {
+te::gl::texture2d te::gl::context::make_texture(std::string filename) {
     return make_texture(make_bitmap(filename));
+}
+
+te::gl::texture2d::texture2d(texture_hnd texture, int w, int h) : hnd(std::move(texture)), width(w), height(h) {
+}
+
+void te::gl::texture2d::bind() const {
+    glBindTexture(GL_TEXTURE_2D, *hnd);
+}
+
+void te::gl::texture2d::activate(GLuint texture_unit) const {
+    glActiveTexture(GL_TEXTURE0 + texture_unit);
+    bind();
 }
 
 void te::gl::framebuffer_deleter::operator()(GLuint hnd) const {

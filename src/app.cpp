@@ -61,7 +61,8 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     },
     terrain_renderer{ win.gl, rengine, model.map_width, model.map_height },
     mesh_renderer { win.gl },
-    ui { win }
+    ui_renderer { win },
+    ui { model, win, ui_renderer, resources }
 {
     win.set_cursor(make_bitmap("assets/ui/cursor.png"));
     fmod->createStream("assets/music/main-theme.ogg", FMOD_CREATESTREAM | FMOD_LOOP_NORMAL, nullptr, &menu_music_src);
@@ -152,6 +153,9 @@ void te::app::on_mouse_button(int button, int action, int mods) {
                     auto& map_site = map_entities.get<te::site>(entity);
                     if (glm::distance(map_site.position, *pos_under_mouse) <= 1.0f) {
                         inspected = entity;
+                        if (auto gen = model.entities.try_get<te::generator>(entity)) {
+                            ui.windows.emplace_back(glm::vec2{100, 100}, false, entity);
+                        }
                         if (auto noisy = model.entities.try_get<te::noisy>(entity); noisy) {
                             playsfx(noisy->filename);
                         }
@@ -790,11 +794,11 @@ void te::app::render_ui() {
     if (at_main_menu) {
         render_main_menu();
     } else {
-        ui.image(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/168.png"), {0, 0}, {1024, 20});
-        ui.image(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/169.png"), {0, 20+693}, {1024, 55});
+        ui_renderer.image(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/168.png"), {0, 0});
+        ui_renderer.image(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/169.png"), {0, 20+693});
 
-        ui.text("Barley Field: Grows grain demanded by dwellings, breweries", {274, 736}, {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 6.0});
-        ui.text("and many other structures", {274, 750}, {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 6.0});
+        ui_renderer.text("Barley Field: Grows grain demanded by dwellings, breweries", {274, 736}, {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 6.0});
+        ui_renderer.text("and many other structures", {274, 750}, {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 6.0});
 
         static std::array<panel, 4> panels {{
             panel { "Roster", 11, 176 },
@@ -803,10 +807,10 @@ void te::app::render_ui() {
             panel { "Technologies", 136, 179 }
         }};
 
-        double mouse_x; double mouse_y;
-        glfwGetCursorPos(win.hnd.get(), &mouse_x, &mouse_y);
         static bool mouse_down = false;
         static bool last_mouse_down = false;
+        double mouse_x, mouse_y;
+        glfwGetCursorPos(win.hnd.get(), &mouse_x, &mouse_y);
         last_mouse_down = mouse_down;
         mouse_down = glfwGetMouseButton(win.hnd.get(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
 
@@ -825,33 +829,17 @@ void te::app::render_ui() {
             }
             panel& panel_i = panels[i];
             if (panel_opened == i) {
-                ui.image(resources.lazy_load<te::gl::texture2d>(fmt::format("assets/a_ui,6.{{}}/{:>03}.png", panel_i.pane)), {0, 20}, {306, 693});
-                ui.image(resources.lazy_load<te::gl::texture2d>(fmt::format("assets/a_ui,6.{{}}/{:>03}.png", panel_i.icon)), cursor, {35, 33}, {0.5f, 0.0f}, {0.5f, 1.0f});
+                ui_renderer.image(resources.lazy_load<te::gl::texture2d>(fmt::format("assets/a_ui,6.{{}}/{:>03}.png", panel_i.pane)), {0, 20});
+                ui_renderer.image(resources.lazy_load<te::gl::texture2d>(fmt::format("assets/a_ui,6.{{}}/{:>03}.png", panel_i.icon)), cursor, {35, 33}, {0.5f, 0.0f}, {0.5f, 1.0f});
             } else {
-                ui.image(resources.lazy_load<te::gl::texture2d>(fmt::format("assets/a_ui,6.{{}}/{:>03}.png", panel_i.icon)), cursor, {35, 33}, {0.0f, 0.0f}, {0.5f, 1.0f});
+                ui_renderer.image(resources.lazy_load<te::gl::texture2d>(fmt::format("assets/a_ui,6.{{}}/{:>03}.png", panel_i.icon)), cursor, {35, 33}, {0.0f, 0.0f}, {0.5f, 1.0f});
             }
             cursor.x += 56.0f;
         }
 
-        if (inspected) {
-            if (auto generator = model.entities.try_get<te::generator>(*inspected)) {
-                glm::vec2 tl {100, 100};
-                ui.image(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/080.png"), {100, 100}, {256, 165});
-                std::string name = "?";
-                if (auto e_name = model.entities.try_get<te::named>(*inspected)) {
-                    name = e_name->name;
-                }
-                ui.text(name, tl + glm::vec2{19, 8}, {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 10.0});
-                if (auto tex = model.entities.try_get<te::render_tex>(generator->output)) {
-                    ui.image(resources.lazy_load<te::gl::texture2d>(tex->filename), tl + glm::vec2{38, 85}, {23, 23});
-                }
-                ui.text("Producing", tl + glm::vec2{39, 73}, {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 7});
-                ui.text(model.entities.get<te::named>(generator->output).name, tl + glm::vec2{70, 101}, {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 7});
-                ui.image(resources.lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/116.png"), tl + glm::vec2{33, 122}, {191, 10});
-                glm::vec2 bar_origin = tl + glm::vec2{34, 123};
-                ui.rect(bar_origin, {189.0 * generator->progress, 8}, {57/255.0, 158/255.0, 222/255.0, 255/255.0});
-            }
-        }
+        ui.render();
+        ui_renderer.render();
+
         /*
         ui.centered_text("CONSTRUCTION", {45, 53}, 195.0, 8.0);
 
@@ -886,7 +874,6 @@ void te::app::render_ui() {
         //render_inspectors();
         //render_controller();
     }
-    ui.render();
 }
 
 void te::app::playsfx(std::string filename) {
@@ -894,9 +881,7 @@ void te::app::playsfx(std::string filename) {
 }
 
 void te::app::input() {
-    ui.input();
-
-    if (!ImGui::GetIO().WantCaptureMouse) {
+    if (!ui.input()) {
         mouse_pick();
         if (ghost && pos_under_mouse) {
             model.entities.emplace_or_replace<site>(*ghost, model.snap(*pos_under_mouse, model.entities.get<footprint>(*ghost).dimensions));
