@@ -154,7 +154,7 @@ void te::app::on_mouse_button(int button, int action, int mods) {
                     if (glm::distance(map_site.position, *pos_under_mouse) <= 1.0f) {
                         inspected = entity;
                         if (auto gen = model.entities.try_get<te::generator>(entity)) {
-                            ui.windows.emplace_back(glm::vec2{100, 100}, false, entity);
+                            ui.open_generator(entity);
                         }
                         if (auto noisy = model.entities.try_get<te::noisy>(entity); noisy) {
                             playsfx(noisy->filename);
@@ -838,7 +838,6 @@ void te::app::render_ui() {
         }
 
         ui.render();
-        ui_renderer.render();
 
         /*
         ui.centered_text("CONSTRUCTION", {45, 53}, 195.0, 8.0);

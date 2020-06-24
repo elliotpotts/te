@@ -4,6 +4,7 @@
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <utility>
+#include <te/components.hpp>
 
 bool te::fontspec_comparator::operator()(const te::fontspec& lhs, const te::fontspec& rhs) const {
     return std::tie(lhs.filename, lhs.pts, lhs.aspect) < std::tie(rhs.filename, rhs.pts, rhs.aspect);
@@ -172,67 +173,110 @@ te::classic_ui::classic_ui(te::sim& s, te::window& w, te::ui_renderer& d, te::ca
 bool te::classic_ui::input() {
     double mouse_x, mouse_y;
     glfwGetCursorPos(input_win->hnd.get(), &mouse_x, &mouse_y);
-    mouse.x = mouse_x;
-    mouse.y = mouse_y;
+    cursor_pos.x = mouse_x;
+    cursor_pos.y = mouse_y;
 
-    last_mouse_down = mouse_down;
+    prev_mouse_down = mouse_down;
     mouse_down = glfwGetMouseButton(input_win->hnd.get(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+    mouse_falling = prev_mouse_down && !mouse_down;
+    mouse_rising = !prev_mouse_down && mouse_down;
+
+    auto to_remove = windows.end();
+    for (auto it = windows.begin(); it != windows.end(); it++) {
+        do_generator_window(*it);
+        /*
+        if (do_generator_window(*it)) {
+            to_remove = it;
+        }*/
+    }
+    if (to_remove != windows.end()) {
+        windows.erase(to_remove);
+    }
+
     return false;
 }
 
-bool te::classic_ui::drag_window(typename te::classic_ui::drag_window w) {
+bool te::classic_ui::do_button(button& b) {
+    bool clicked = false;
+    auto& tex = resources->lazy_load<te::gl::texture2d>(b.fname);
+    const glm::vec2 tex_size {tex.width / 2.0, tex.height};
+
+    bool mouse_inside = cursor_pos.x >= b.tl.x && cursor_pos.x <= (b.tl.x + tex_size.x)
+                     && cursor_pos.y >= b.tl.y && cursor_pos.y <= (b.tl.y + tex_size.y);
+    if (mouse_down && mouse_inside) {
+        b.depressed = true;
+    } else if (b.depressed && !mouse_down) {
+        b.depressed = false;
+        clicked = mouse_inside;
+    }
+
+    const glm::vec2 tex_pos = b.depressed ? glm::vec2{0.5, 1.0} : glm::vec2{1.0, 1.0};
+    draw->image(tex, b.tl, tex_size, tex_pos, {0.5, 1.0});
+
+    return clicked;
+}
+
+void te::classic_ui::open_generator(entt::entity inspected) {
+    auto it = std::find_if (
+        windows.begin(),
+        windows.end(),
+        [inspected](generator_window& w) {
+            return w.inspected == inspected;
+        }
+    );
+    if (it == windows.end()) {
+        windows.push_back (
+            generator_window {
+                .drag = drag_window {
+                    .fname = "080",
+                    .pos = {100, 100},
+                    .title = model->entities.get<te::named>(inspected).name,
+                    .close = button {"assets/a_ui,6.{}/041.png", glm::vec2{100, 100} + glm::vec2{226, 12}},
+                    .drag_br = {256, 44}
+                },
+                .inspected = inspected
+            }
+        );
+    } else {
+        std::rotate(it, std::next(it), windows.end());
+    }
+}
+
+void te::classic_ui::do_drag_window(te::classic_ui::drag_window& w) {
     auto& frame_tex = resources->lazy_load<te::gl::texture2d>(fmt::format("assets/a_ui,6.{{}}/{}.png", w.fname));
     draw->image(frame_tex, w.pos);
     draw->text(w.title, w.pos + glm::vec2{16, 28}, {"Alegreya_Sans_SC/AlegreyaSansSC-Regular.ttf", 8.0});
-    draw->image(resources->lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/041.png"), w.pos + glm::vec2{frame_tex.width - 31, 12}, {0.0, 0.0}, {0.5, 1.0});
-    return false;
+    if (do_button(w.close)) {
+        spdlog::debug("Should close {}", w.title);
+    }
 }
 
-#include <te/components.hpp>
+void te::classic_ui::do_generator_window(te::classic_ui::generator_window& win) {
+    do_drag_window(win.drag);
+    auto generator = model->entities.try_get<te::generator>(win.inspected);
+    // Output icon
+    if (auto tex = model->entities.try_get<te::render_tex>(generator->output)) {
+        draw->image(resources->lazy_load<te::gl::texture2d>(tex->filename), win.drag.pos + glm::vec2{38, 85});
+    }
+    // Status
+    draw->text (
+        "Producing",
+        win.drag.pos + glm::vec2{39, 73},
+        {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 7},
+        {165/255.0, 219/255.0, 255/255.0, 255/255.0}
+    );
+    // Output name
+    draw->text (
+        model->entities.get<te::named>(generator->output).name,
+        win.drag.pos + glm::vec2{70, 101},
+        {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 7},
+        {255/255.0, 195/255.0, 66/255.0, 255/255.0}
+    );
+    // Output progress
+    draw->image(resources->lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/116.png"), win.drag.pos + glm::vec2{33, 122});
+    draw->rect(win.drag.pos + glm::vec2{34, 123}, {189.0 * generator->progress, 8}, {57/255.0, 158/255.0, 222/255.0, 255/255.0});
+}
+
 void te::classic_ui::render() {
-    bool any_closed = false;
-    std::erase_if(windows, [&](window_s& w) {
-        if (auto generator = model->entities.try_get<te::generator>(w.inspected)) {
-            drag_window ({
-                    .fname = "080",
-                    .pos = w.pos,
-                    .title = model->entities.get<te::named>(w.inspected).name
-            });
-            // output commodity icon
-            if (auto tex = model->entities.try_get<te::render_tex>(generator->output)) {
-                draw->image(resources->lazy_load<te::gl::texture2d>(tex->filename), w.pos + glm::vec2{38, 85});
-            }
-            //generation status
-            draw->text (
-                "Producing",
-                w.pos + glm::vec2{39, 73},
-                {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 7},
-                {165/255.0, 219/255.0, 255/255.0, 255/255.0}
-            );
-            // output commodity name
-            draw->text (
-                model->entities.get<te::named>(generator->output).name,
-                w.pos + glm::vec2{70, 101},
-                {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 7},
-                {255/255.0, 195/255.0, 66/255.0, 255/255.0}
-            );
-            // bar + bar background
-            draw->image(resources->lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/116.png"), w.pos + glm::vec2{33, 122});
-            draw->rect(w.pos + glm::vec2{34, 123}, {189.0 * generator->progress, 8}, {57/255.0, 158/255.0, 222/255.0, 255/255.0});
-            // close button
-            const glm::vec2 close_tl = w.pos + glm::vec2{226, 11};
-            const glm::vec2 close_size {28, 27};
-            //draw->image(resources->lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/041.png"), close_tl, close_size, {0.0, 0.0}, {0.5f, 1.0f});
-            const glm::vec2 close_br = close_tl + close_size;
-            const bool should_close = !any_closed && mouse_down && !last_mouse_down
-                                   && mouse.x >= close_tl.x && mouse.x <= close_br.x
-                                   && mouse.y >= close_tl.y && mouse.y <= close_br.y;
-            if (should_close) {
-                any_closed = true;
-            }
-            return should_close;
-        } else {
-            return false;
-        }
-    });
+    draw->render();
 }

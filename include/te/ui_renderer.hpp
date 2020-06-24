@@ -44,7 +44,7 @@ namespace te {
         };
         using quad = std::array<vertex, 4>;
         std::vector<quad> quads;
-        std::vector<te::gl::texture2d*> textures;
+        std::vector<te::gl::texture2d*> textures; // back to front order
 
         gl::buffer<GL_ARRAY_BUFFER> quad_attributes;
         input_description quad_input;
@@ -57,9 +57,6 @@ namespace te {
         std::map<fontspec, std::unordered_map<ft::glyph_index, te::gl::texture2d>, fontspec_comparator> glyph_textures;
         te::gl::texture2d& glyph_texture(fontspec, ft::glyph_index);
 
-        glm::vec2 mouse;
-        bool mouse_down = false;
-        bool last_mouse_down = false;
     public:
         ui_renderer(window&);
         void image(te::gl::texture2d&, glm::vec2 dest_pos, glm::vec2 dest_size, glm::vec2 tex_pos, glm::vec2 tex_size, glm::vec4 colour = glm::vec4{1.0});
@@ -73,40 +70,44 @@ namespace te {
     };
 
     struct classic_ui {
-        struct button_s {
+        struct button {
+            std::string fname;
             glm::vec2 tl;
-            glm::vec2 br;
-            bool depressed;
+            bool depressed = false;
         };
-        bool button(glm::vec2 tl, glm::vec2 size);
+        bool do_button(button&);
 
         struct drag_window {
-            std::string_view fname;
+            std::string fname;
             glm::vec2 pos;
-            std::string_view title;
-            bool dragging = false;
+            std::string title;
+            button close;
+            glm::vec2 drag_br;
         };
-        bool drag_window(drag_window w);
+        void do_drag_window(drag_window&);
 
-        struct window_s {
-            glm::vec2 pos;
-            bool dragging;
+        struct generator_window {
+            drag_window drag;
             entt::entity inspected;
         };
-        bool generator_window(window_s&);
+        void do_generator_window(generator_window&);
 
         te::sim* model;
         window* input_win;
         ui_renderer* draw;
         te::cache<asset_loader>* resources;
 
-        glm::vec2 mouse;
+        glm::vec2 cursor_pos;
         bool mouse_down;
-        bool last_mouse_down;
-        std::vector<window_s> windows;
+        bool prev_mouse_down;
+        bool mouse_falling;
+        bool mouse_rising;
+        std::vector<generator_window> windows; // stored back to front
+        drag_window* dragging = nullptr;
     public:
         classic_ui(te::sim&, window&, ui_renderer&, te::cache<asset_loader>&);
         bool input();
+        void open_generator(entt::entity);
         void render();
     };
 }
