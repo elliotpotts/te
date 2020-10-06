@@ -15,6 +15,7 @@
 #include <map>
 #include <te/sim.hpp>
 #include <te/cache.hpp>
+#include <list>
 
 namespace te {
     struct fontspec {
@@ -73,41 +74,54 @@ namespace te {
         struct button {
             std::string fname;
             glm::vec2 tl;
+            glm::vec2 br;
             bool depressed = false;
+            std::function<void()> on_click;
         };
-        bool do_button(button&);
+        void input(button&);
+        void draw_ui(button&);
 
         struct drag_window {
             std::string fname;
             glm::vec2 pos;
+            glm::vec2 size;
             std::string title;
             button close;
             glm::vec2 drag_br;
+            std::optional<glm::vec2> drag_start;
         };
-        void do_drag_window(drag_window&);
+        void input(drag_window&);
+        void draw_ui(drag_window&);
 
         struct generator_window {
             drag_window drag;
             entt::entity inspected;
         };
-        void do_generator_window(generator_window&);
+        void input(generator_window&);
+        void draw_ui(generator_window&);
+
+        bool mouse_inside(glm::vec2 tl, glm::vec2 br) const;
 
         te::sim* model;
         window* input_win;
         ui_renderer* draw;
         te::cache<asset_loader>* resources;
 
-        glm::vec2 cursor_pos;
-        bool mouse_down;
+        glm::dvec2 prev_cursor_pos;
         bool prev_mouse_down;
-        bool mouse_falling;
-        bool mouse_rising;
-        std::vector<generator_window> windows; // stored back to front
+        glm::dvec2 cursor_pos;
+        bool mouse_down;
+        bool click_absorbed;
+
+        std::list<generator_window> windows; // stored back to front
+        decltype(windows)::iterator to_close;
         drag_window* dragging = nullptr;
     public:
         classic_ui(te::sim&, window&, ui_renderer&, te::cache<asset_loader>&);
-        bool input();
+
         void open_generator(entt::entity);
+
+        bool input();
         void render();
     };
 }
