@@ -121,7 +121,7 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
                 if (glm::distance(map_site.position, *pos_under_mouse) <= 1.0f) {
                     inspected = entity;
                     if (auto gen = model.entities.try_get<te::generator>(entity)) {
-                        ui.open_generator(entity);
+                        ui.inspect(entity, *gen);
                     }
                     if (auto noisy = model.entities.try_get<te::noisy>(entity); noisy) {
                         playsfx(noisy->filename);

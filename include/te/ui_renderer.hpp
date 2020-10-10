@@ -17,6 +17,7 @@
 #include <te/cache.hpp>
 #include <list>
 #include <boost/signals2.hpp>
+#include <memory>
 
 namespace te {
     struct fontspec {
@@ -108,9 +109,11 @@ namespace te {
             rect frame;
             button close;
             label title;
+            virtual ~drag_window() = default;
+            virtual void input(classic_ui&, glm::vec2) = 0;
+            virtual void update(te::sim&) = 0;
+            virtual void draw_ui(classic_ui&, glm::vec2) = 0;
         };
-        void input(glm::vec2 o, drag_window&);
-        void draw_ui(glm::vec2 o, drag_window&);
 
         struct generator_window : public drag_window {
             entt::entity inspected;
@@ -119,10 +122,25 @@ namespace te {
             rect output_icon;
             rect progress_backdrop;
             rect progress;
+            generator_window(te::sim& model, entt::entity e, const generator&);
+            void input(classic_ui&, glm::vec2) override;
+            void update(te::sim&) override;
+            void draw_ui(classic_ui&, glm::vec2) override;
         };
-        void input(glm::vec2 o, generator_window&);
-        void update(generator_window&);
-        void draw_ui(glm::vec2 o, generator_window&);
+
+        struct market_window : public drag_window {
+            entt::entity inspected;
+            label title;
+            label founded;
+            rect growth_meter;
+            label pop_label;
+            label pop_value;
+            label status;
+            market_window(entt::entity inspected, market&);
+            virtual void input(classic_ui&, glm::vec2) override;
+            virtual void update(te::sim&) override;
+            virtual void draw_ui(classic_ui&, glm::vec2) override;
+        };
 
         bool mouse_inside(glm::vec2 tl, glm::vec2 br) const;
 
@@ -142,7 +160,8 @@ namespace te {
         bool up_absorbed;
         bool click_absorbed;
 
-        std::list<generator_window> windows; // stored back to front
+        unsigned next_id = 0;
+        std::list<std::unique_ptr<drag_window>> windows; // stored back to front
         rect behind;
 
         decltype(windows)::iterator to_close;
@@ -152,7 +171,7 @@ namespace te {
     public:
         classic_ui(te::sim&, window&, ui_renderer&, te::cache<asset_loader>&);
 
-        void open_generator(entt::entity);
+        void inspect(entt::entity, te::generator&);
 
         bool input();
         void render();
