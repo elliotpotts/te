@@ -19,6 +19,7 @@
 #include <boost/signals2.hpp>
 
 namespace te {
+    constexpr glm::vec4 col_white = {1.0f, 1.0f, 1.0f, 1.0f};
     struct fontspec {
         std::string filename;
         double pts;
@@ -66,7 +67,7 @@ namespace te {
         void image(te::gl::texture2d&, glm::vec2 dest_pos, glm::vec4 colour = glm::vec4{1.0});
         bool image_button(te::gl::texture2d&, glm::vec2 dest_pos, glm::vec2 dest_size, glm::vec2 tex_pos_up, glm::vec2 tex_pos_down, glm::vec2 tex_size);
         void rect(glm::vec2 dest_pos, glm::vec2 dest_size, glm::vec4 colour);
-        void text(std::string_view str, glm::vec2 cursor, fontspec font, glm::vec4 colour = glm::vec4{1.0});
+        void text(std::string_view str, glm::vec2 cursor, fontspec font);
 
         void render();
     };
@@ -89,6 +90,14 @@ namespace te {
         void input(glm::vec2 o, rect&);
         void draw_ui(glm::vec2 o, rect&);
 
+        struct label {
+            glm::vec2 offset;
+            fontspec font;
+            std::string text;
+        };
+        void input(glm::vec2 o, label&);
+        void draw_ui(glm::vec2 o, label&);
+
         struct button : public rect {
         };
         void draw_ui(glm::vec2 o, button& b);
@@ -97,15 +106,17 @@ namespace te {
             unsigned id;
             glm::vec2 offset;
             rect frame;
-            rect drag;
             button close;
-            std::string title;
+            label title;
         };
         void input(glm::vec2 o, drag_window&);
         void draw_ui(glm::vec2 o, drag_window&);
 
         struct generator_window : public drag_window {
             entt::entity inspected;
+            label status;
+            label output_name;
+            rect output_icon;
         };
         void input(glm::vec2 o, generator_window&);
         void draw_ui(glm::vec2 o, generator_window&);

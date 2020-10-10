@@ -122,7 +122,7 @@ te::gl::texture2d& te::ui_renderer::glyph_texture(te::fontspec face_key, ft::gly
     }
 }
 
-void te::ui_renderer::text(std::string_view str, glm::vec2 cursor, fontspec fref, glm::vec4 colour) {
+void te::ui_renderer::text(std::string_view str, glm::vec2 cursor, fontspec fref) {
     auto shaping_buffer = hb::buffer::shape(face(fref), str);
     unsigned int len = hb_buffer_get_length (shaping_buffer.hnd.get());
     hb_glyph_info_t* info = hb_buffer_get_glyph_infos (shaping_buffer.hnd.get(), nullptr);
@@ -139,7 +139,7 @@ void te::ui_renderer::text(std::string_view str, glm::vec2 cursor, fontspec fref
                 cursor.x + x_offset + glyph.bitmap_left,
                 cursor.y + y_offset - glyph.bitmap_top
             },
-            colour
+            fref.colour
         );
         cursor.x += pos[i].x_advance / 64.0;
         cursor.y += pos[i].y_advance / 64.0;
@@ -223,9 +223,11 @@ void te::classic_ui::input(glm::vec2 o, rect& r) {
     }
 }
 
+void te::classic_ui::input(glm::vec2, label&) {
+}
+
 void te::classic_ui::input(glm::vec2 o, drag_window& w) {
     input(o, w.close);
-    input(o, w.drag);
     input(o, w.frame);
 }
 
@@ -278,6 +280,10 @@ void te::classic_ui::draw_ui(glm::vec2 o, rect& r) {
     }
 }
 
+void te::classic_ui::draw_ui(glm::vec2 o, label& l) {
+    draw->text(l.text, o + l.offset, l.font);
+}
+
 void te::classic_ui::draw_ui(glm::vec2 o, button& b) {
     auto& tex = resources->lazy_load<te::gl::texture2d>(b.fname);
     const glm::vec2 tex_size {tex.width / 2.0, tex.height};
@@ -287,32 +293,16 @@ void te::classic_ui::draw_ui(glm::vec2 o, button& b) {
 
 void te::classic_ui::draw_ui(glm::vec2 o, drag_window& w) {
     draw_ui(o, w.frame);
-    draw_ui(o, w.drag);
-    draw->text(w.title, o + glm::vec2{16, 28}, {"Alegreya_Sans_SC/AlegreyaSansSC-Regular.ttf", 8.0});
+    draw_ui(o, w.title);
     draw_ui(o, w.close);
 }
 
 void te::classic_ui::draw_ui(glm::vec2 o, generator_window& w) {
     draw_ui(o, static_cast<drag_window&>(w));
     auto generator = model->entities.try_get<te::generator>(w.inspected);
-    // Output icon
-    if (auto tex = model->entities.try_get<te::render_tex>(generator->output)) {
-        draw->image(resources->lazy_load<te::gl::texture2d>(tex->filename), o + glm::vec2{38, 85});
-    }
-    // Status
-    draw->text (
-        "Producing",
-        o + glm::vec2{39, 73},
-        {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 7},
-        {165/255.0, 219/255.0, 255/255.0, 255/255.0}
-    );
-    // Output name
-    draw->text (
-        model->entities.get<te::named>(generator->output).name,
-        o + glm::vec2{70, 101},
-        {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 7},
-        {255/255.0, 195/255.0, 66/255.0, 255/255.0}
-    );
+    draw_ui(o, w.output_icon);
+    draw_ui(o, w.status);
+    draw_ui(o, w.output_name);
     // Output progress
     draw->image(resources->lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/116.png"), o + glm::vec2{33, 122});
     draw->rect(o + glm::vec2{34, 123}, {189.0 * generator->progress, 8}, {57/255.0, 158/255.0, 222/255.0, 255/255.0});
@@ -331,6 +321,9 @@ void te::classic_ui::open_generator(entt::entity inspected) {
         const auto& frame_tex = resources->lazy_load<te::gl::texture2d>(fmt::format("assets/a_ui,6.{{}}/{}.png", "080"));
         const auto& button_tex = resources->lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/041.png");
         const glm::vec2 button_size { button_tex.width, button_tex.height };
+        const auto generator = model->entities.try_get<te::generator>(inspected);
+        const auto output_rtex = model->entities.try_get<te::render_tex>(generator->output);
+        const auto& output_tex = resources->lazy_load<te::gl::texture2d>(output_rtex->filename);
         windows.push_back (
             generator_window {
                 /*.drag =*/ drag_window {
@@ -340,10 +333,6 @@ void te::classic_ui::open_generator(entt::entity inspected) {
                         .fname = "assets/a_ui,6.{}/080.png",
                         .size = {256.0f, 165.0f}
                     },
-                    .drag = {
-                        .name = "drag",
-                        .size = {256.0f, 44.0f}
-                    },
                     .close = button {
                         /*.rect = */ {
                             .name = "close",
@@ -352,9 +341,28 @@ void te::classic_ui::open_generator(entt::entity inspected) {
                             .size = button_size
                         }
                     },
-                    .title = model->entities.get<te::named>(inspected).name
+                    .title = label {
+                        .offset = {16, 28},
+                        .font = {"Alegreya_Sans_SC/AlegreyaSansSC-Regular.ttf", 8.0, 1.0, col_white},
+                        .text = model->entities.get<te::named>(inspected).name
+                    }
                 },
-                /*.inspected =*/ inspected
+                /*.inspected =*/ inspected,
+                /*.status =*/ label {
+                    .offset = {39, 73},
+                    .font = {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 7, 1.0, {165/255.0, 219/255.0, 255/255.0, 255/255.0}},
+                    .text = "Producing"
+                },
+                /*.output_name=*/ label {
+                    .offset = {70, 101},
+                    .font = {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 7, 1.0, {255/255.0, 195/255.0, 66/255.0, 255/255.0}},
+                    .text = model->entities.get<te::named>(generator->output).name
+                },
+                /*.output_icon=*/ rect {
+                    .fname = model->entities.try_get<te::render_tex>(generator->output)->filename,
+                    .offset = {38, 85},
+                    .size = { output_tex.width, output_tex.height }
+                }
             }
         );
         auto& appended = windows.back();
@@ -362,12 +370,12 @@ void te::classic_ui::open_generator(entt::entity inspected) {
         appended.close.on_click.connect([this, my_id]() {
             to_close = std::find_if(windows.begin(), windows.end(), [my_id](const auto& w){ return w.id == my_id; });
         });
-        appended.drag.on_mouse_down.connect([this, my_id]() {
+        appended.frame.on_mouse_down.connect([this, my_id]() {
             dragging = my_id;
             auto me = std::find_if(windows.begin(), windows.end(), [my_id](const auto& w){ return w.id == my_id; });
             to_bring_to_front = me;
             drag_offset = me->offset - glm::vec2{cursor_pos};
-            me->drag.on_mouse_up.connect_extended([this](const boost::signals2::connection& up_conn) {
+            me->frame.on_mouse_up.connect_extended([this](const boost::signals2::connection& up_conn) {
                 dragging.reset();
                 up_conn.disconnect();
             });
