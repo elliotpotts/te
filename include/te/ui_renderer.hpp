@@ -16,6 +16,7 @@
 #include <te/sim.hpp>
 #include <te/cache.hpp>
 #include <list>
+#include <boost/signals2.hpp>
 
 namespace te {
     struct fontspec {
@@ -71,34 +72,43 @@ namespace te {
     };
 
     struct classic_ui {
-        struct button {
+        struct rect {
+            std::string name;
             std::string fname;
-            glm::vec2 tl;
-            glm::vec2 br;
-            bool depressed = false;
-            std::function<void()> on_click;
+            glm::vec2 offset;
+            glm::vec2 size;
+            bool mouse_was_inside = false;
+            bool mouse_inside = false;
+            bool click_started = false;
+            boost::signals2::signal<void()> on_mouse_enter;
+            boost::signals2::signal<void()> on_mouse_leave;
+            boost::signals2::signal<void()> on_mouse_down;
+            boost::signals2::signal<void()> on_mouse_up;
+            boost::signals2::signal<void()> on_click;
         };
-        void input(button&);
-        void draw_ui(button&);
+        void input(glm::vec2 o, rect&);
+        void draw_ui(glm::vec2 o, rect&);
+
+        struct button : public rect {
+        };
+        void draw_ui(glm::vec2 o, button& b);
 
         struct drag_window {
-            std::string fname;
-            glm::vec2 pos;
-            glm::vec2 size;
-            std::string title;
+            unsigned id;
+            glm::vec2 offset;
+            rect frame;
+            rect drag;
             button close;
-            glm::vec2 drag_br;
-            std::optional<glm::vec2> drag_start;
+            std::string title;
         };
-        void input(drag_window&);
-        void draw_ui(drag_window&);
+        void input(glm::vec2 o, drag_window&);
+        void draw_ui(glm::vec2 o, drag_window&);
 
-        struct generator_window {
-            drag_window drag;
+        struct generator_window : public drag_window {
             entt::entity inspected;
         };
-        void input(generator_window&);
-        void draw_ui(generator_window&);
+        void input(glm::vec2 o, generator_window&);
+        void draw_ui(glm::vec2 o, generator_window&);
 
         bool mouse_inside(glm::vec2 tl, glm::vec2 br) const;
 
@@ -108,14 +118,23 @@ namespace te {
         te::cache<asset_loader>* resources;
 
         glm::dvec2 prev_cursor_pos;
-        bool prev_mouse_down;
         glm::dvec2 cursor_pos;
-        bool mouse_down;
+        bool mouse_was_down;
+        bool mouse_is_down;
+
+        bool enter_absorbed;
+        bool leave_absorbed;
+        bool down_absorbed;
+        bool up_absorbed;
         bool click_absorbed;
 
         std::list<generator_window> windows; // stored back to front
+        rect behind;
+
         decltype(windows)::iterator to_close;
-        drag_window* dragging = nullptr;
+        decltype(windows)::iterator to_bring_to_front;
+        glm::vec2 drag_offset;
+        std::optional<unsigned> dragging;
     public:
         classic_ui(te::sim&, window&, ui_renderer&, te::cache<asset_loader>&);
 

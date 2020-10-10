@@ -68,20 +68,15 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     fmod->createStream("assets/music/main-theme.ogg", FMOD_CREATESTREAM | FMOD_LOOP_NORMAL, nullptr, &menu_music_src);
     //fmod->playSound(menu_music_src, nullptr, false, &menu_music);
     win.on_framebuffer_size.connect([&](int width, int height) {
-                                        cam.aspect_ratio = static_cast<float>(width) / height;
-                                        glViewport(0, 0, width, height);
-                                    });
+        cam.aspect_ratio = static_cast<float>(width) / height;
+        glViewport(0, 0, width, height);
+    });
     win.set_attribute(GLFW_RESIZABLE, GLFW_TRUE);
-    win.on_key.connect([&](int key, int scancode, int action, int mods) {
-                           if (!ImGui::GetIO().WantCaptureKeyboard) {
-                               on_key(key, scancode, action, mods);
-                           }
-                       });
     win.on_mouse_button.connect([&](int button, int action, int mods) {
-                                    if (!ImGui::GetIO().WantCaptureMouse) {
-                                        on_mouse_button(button, action, mods);
-                                    }
-                                });
+        if (!ImGui::GetIO().WantCaptureMouse) {
+            on_mouse_button(button, action, mods);
+        }
+    });
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
@@ -98,6 +93,45 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     server->max_players = 1;
     client.emplace(server->make_local(model));
     client->send(hello{1, "SinglePringle"});
+
+    ui.behind.on_click.connect([&](){
+        if (ghost) {
+            auto proto = model.entities.get<te::ghost>(*ghost).proto;
+            auto pos = model.entities.get<te::site>(*ghost).position;
+            if (model.can_place(proto, pos)) {
+                model.entities.destroy(*ghost);
+                ghost.reset();
+                playsfx("assets/sfx/build2.wav");
+                client->send(build {*client->family(), proto, pos} );
+                /*
+                  auto built = co_await client->build(*client->family(), proto, pos);
+                  if (!built) {
+                  playsfx("assets/sfx/notif3.wav");
+                  }
+                */
+            } else {
+                playsfx("assets/sfx/notif3.wav");
+            }
+            /* TODO: figure out how to play sound effecs when things fail/don't fail.
+             *       Do we always have to wait for a response from the server? */
+        } else if (pos_under_mouse) {
+            auto map_entities = model.entities.view<te::site, te::pickable>();
+            for (auto entity : map_entities) {
+                auto& map_site = map_entities.get<te::site>(entity);
+                if (glm::distance(map_site.position, *pos_under_mouse) <= 1.0f) {
+                    inspected = entity;
+                    if (auto gen = model.entities.try_get<te::generator>(entity)) {
+                        ui.open_generator(entity);
+                    }
+                    if (auto noisy = model.entities.try_get<te::noisy>(entity); noisy) {
+                        playsfx(noisy->filename);
+                    }
+                    return;
+                }
+            }
+        }
+        inspected.reset();
+    });
 }
 
 #include <complex>
@@ -128,42 +162,6 @@ void te::app::on_mouse_button(int button, int action, int mods) {
             playsfx("assets/sfx/unknown1.wav");
         } else if (action == GLFW_RELEASE) {
             playsfx("assets/sfx/unknown2.wav");
-            if (ghost) {
-                auto proto = model.entities.get<te::ghost>(*ghost).proto;
-                auto pos = model.entities.get<te::site>(*ghost).position;
-                if (model.can_place(proto, pos)) {
-                    model.entities.destroy(*ghost);
-                    ghost.reset();
-                    playsfx("assets/sfx/build2.wav");
-                    client->send(build {*client->family(), proto, pos} );
-                    /*
-                      auto built = co_await client->build(*client->family(), proto, pos);
-                      if (!built) {
-                      playsfx("assets/sfx/notif3.wav");
-                      }
-                    */
-                } else {
-                    playsfx("assets/sfx/notif3.wav");
-                }
-                /* TODO: figure out how to play sound effecs when things fail/don't fail.
-                 *       Do we always have to wait for a response from the server? */
-            } else if (pos_under_mouse) {
-                auto map_entities = model.entities.view<te::site, te::pickable>();
-                for (auto entity : map_entities) {
-                    auto& map_site = map_entities.get<te::site>(entity);
-                    if (glm::distance(map_site.position, *pos_under_mouse) <= 1.0f) {
-                        inspected = entity;
-                        if (auto gen = model.entities.try_get<te::generator>(entity)) {
-                            ui.open_generator(entity);
-                        }
-                        if (auto noisy = model.entities.try_get<te::noisy>(entity); noisy) {
-                            playsfx(noisy->filename);
-                        }
-                        return;
-                    }
-                }
-            }
-            inspected.reset();
         }
     }
 }

@@ -167,7 +167,15 @@ void te::ui_renderer::render() {
     textures.clear();
 }
 
-te::classic_ui::classic_ui(te::sim& s, te::window& w, te::ui_renderer& d, te::cache<asset_loader>& r): model(&s), input_win(&w), draw(&d), resources(&r) {
+te::classic_ui::classic_ui(te::sim& s, te::window& w, te::ui_renderer& d, te::cache<asset_loader>& r):
+    model{&s},
+    input_win{&w},
+    draw{&d},
+    resources{&r},
+    behind {
+        .name = "behind",
+        .size = {w.width(), w.height()}
+    } {
 }
 
 bool inside_rect(glm::vec2 pt, glm::vec2 tl, glm::vec2 br) {
@@ -179,104 +187,138 @@ bool te::classic_ui::mouse_inside(glm::vec2 tl, glm::vec2 br) const {
         && cursor_pos.y >= tl.y && cursor_pos.y <= br.y;
 }
 
-void te::classic_ui::input(button& b) {
-    if (inside_rect(cursor_pos, b.tl, b.br)) {
-        if (mouse_down && inside_rect(prev_cursor_pos, b.tl, b.br) && !prev_mouse_down) {
-            b.depressed = true;
+void te::classic_ui::input(glm::vec2 o, rect& r) {
+    bool mouse_was_inside = inside_rect(prev_cursor_pos, o + r.offset, o + r.offset + r.size);
+    bool mouse_is_inside = inside_rect(cursor_pos, o + r.offset, o + r.offset + r.size);
+    if (mouse_was_inside && !mouse_is_inside && !leave_absorbed) {
+        spdlog::debug("mouse leave #{}", r.name);
+        r.on_mouse_leave();
+        leave_absorbed = true;
+    }
+    if (!mouse_was_inside && mouse_is_inside && !enter_absorbed) {
+        spdlog::debug("mouse enter #{}", r.name);
+        r.on_mouse_enter();
+        enter_absorbed = true;
+    }
+    if (mouse_was_inside && !mouse_was_down && mouse_is_inside && mouse_is_down && !down_absorbed) {
+        spdlog::debug("mouse down #{}", r.name);
+        r.click_started = true;
+        down_absorbed = true;
+        r.on_mouse_down();
+    }
+    if (mouse_was_inside && mouse_was_down && mouse_is_inside && !mouse_is_down) {
+        if (r.click_started && !click_absorbed) {
+            spdlog::debug("mouse click #{}", r.name);
+            click_absorbed = true;
+            r.on_click();
         }
-        if (b.depressed && !mouse_down) {
-            b.depressed = false;
-            if (!click_absorbed) {
-                b.on_click();
-                click_absorbed = true;
-            }
+        if (!up_absorbed) {
+            spdlog::debug("mouse up #{}", r.name);
+            r.on_mouse_up();
+            up_absorbed = true;
         }
     }
-    if (!mouse_down) {
-        b.depressed = false;
+    if (mouse_is_inside && !mouse_is_down) {
+        r.click_started = false;
     }
 }
 
-void te::classic_ui::input(drag_window& w) {
-    input(w.close);
-    if (inside_rect(cursor_pos, w.pos, w.drag_br)) {
-        spdlog::debug("title bar");
-    }
-    if (w.drag_start) {
-        w.pos = glm::vec2(cursor_pos) - *w.drag_start;
-    } else if (mouse_down && inside_rect(cursor_pos, w.pos, w.drag_br) && !prev_mouse_down && inside_rect(prev_cursor_pos, w.pos, w.drag_br)) {
-        w.drag_start = glm::vec2(cursor_pos) - w.pos;
-    } else if (!mouse_down) {
-        w.drag_start = std::nullopt;
-    }
+void te::classic_ui::input(glm::vec2 o, drag_window& w) {
+    input(o, w.close);
+    input(o, w.drag);
+    input(o, w.frame);
 }
 
-void te::classic_ui::input(generator_window& w) {
-    input(w.drag);
+void te::classic_ui::input(glm::vec2 o, generator_window& w) {
+    input(o, static_cast<drag_window&>(w));
 }
 
 bool te::classic_ui::input() {
     prev_cursor_pos = cursor_pos;
-    prev_mouse_down = mouse_down;
+    mouse_was_down = mouse_is_down;
 
     glfwGetCursorPos(input_win->hnd.get(), &cursor_pos.x, &cursor_pos.y);
-    mouse_down = glfwGetMouseButton(input_win->hnd.get(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
-    click_absorbed = false;
-    to_close = windows.end();
+    mouse_is_down = glfwGetMouseButton(input_win->hnd.get(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
 
-    for (auto it = windows.begin(); it != windows.end(); it++) {
-        input(*it);
+    enter_absorbed = false;
+    leave_absorbed = false;
+    click_absorbed = false;
+    down_absorbed = false;
+    up_absorbed = false;
+
+    to_close = windows.end();
+    to_bring_to_front = windows.end();
+
+    for (auto it = windows.rbegin(); it != windows.rend(); it++) {
+        input(it->offset, *it);
     }
+    input({}, behind);
 
     if (to_close != windows.end()) {
         windows.erase(to_close);
     }
 
-    return click_absorbed;
+    if (to_bring_to_front != windows.end()) {
+        std::rotate(to_bring_to_front, std::next(to_bring_to_front), windows.end());
+    }
+
+    if (dragging) {
+        std::find_if(windows.begin(), windows.end(), [this](const auto& w){ return w.id == dragging; })
+            ->offset = glm::vec2{cursor_pos} + drag_offset;
+    }
+
+    return up_absorbed;
 }
 
-void te::classic_ui::draw_ui(button& b) {
+void te::classic_ui::draw_ui(glm::vec2 o, rect& r) {
+    if (!r.fname.empty()) {
+        auto& tex = resources->lazy_load<te::gl::texture2d>(r.fname);
+        const glm::vec2 tex_size {tex.width, tex.height};
+        draw->image(tex, o + r.offset, tex_size, {1.0, 1.0}, {1.0, 1.0});
+    }
+}
+
+void te::classic_ui::draw_ui(glm::vec2 o, button& b) {
     auto& tex = resources->lazy_load<te::gl::texture2d>(b.fname);
     const glm::vec2 tex_size {tex.width / 2.0, tex.height};
-    const glm::vec2 tex_pos = b.depressed ? glm::vec2{0.5, 1.0} : glm::vec2{1.0, 1.0};
-    draw->image(tex, b.tl, tex_size, tex_pos, {0.5, 1.0});
+    const glm::vec2 tex_pos = b.click_started ? glm::vec2{0.5, 1.0} : glm::vec2{1.0, 1.0};
+    draw->image(tex, o + b.offset, tex_size, tex_pos, {0.5, 1.0});
 }
 
-void te::classic_ui::draw_ui(drag_window& w) {
-    auto& frame_tex = resources->lazy_load<te::gl::texture2d>(fmt::format("assets/a_ui,6.{{}}/{}.png", w.fname));
-    draw->image(frame_tex, w.pos);
-    draw->text(w.title, w.pos + glm::vec2{16, 28}, {"Alegreya_Sans_SC/AlegreyaSansSC-Regular.ttf", 8.0});
-    draw_ui(w.close);
+void te::classic_ui::draw_ui(glm::vec2 o, drag_window& w) {
+    draw_ui(o, w.frame);
+    draw_ui(o, w.drag);
+    draw->text(w.title, o + glm::vec2{16, 28}, {"Alegreya_Sans_SC/AlegreyaSansSC-Regular.ttf", 8.0});
+    draw_ui(o, w.close);
 }
 
-void te::classic_ui::draw_ui(generator_window& w) {
-    draw_ui(w.drag);
+void te::classic_ui::draw_ui(glm::vec2 o, generator_window& w) {
+    draw_ui(o, static_cast<drag_window&>(w));
     auto generator = model->entities.try_get<te::generator>(w.inspected);
     // Output icon
     if (auto tex = model->entities.try_get<te::render_tex>(generator->output)) {
-        draw->image(resources->lazy_load<te::gl::texture2d>(tex->filename), w.drag.pos + glm::vec2{38, 85});
+        draw->image(resources->lazy_load<te::gl::texture2d>(tex->filename), o + glm::vec2{38, 85});
     }
     // Status
     draw->text (
         "Producing",
-        w.drag.pos + glm::vec2{39, 73},
+        o + glm::vec2{39, 73},
         {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 7},
         {165/255.0, 219/255.0, 255/255.0, 255/255.0}
     );
     // Output name
     draw->text (
         model->entities.get<te::named>(generator->output).name,
-        w.drag.pos + glm::vec2{70, 101},
+        o + glm::vec2{70, 101},
         {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 7},
         {255/255.0, 195/255.0, 66/255.0, 255/255.0}
     );
     // Output progress
-    draw->image(resources->lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/116.png"), w.drag.pos + glm::vec2{33, 122});
-    draw->rect(w.drag.pos + glm::vec2{34, 123}, {189.0 * generator->progress, 8}, {57/255.0, 158/255.0, 222/255.0, 255/255.0});
+    draw->image(resources->lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/116.png"), o + glm::vec2{33, 122});
+    draw->rect(o + glm::vec2{34, 123}, {189.0 * generator->progress, 8}, {57/255.0, 158/255.0, 222/255.0, 255/255.0});
 }
 
 void te::classic_ui::open_generator(entt::entity inspected) {
-    spdlog::debug("open {}", static_cast<int>(inspected));
     auto it = std::find_if (
         windows.begin(),
         windows.end(),
@@ -284,35 +326,52 @@ void te::classic_ui::open_generator(entt::entity inspected) {
             return w.inspected == inspected;
         }
     );
+    static unsigned next_id = 0;
     if (it == windows.end()) {
         const auto& frame_tex = resources->lazy_load<te::gl::texture2d>(fmt::format("assets/a_ui,6.{{}}/{}.png", "080"));
         const auto& button_tex = resources->lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/041.png");
-        const glm::vec2 button_size { button_tex.width, button_tex.height }; 
+        const glm::vec2 button_size { button_tex.width, button_tex.height };
         windows.push_back (
             generator_window {
-                .drag = drag_window {
-                    .fname = "080",
-                    .pos = {100, 100},
-                    .size = {frame_tex.width, frame_tex.height},
-                    .title = model->entities.get<te::named>(inspected).name,
+                /*.drag =*/ drag_window {
+                    .id = next_id++,
+                    .frame = {
+                        .name = "frame",
+                        .fname = "assets/a_ui,6.{}/080.png",
+                        .size = {256.0f, 165.0f}
+                    },
+                    .drag = {
+                        .name = "drag",
+                        .size = {256.0f, 44.0f}
+                    },
                     .close = button {
-                        .fname = "assets/a_ui,6.{}/041.png",
-                        .tl = glm::vec2{100, 100} + glm::vec2{226, 12},
-                        .br = glm::vec2{100, 100} + glm::vec2{226, 12} + button_size,
-                        .on_click = [inspected, this]() {
-                            to_close = std::find_if (
-                                windows.begin(), windows.end(),
-                                [inspected](const auto& gw) {
-                                    return gw.inspected == inspected;
-                                }
-                            );
+                        /*.rect = */ {
+                            .name = "close",
+                            .fname = "assets/a_ui,6.{}/041.png",
+                            .offset = glm::vec2{226, 12},
+                            .size = button_size
                         }
                     },
-                    .drag_br = glm::vec2{100, 100} + glm::vec2{256, 44}
+                    .title = model->entities.get<te::named>(inspected).name
                 },
-                .inspected = inspected
+                /*.inspected =*/ inspected
             }
         );
+        auto& appended = windows.back();
+        auto my_id = appended.id;
+        appended.close.on_click.connect([this, my_id]() {
+            to_close = std::find_if(windows.begin(), windows.end(), [my_id](const auto& w){ return w.id == my_id; });
+        });
+        appended.drag.on_mouse_down.connect([this, my_id]() {
+            dragging = my_id;
+            auto me = std::find_if(windows.begin(), windows.end(), [my_id](const auto& w){ return w.id == my_id; });
+            to_bring_to_front = me;
+            drag_offset = me->offset - glm::vec2{cursor_pos};
+            me->drag.on_mouse_up.connect_extended([this](const boost::signals2::connection& up_conn) {
+                dragging.reset();
+                up_conn.disconnect();
+            });
+        });
     } else {
         std::rotate(it, std::next(it), windows.end());
     }
@@ -320,7 +379,7 @@ void te::classic_ui::open_generator(entt::entity inspected) {
 
 void te::classic_ui::render() {
     for (auto& win : windows) {
-        draw_ui(win);
+        draw_ui(win.offset, win);
     }
     draw->render();
 }
