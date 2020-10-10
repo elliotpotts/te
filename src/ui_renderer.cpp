@@ -173,7 +173,6 @@ te::classic_ui::classic_ui(te::sim& s, te::window& w, te::ui_renderer& d, te::ca
     draw{&d},
     resources{&r},
     behind {
-        .name = "behind",
         .size = {w.width(), w.height()}
     } {
 }
@@ -191,29 +190,24 @@ void te::classic_ui::input(glm::vec2 o, rect& r) {
     bool mouse_was_inside = inside_rect(prev_cursor_pos, o + r.offset, o + r.offset + r.size);
     bool mouse_is_inside = inside_rect(cursor_pos, o + r.offset, o + r.offset + r.size);
     if (mouse_was_inside && !mouse_is_inside && !leave_absorbed) {
-        spdlog::debug("mouse leave #{}", r.name);
         r.on_mouse_leave();
         leave_absorbed = true;
     }
     if (!mouse_was_inside && mouse_is_inside && !enter_absorbed) {
-        spdlog::debug("mouse enter #{}", r.name);
         r.on_mouse_enter();
         enter_absorbed = true;
     }
     if (mouse_was_inside && !mouse_was_down && mouse_is_inside && mouse_is_down && !down_absorbed) {
-        spdlog::debug("mouse down #{}", r.name);
         r.click_started = true;
         down_absorbed = true;
         r.on_mouse_down();
     }
     if (mouse_was_inside && mouse_was_down && mouse_is_inside && !mouse_is_down) {
         if (r.click_started && !click_absorbed) {
-            spdlog::debug("mouse click #{}", r.name);
             click_absorbed = true;
             r.on_click();
         }
         if (!up_absorbed) {
-            spdlog::debug("mouse up #{}", r.name);
             r.on_mouse_up();
             up_absorbed = true;
         }
@@ -273,8 +267,11 @@ bool te::classic_ui::input() {
 }
 
 void te::classic_ui::draw_ui(glm::vec2 o, rect& r) {
-    if (!r.fname.empty()) {
-        auto& tex = resources->lazy_load<te::gl::texture2d>(r.fname);
+    if (r.colour) {
+        draw->rect(o + r.offset, r.size, *r.colour);
+    }
+    if (r.fname) {
+        auto& tex = resources->lazy_load<te::gl::texture2d>(*r.fname);
         const glm::vec2 tex_size {tex.width, tex.height};
         draw->image(tex, o + r.offset, tex_size, {1.0, 1.0}, {1.0, 1.0});
     }
@@ -285,7 +282,7 @@ void te::classic_ui::draw_ui(glm::vec2 o, label& l) {
 }
 
 void te::classic_ui::draw_ui(glm::vec2 o, button& b) {
-    auto& tex = resources->lazy_load<te::gl::texture2d>(b.fname);
+    auto& tex = resources->lazy_load<te::gl::texture2d>(*b.fname);
     const glm::vec2 tex_size {tex.width / 2.0, tex.height};
     const glm::vec2 tex_pos = b.click_started ? glm::vec2{0.5, 1.0} : glm::vec2{1.0, 1.0};
     draw->image(tex, o + b.offset, tex_size, tex_pos, {0.5, 1.0});
@@ -304,9 +301,19 @@ void te::classic_ui::draw_ui(glm::vec2 o, generator_window& w) {
     draw_ui(o, w.status);
     draw_ui(o, w.output_name);
     // Output progress
-    draw->image(resources->lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/116.png"), o + glm::vec2{33, 122});
-    draw->rect(o + glm::vec2{34, 123}, {189.0 * generator->progress, 8}, {57/255.0, 158/255.0, 222/255.0, 255/255.0});
+    draw_ui(o, w.progress_backdrop);
+    draw_ui(o, w.progress);
 }
+
+void te::classic_ui::update(generator_window& w) {
+    auto generator = model->entities.try_get<te::generator>(w.inspected);
+    w.progress.size = {189.0 * generator->progress, 8};
+}
+
+constexpr glm::vec4 col_white = {1.0f, 1.0f, 1.0f, 1.0f};
+constexpr glm::vec4 col_red = glm::vec4{222, 93, 0, 255} / 255.0f;
+constexpr glm::vec4 col_blue = glm::vec4{165, 219, 255, 255} / 255.0f;
+constexpr glm::vec4 col_lblue = glm::vec4{57, 158, 222, 255} / 255.0f;
 
 void te::classic_ui::open_generator(entt::entity inspected) {
     auto it = std::find_if (
@@ -350,8 +357,8 @@ void te::classic_ui::open_generator(entt::entity inspected) {
                 /*.inspected =*/ inspected,
                 /*.status =*/ label {
                     .offset = {39, 73},
-                    .font = {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 7, 1.0, {165/255.0, 219/255.0, 255/255.0, 255/255.0}},
-                    .text = "Producing"
+                    .font = {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 7, 1.0, col_red},
+                    .text = "Shut Down"
                 },
                 /*.output_name=*/ label {
                     .offset = {70, 101},
@@ -362,6 +369,14 @@ void te::classic_ui::open_generator(entt::entity inspected) {
                     .fname = model->entities.try_get<te::render_tex>(generator->output)->filename,
                     .offset = {38, 85},
                     .size = { output_tex.width, output_tex.height }
+                },
+                /*.progress_backdrop=*/ rect {
+                    .fname = "assets/a_ui,6.{}/116.png",
+                    .offset = {33, 122}
+                },
+                /*.progress=*/ rect {
+                    .colour = col_lblue,
+                    .offset = {34, 123}
                 }
             }
         );
@@ -387,6 +402,7 @@ void te::classic_ui::open_generator(entt::entity inspected) {
 
 void te::classic_ui::render() {
     for (auto& win : windows) {
+        update(win);
         draw_ui(win.offset, win);
     }
     draw->render();

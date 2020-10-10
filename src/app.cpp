@@ -925,6 +925,7 @@ void te::app::run() {
             if (server) server->poll(elapsed.count());
             if (client) client->poll(elapsed.count());
             fps = static_cast<double>(frames) / elapsed.count();
+            spdlog::debug("fps: {}", fps);
             frames = 0;
             then = std::chrono::high_resolution_clock::now();
         }

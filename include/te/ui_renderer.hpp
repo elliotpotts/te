@@ -19,7 +19,6 @@
 #include <boost/signals2.hpp>
 
 namespace te {
-    constexpr glm::vec4 col_white = {1.0f, 1.0f, 1.0f, 1.0f};
     struct fontspec {
         std::string filename;
         double pts;
@@ -75,7 +74,8 @@ namespace te {
     struct classic_ui {
         struct rect {
             std::string name;
-            std::string fname;
+            std::optional<std::string> fname;
+            std::optional<glm::vec4> colour;
             glm::vec2 offset;
             glm::vec2 size;
             bool mouse_was_inside = false;
@@ -117,8 +117,11 @@ namespace te {
             label status;
             label output_name;
             rect output_icon;
+            rect progress_backdrop;
+            rect progress;
         };
         void input(glm::vec2 o, generator_window&);
+        void update(generator_window&);
         void draw_ui(glm::vec2 o, generator_window&);
 
         bool mouse_inside(glm::vec2 tl, glm::vec2 br) const;
