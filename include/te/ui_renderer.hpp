@@ -108,7 +108,6 @@ namespace te {
             glm::vec2 offset;
             rect frame;
             button close;
-            label title;
             virtual ~drag_window() = default;
             virtual void input(classic_ui&, glm::vec2) = 0;
             virtual void update(te::sim&) = 0;
@@ -117,6 +116,7 @@ namespace te {
 
         struct generator_window : public drag_window {
             entt::entity inspected;
+            label title;
             label status;
             label output_name;
             rect output_icon;
@@ -130,7 +130,7 @@ namespace te {
 
         struct market_window : public drag_window {
             entt::entity inspected;
-            label title2;
+            label title;
             label founded;
             rect growth_meter;
             label pop_label;

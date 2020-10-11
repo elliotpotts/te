@@ -295,12 +295,12 @@ void te::classic_ui::draw_ui(glm::vec2 o, button& b) {
 
 void te::classic_ui::drag_window::draw_ui(classic_ui& ui, glm::vec2 o) {
     ui.draw_ui(o, frame);
-    ui.draw_ui(o, title);
     ui.draw_ui(o, close);
 }
 
 void te::classic_ui::generator_window::draw_ui(classic_ui& ui, glm::vec2 o) {
     drag_window::draw_ui(ui, o);
+    ui.draw_ui(o, title);
     ui.draw_ui(o, output_icon);
     ui.draw_ui(o, status);
     ui.draw_ui(o, output_name);
@@ -353,6 +353,8 @@ te::classic_ui::generator_window::generator_window(te::sim& model, entt::entity 
     };
 }
 
+constexpr glm::vec4 col_yellow = glm::vec4{100.0, 76.5, 25.9, 100} / 100.0f;
+constexpr glm::vec4 col_grey = glm::vec4{87.1, 78.0, 64.7, 100} / 100.0f;
 te::classic_ui::market_window::market_window(te::sim& model, entt::entity e, market&) : inspected{e} {
     frame = rect {
         .fname = "assets/a_ui,6.{}/104.png",
@@ -366,14 +368,21 @@ te::classic_ui::market_window::market_window(te::sim& model, entt::entity e, mar
         }
     };
     title = label {
-        .offset = {16, 28},
-        .font = {"Alegreya_Sans_SC/AlegreyaSansSC-Regular.ttf", 8.0, 1.0, col_white},
-        .text = model.entities.get<te::named>(e).name
+        .offset = {93, 32},
+        .font = {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 8.0, 1.0, col_yellow},
+        .text = "Eastern Seila" //model.entities.get<te::named>(e).name
+    };
+    founded = label {
+        .offset = {44, 46},
+        .font = {"Alegreya_Sans_SC/AlegreyaSansSC-Regular.ttf", 6.0, 1.0, col_grey},
+        .text = "Founded 2000BC by Memphis Family"
     };
 }
 
 void te::classic_ui::market_window::draw_ui(classic_ui& ui, glm::vec2 o) {
     drag_window::draw_ui(ui, o);
+    ui.draw_ui(o, title);
+    ui.draw_ui(o, founded);
 }
 
 void te::classic_ui::market_window::input(classic_ui& ui, glm::vec2 o) {
