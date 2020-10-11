@@ -325,7 +325,7 @@ te::classic_ui::generator_window::generator_window(te::sim& model, entt::entity 
     title = label {
         .offset = {16, 28},
         .font = {"Alegreya_Sans_SC/AlegreyaSansSC-Regular.ttf", 8.0, 1.0, col_white},
-        .text = model.entities.get<te::named>(inspected).name
+        .text = model.entities.get<te::named>(e).name
     };
     inspected = e;
     status = label {
@@ -353,7 +353,7 @@ te::classic_ui::generator_window::generator_window(te::sim& model, entt::entity 
     };
 }
 
-te::classic_ui::market_window::market_window(entt::entity inspected, market&) {
+te::classic_ui::market_window::market_window(te::sim& model, entt::entity e, market&) : inspected{e} {
     frame = rect {
         .fname = "assets/a_ui,6.{}/104.png",
         .size = {504, 431}
@@ -364,6 +364,11 @@ te::classic_ui::market_window::market_window(entt::entity inspected, market&) {
             .offset = {471, 21},
             .size = {28, 27}
         }
+    };
+    title = label {
+        .offset = {16, 28},
+        .font = {"Alegreya_Sans_SC/AlegreyaSansSC-Regular.ttf", 8.0, 1.0, col_white},
+        .text = model.entities.get<te::named>(e).name
     };
 }
 
@@ -398,6 +403,7 @@ void te::classic_ui::inspect(entt::entity inspected, te::generator& generator) {
         const auto& button_tex = resources->lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/041.png");
         const glm::vec2 button_size { button_tex.width, button_tex.height };
         auto& appended = windows.emplace_back(std::make_unique<generator_window>(*model, inspected, generator));
+        appended->id = next_id++;
         auto my_id = appended->id;
         appended->close.on_click.connect([this, my_id]() {
             to_close = std::find_if(windows.begin(), windows.end(), [my_id](const auto& w){ return w->id == my_id; });
@@ -416,6 +422,40 @@ void te::classic_ui::inspect(entt::entity inspected, te::generator& generator) {
         std::rotate(it, std::next(it), windows.end());
     }
 }
+
+void te::classic_ui::inspect(entt::entity inspected, te::market& market) {
+    auto it = std::find_if (
+        windows.begin(),
+        windows.end(),
+        [inspected](const std::unique_ptr<drag_window>& w) {
+            if (market_window* mw = dynamic_cast<market_window*>(w.get()); mw != nullptr) {
+                return mw->inspected == inspected;
+            }
+            return false;
+        }
+    );
+    if (it == windows.end()) {
+        auto& appended = windows.emplace_back(std::make_unique<market_window>(*model, inspected, market));
+        appended->id = next_id++;
+        auto my_id = appended->id;
+        appended->close.on_click.connect([this, my_id]() {
+            to_close = std::find_if(windows.begin(), windows.end(), [my_id](const auto& w){ return w->id == my_id; });
+        });
+        appended->frame.on_mouse_down.connect([this, my_id]() {
+            dragging = my_id;
+            auto me = std::find_if(windows.begin(), windows.end(), [my_id](const auto& w){ return w->id == my_id; });
+            to_bring_to_front = me;
+            drag_offset = (*me)->offset - glm::vec2{cursor_pos};
+            (*me)->frame.on_mouse_up.connect_extended([this](const boost::signals2::connection& up_conn) {
+                dragging.reset();
+                up_conn.disconnect();
+            });
+        });
+    } else {
+        std::rotate(it, std::next(it), windows.end());
+    }
+}
+
 
 void te::classic_ui::render() {
     for (auto& win : windows) {

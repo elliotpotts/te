@@ -130,13 +130,13 @@ namespace te {
 
         struct market_window : public drag_window {
             entt::entity inspected;
-            label title;
+            label title2;
             label founded;
             rect growth_meter;
             label pop_label;
             label pop_value;
             label status;
-            market_window(entt::entity inspected, market&);
+            market_window(te::sim&, entt::entity inspected, market&);
             virtual void input(classic_ui&, glm::vec2) override;
             virtual void update(te::sim&) override;
             virtual void draw_ui(classic_ui&, glm::vec2) override;
@@ -172,6 +172,7 @@ namespace te {
         classic_ui(te::sim&, window&, ui_renderer&, te::cache<asset_loader>&);
 
         void inspect(entt::entity, te::generator&);
+        void inspect(entt::entity, te::market&);
 
         bool input();
         void render();

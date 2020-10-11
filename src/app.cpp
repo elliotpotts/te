@@ -123,6 +123,9 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
                     if (auto gen = model.entities.try_get<te::generator>(entity)) {
                         ui.inspect(entity, *gen);
                     }
+                    if (auto mark = model.entities.try_get<te::market>(entity)) {
+                        ui.inspect(entity, *mark);
+                    }
                     if (auto noisy = model.entities.try_get<te::noisy>(entity); noisy) {
                         playsfx(noisy->filename);
                     }
