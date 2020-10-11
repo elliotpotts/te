@@ -94,6 +94,10 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     client.emplace(server->make_local(model));
     client->send(hello{1, "SinglePringle"});
 
+    win.on_char.connect([&](unsigned int code) {
+        ui.on_char(code);
+    });
+
     ui.behind.on_click.connect([&](){
         if (ghost) {
             auto proto = model.entities.get<te::ghost>(*ghost).proto;

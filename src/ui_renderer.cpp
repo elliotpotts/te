@@ -180,6 +180,8 @@ te::classic_ui::classic_ui(te::sim& s, te::window& w, te::ui_renderer& d, te::ca
     behind {
         .size = {w.width(), w.height()}
     } {
+    show_window(std::make_unique<console>());
+    thecon = reinterpret_cast<console*>(windows.back().get());
 }
 
 bool inside_rect(glm::vec2 pt, glm::vec2 tl, glm::vec2 br) {
@@ -396,6 +398,24 @@ void te::classic_ui::generator_window::update(te::sim& model) {
     progress.size = {189.0 * generator->progress, 8};
 }
 
+void te::classic_ui::show_window(std::unique_ptr<drag_window> w) {
+    auto& appended = windows.emplace_back(std::move(w));
+    unsigned win_id = appended->id = next_id++;
+    appended->close.on_click.connect([this, win_id]() {
+        to_close = std::find_if(windows.begin(), windows.end(), [win_id](const auto& w) { return w->id == win_id; });
+    });
+    appended->frame.on_mouse_down.connect([this, win_id]() {
+        dragging = win_id;
+        auto me = std::find_if(windows.begin(), windows.end(), [win_id](const auto& w) { return w->id == win_id; });
+        to_bring_to_front = me;
+        drag_offset = (*me)->offset - glm::vec2{cursor_pos};
+        (*me)->frame.on_mouse_up.connect_extended([this](const boost::signals2::connection& up_conn) {
+            dragging.reset();
+            up_conn.disconnect();
+        });
+    });
+}
+
 void te::classic_ui::inspect(entt::entity inspected, te::generator& generator) {
     auto it = std::find_if (
         windows.begin(),
@@ -408,25 +428,7 @@ void te::classic_ui::inspect(entt::entity inspected, te::generator& generator) {
         }
     );
     if (it == windows.end()) {
-        const auto& frame_tex = resources->lazy_load<te::gl::texture2d>(fmt::format("assets/a_ui,6.{{}}/{}.png", "080"));
-        const auto& button_tex = resources->lazy_load<te::gl::texture2d>("assets/a_ui,6.{}/041.png");
-        const glm::vec2 button_size { button_tex.width, button_tex.height };
-        auto& appended = windows.emplace_back(std::make_unique<generator_window>(*model, inspected, generator));
-        appended->id = next_id++;
-        auto my_id = appended->id;
-        appended->close.on_click.connect([this, my_id]() {
-            to_close = std::find_if(windows.begin(), windows.end(), [my_id](const auto& w){ return w->id == my_id; });
-        });
-        appended->frame.on_mouse_down.connect([this, my_id]() {
-            dragging = my_id;
-            auto me = std::find_if(windows.begin(), windows.end(), [my_id](const auto& w){ return w->id == my_id; });
-            to_bring_to_front = me;
-            drag_offset = (*me)->offset - glm::vec2{cursor_pos};
-            (*me)->frame.on_mouse_up.connect_extended([this](const boost::signals2::connection& up_conn) {
-                dragging.reset();
-                up_conn.disconnect();
-            });
-        });
+        show_window(std::make_unique<generator_window>(*model, inspected, generator));
     } else {
         std::rotate(it, std::next(it), windows.end());
     }
@@ -443,28 +445,12 @@ void te::classic_ui::inspect(entt::entity inspected, te::market& market) {
             return false;
         }
     );
-    if (it == windows.end()) {
-        auto& appended = windows.emplace_back(std::make_unique<market_window>(*model, inspected, market));
-        appended->id = next_id++;
-        auto my_id = appended->id;
-        appended->close.on_click.connect([this, my_id]() {
-            to_close = std::find_if(windows.begin(), windows.end(), [my_id](const auto& w){ return w->id == my_id; });
-        });
-        appended->frame.on_mouse_down.connect([this, my_id]() {
-            dragging = my_id;
-            auto me = std::find_if(windows.begin(), windows.end(), [my_id](const auto& w){ return w->id == my_id; });
-            to_bring_to_front = me;
-            drag_offset = (*me)->offset - glm::vec2{cursor_pos};
-            (*me)->frame.on_mouse_up.connect_extended([this](const boost::signals2::connection& up_conn) {
-                dragging.reset();
-                up_conn.disconnect();
-            });
-        });
+    if (it != windows.end()) {
+        show_window(std::make_unique<market_window>(*model, inspected, market));
     } else {
         std::rotate(it, std::next(it), windows.end());
     }
 }
-
 
 void te::classic_ui::render() {
     for (auto& win : windows) {
@@ -472,4 +458,44 @@ void te::classic_ui::render() {
         win->draw_ui(*this, win->offset);
     }
     draw->render();
+}
+
+te::classic_ui::console::console() {
+    offset = {20, 20};
+    frame = rect {
+        .colour = glm::vec4{0, 0, 0, 1},
+        .size {300, 300}
+    };
+    close = button {
+        {
+            .name = "close",
+            .fname = "assets/a_ui,6.{}/041.png",
+            .offset = glm::vec2{260, 10},
+            .size = {28, 27}
+        }
+    };
+}
+
+void te::classic_ui::console::input(te::classic_ui& ui, glm::vec2 o) {
+    drag_window::input(ui, o);
+}
+
+void te::classic_ui::console::update(te::sim&) {
+}
+
+const auto console_font = te::fontspec {
+    .filename = "NotoMono-Regular.ttf",
+    .pts = 8,
+    .aspect = .8,
+    .colour = glm::vec4{1.0}
+};
+
+void te::classic_ui::console::draw_ui(te::classic_ui& ui, glm::vec2 o) {
+    drag_window::draw_ui(ui, o);
+    ui.draw->text(line, o + glm::vec2{1.0, 24.0}, console_font);
+}
+
+void te::classic_ui::on_char(unsigned int code) {
+    spdlog::debug(code);
+    thecon->line += code;
 }

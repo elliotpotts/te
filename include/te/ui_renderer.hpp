@@ -123,9 +123,9 @@ namespace te {
             rect progress_backdrop;
             rect progress;
             generator_window(te::sim& model, entt::entity e, const generator&);
-            void input(classic_ui&, glm::vec2) override;
-            void update(te::sim&) override;
-            void draw_ui(classic_ui&, glm::vec2) override;
+            virtual void input(classic_ui&, glm::vec2) override;
+            virtual void update(te::sim&) override;
+            virtual void draw_ui(classic_ui&, glm::vec2) override;
         };
 
         struct market_window : public drag_window {
@@ -137,6 +137,16 @@ namespace te {
             label pop_value;
             label status;
             market_window(te::sim&, entt::entity inspected, market&);
+            virtual void input(classic_ui&, glm::vec2) override;
+            virtual void update(te::sim&) override;
+            virtual void draw_ui(classic_ui&, glm::vec2) override;
+        };
+
+        struct console : public drag_window {
+            std::string buffer;
+            std::string line;
+            console();
+            virtual ~console() = default;
             virtual void input(classic_ui&, glm::vec2) override;
             virtual void update(te::sim&) override;
             virtual void draw_ui(classic_ui&, glm::vec2) override;
@@ -162,6 +172,7 @@ namespace te {
 
         unsigned next_id = 0;
         std::list<std::unique_ptr<drag_window>> windows; // stored back to front
+        void show_window(std::unique_ptr<drag_window> w);
         rect behind;
 
         decltype(windows)::iterator to_close;
@@ -173,6 +184,9 @@ namespace te {
 
         void inspect(entt::entity, te::generator&);
         void inspect(entt::entity, te::market&);
+
+        console* thecon;
+        void on_char(unsigned int);
 
         bool input();
         void render();
