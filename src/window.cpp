@@ -2,6 +2,8 @@
 #include <stdexcept>
 #include <spdlog/spdlog.h>
 
+#include <backward.hpp>
+
 namespace {
     void glfw_error_callback(int error, const char* description) {
         spdlog::error("glfw3 error[{}]: {}", error, description);
@@ -10,6 +12,7 @@ namespace {
         reinterpret_cast<te::window*>(glfwGetWindowUserPointer(w))->on_framebuffer_size(width, height);
     }
     void glfw_dispatch_key(GLFWwindow* w, int key, int scancode, int action, int mods) {
+        glfwGetKey(w, key); // necessary to clear GLFW_STICKY_KEYS state
         reinterpret_cast<te::window*>(glfwGetWindowUserPointer(w))->on_key(key, scancode, action, mods);
     }
     void glfw_dispatch_cursor_pos(GLFWwindow* w, double xpos, double ypos) {

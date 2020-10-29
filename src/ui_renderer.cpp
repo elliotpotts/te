@@ -496,23 +496,21 @@ const auto console_font = te::fontspec {
 void te::classic_ui::console::draw_ui(te::classic_ui& ui, glm::vec2 o) {
     drag_window::draw_ui(ui, o);
     for (int line_no = 0; line_no < lines.size(); line_no++) {
-        ui.draw->text(lines[line_no], o + glm::vec2{1.0, 0.0 + console_font.pts * (1 + line_no)}, console_font);
+        const double font_height = console_font.pts * 165 / 72;
+        ui.draw->text(lines[line_no], o + glm::vec2{1.0, 0.0 + font_height * (1 + line_no)}, console_font);
     }
 }
 
 void te::classic_ui::on_char(unsigned int code) {
-    spdlog::debug(code);
     thecon->lines.back() += code;
+    spdlog::debug(code);
 }
 
 void te::classic_ui::on_key(int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_ENTER && action == GLFW_RELEASE) {
-        spdlog::debug("release! {} {}", action == GLFW_PRESS, action == GLFW_RELEASE);
         thecon->lines.emplace_back();
-        spdlog::debug("   {}", thecon->lines.size());
     }
-    if (key == GLFW_KEY_BACKSPACE && action == GLFW_RELEASE) {
-        spdlog::debug("release! {} {}", action == GLFW_PRESS, action == GLFW_RELEASE);
+    if (key == GLFW_KEY_BACKSPACE && (action == GLFW_RELEASE || action == GLFW_REPEAT)) {
         auto& last_line = thecon->lines.back();
         if (!last_line.empty()) {
             last_line.pop_back();
