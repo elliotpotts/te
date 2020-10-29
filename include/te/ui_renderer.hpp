@@ -123,6 +123,7 @@ namespace te {
             rect progress_backdrop;
             rect progress;
             generator_window(te::sim& model, entt::entity e, const generator&);
+            virtual ~generator_window() = default;
             virtual void input(classic_ui&, glm::vec2) override;
             virtual void update(te::sim&) override;
             virtual void draw_ui(classic_ui&, glm::vec2) override;
@@ -137,14 +138,14 @@ namespace te {
             label pop_value;
             label status;
             market_window(te::sim&, entt::entity inspected, market&);
+            virtual ~market_window() = default;
             virtual void input(classic_ui&, glm::vec2) override;
             virtual void update(te::sim&) override;
             virtual void draw_ui(classic_ui&, glm::vec2) override;
         };
 
         struct console : public drag_window {
-            std::string buffer;
-            std::string line;
+            std::vector<std::string> lines;
             console();
             virtual ~console() = default;
             virtual void input(classic_ui&, glm::vec2) override;
@@ -187,6 +188,7 @@ namespace te {
 
         console* thecon;
         void on_char(unsigned int);
+        void on_key(int key, int scancode, int action, int mods);
 
         bool input();
         void render();

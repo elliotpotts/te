@@ -97,6 +97,9 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     win.on_char.connect([&](unsigned int code) {
         ui.on_char(code);
     });
+    win.on_key.connect([&](int key, int scancode, int action, int mods) {
+        ui.on_key(key, scancode, action, mods);
+    });
 
     ui.behind.on_click.connect([&](){
         if (ghost) {

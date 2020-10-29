@@ -127,8 +127,8 @@ te::gl::texture2d& te::ui_renderer::glyph_texture(te::fontspec face_key, ft::gly
     }
 }
 
-void te::ui_renderer::text(std::string_view str, glm::vec2 cursor, fontspec fref) {
-    auto shaping_buffer = hb::buffer::shape(face(fref), str);
+void te::ui_renderer::text(std::string_view str, glm::vec2 cursor, fontspec fspec) {
+    auto shaping_buffer = hb::buffer::shape(face(fspec), str);
     unsigned int len = hb_buffer_get_length (shaping_buffer.hnd.get());
     hb_glyph_info_t* info = hb_buffer_get_glyph_infos (shaping_buffer.hnd.get(), nullptr);
     hb_glyph_position_t* pos = hb_buffer_get_glyph_positions (shaping_buffer.hnd.get(), nullptr);
@@ -137,14 +137,14 @@ void te::ui_renderer::text(std::string_view str, glm::vec2 cursor, fontspec fref
         ft::glyph_index gix { info[i].codepoint };
         double x_offset = pos[i].x_offset / 64.0;
         double y_offset = pos[i].y_offset / 64.0;
-        auto glyph = face(fref)[gix];
+        auto glyph = face(fspec)[gix];
         image (
-            glyph_texture(fref, gix),
+            glyph_texture(fspec, gix),
             {
                 cursor.x + x_offset + glyph.bitmap_left,
                 cursor.y + y_offset - glyph.bitmap_top
             },
-            fref.colour
+            fspec.colour
         );
         cursor.x += pos[i].x_advance / 64.0;
         cursor.y += pos[i].y_advance / 64.0;
@@ -358,6 +358,7 @@ te::classic_ui::generator_window::generator_window(te::sim& model, entt::entity 
 constexpr glm::vec4 col_yellow = glm::vec4{100.0, 76.5, 25.9, 100} / 100.0f;
 constexpr glm::vec4 col_grey = glm::vec4{87.1, 78.0, 64.7, 100} / 100.0f;
 te::classic_ui::market_window::market_window(te::sim& model, entt::entity e, market&) : inspected{e} {
+    spdlog::debug("model: {}, entity: {}", static_cast<void*>(&model), static_cast<int>(e));
     frame = rect {
         .fname = "assets/a_ui,6.{}/104.png",
         .size = {504, 431}
@@ -417,6 +418,7 @@ void te::classic_ui::show_window(std::unique_ptr<drag_window> w) {
 }
 
 void te::classic_ui::inspect(entt::entity inspected, te::generator& generator) {
+    spdlog::debug("looking for generator...");
     auto it = std::find_if (
         windows.begin(),
         windows.end(),
@@ -445,7 +447,7 @@ void te::classic_ui::inspect(entt::entity inspected, te::market& market) {
             return false;
         }
     );
-    if (it != windows.end()) {
+    if (it == windows.end()) {
         show_window(std::make_unique<market_window>(*model, inspected, market));
     } else {
         std::rotate(it, std::next(it), windows.end());
@@ -461,6 +463,7 @@ void te::classic_ui::render() {
 }
 
 te::classic_ui::console::console() {
+   lines.emplace_back();
     offset = {20, 20};
     frame = rect {
         .colour = glm::vec4{0, 0, 0, 1},
@@ -492,10 +495,29 @@ const auto console_font = te::fontspec {
 
 void te::classic_ui::console::draw_ui(te::classic_ui& ui, glm::vec2 o) {
     drag_window::draw_ui(ui, o);
-    ui.draw->text(line, o + glm::vec2{1.0, 24.0}, console_font);
+    for (int line_no = 0; line_no < lines.size(); line_no++) {
+        ui.draw->text(lines[line_no], o + glm::vec2{1.0, 0.0 + console_font.pts * (1 + line_no)}, console_font);
+    }
 }
 
 void te::classic_ui::on_char(unsigned int code) {
     spdlog::debug(code);
-    thecon->line += code;
+    thecon->lines.back() += code;
+}
+
+void te::classic_ui::on_key(int key, int scancode, int action, int mods) {
+    if (key == GLFW_KEY_ENTER && action == GLFW_RELEASE) {
+        spdlog::debug("release! {} {}", action == GLFW_PRESS, action == GLFW_RELEASE);
+        thecon->lines.emplace_back();
+        spdlog::debug("   {}", thecon->lines.size());
+    }
+    if (key == GLFW_KEY_BACKSPACE && action == GLFW_RELEASE) {
+        spdlog::debug("release! {} {}", action == GLFW_PRESS, action == GLFW_RELEASE);
+        auto& last_line = thecon->lines.back();
+        if (!last_line.empty()) {
+            last_line.pop_back();
+        } else if (thecon->lines.size() > 1) {
+            thecon->lines.pop_back();
+        }
+    }
 }
