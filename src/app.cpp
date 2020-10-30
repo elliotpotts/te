@@ -38,7 +38,7 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     terrain_renderer{ win.gl, rengine, model.map_width, model.map_height },
     mesh_renderer { win.gl },
     ui_renderer { win },
-    ui { model, win, ui_renderer, resources }
+    ui { model, win, input_bus, ui_renderer, resources }
 {
     win.set_cursor(make_bitmap("assets/ui/cursor.png"));
     fmod->createStream("assets/music/main-theme.ogg", FMOD_CREATESTREAM | FMOD_LOOP_NORMAL, nullptr, &menu_music_src);

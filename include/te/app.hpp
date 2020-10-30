@@ -22,6 +22,7 @@
 #include <ft/ft.hpp>
 #include <te/gl.hpp>
 #include <hb/buffer.hpp>
+#include <ibus/bus.hpp>
 
 namespace te {
     struct app {
@@ -29,6 +30,7 @@ namespace te {
         std::default_random_engine rengine;
         te::glfw_context glfw;
         te::window win;
+        ibus::bus input_bus;
         te::fmod_system_hnd fmod;
         te::asset_loader loader;
         te::cache<asset_loader> resources;

@@ -24,7 +24,6 @@ entt::entity te::sim::make_net_entity(unsigned family) {
     static int counter = 2000 + 2000 * family;
     auto created = entities.create(entt::entity { ++counter });
     new_entities.push_back(created);
-    spdlog::debug("Created net entity for family {} as {}", family, counter);
     return created;
 }
 

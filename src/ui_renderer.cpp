@@ -172,16 +172,21 @@ void te::ui_renderer::render() {
     textures.clear();
 }
 
-te::classic_ui::classic_ui(te::sim& s, te::window& w, te::ui_renderer& d, te::cache<asset_loader>& r):
+te::classic_ui::classic_ui(te::sim& s, te::window& w, ibus::bus& input_bus, te::ui_renderer& d, te::cache<asset_loader>& r):
     model{&s},
     input_win{&w},
+    input_bus{input_bus},
     draw{&d},
     resources{&r},
     behind {
         .size = {w.width(), w.height()}
-    } {
+    },
+    ctx { input_bus.make_context() }
+    {
     show_window(std::make_unique<console>());
     thecon = reinterpret_cast<console*>(windows.back().get());
+    thecon->lines[0] = "> ";
+    ibus_input_context_focus_in(ctx);
 }
 
 bool inside_rect(glm::vec2 pt, glm::vec2 tl, glm::vec2 br) {
@@ -503,19 +508,39 @@ void te::classic_ui::console::draw_ui(te::classic_ui& ui, glm::vec2 o) {
 
 void te::classic_ui::on_char(unsigned int code) {
     thecon->lines.back() += code;
-    spdlog::debug(code);
 }
 
 void te::classic_ui::on_key(int key, int scancode, int action, int mods) {
-    if (key == GLFW_KEY_ENTER && action == GLFW_RELEASE) {
-        thecon->lines.emplace_back();
-    }
-    if (key == GLFW_KEY_BACKSPACE && (action == GLFW_RELEASE || action == GLFW_REPEAT)) {
-        auto& last_line = thecon->lines.back();
-        if (!last_line.empty()) {
-            last_line.pop_back();
-        } else if (thecon->lines.size() > 1) {
-            thecon->lines.pop_back();
+    if (action == GLFW_RELEASE || action == GLFW_REPEAT) {
+        if (key == GLFW_KEY_ENTER) {
+            SCM input = scm_from_locale_string(thecon->lines.back().c_str());
+            SCM result = scm_eval_string(input);
+            SCM result_str = scm_object_to_string(result, SCM_UNDEFINED);
+            thecon->lines.emplace_back(scm_to_locale_string(result_str));
+            thecon->lines.emplace_back("> ");
+        } else if (key == GLFW_KEY_BACKSPACE) {
+            auto& last_line = thecon->lines.back();
+            if (last_line.size() > 2) {
+                last_line.pop_back();
+            }
+        } else {
+             /* state:
+              *  0 - without modifer
+              *  1 - shift
+              *  2 - caplock
+              *  3 - shift caplock
+              *  4 - altgr
+              *  5 - shift altgr
+              *  6 - numlock
+              */
+            IBusKeymap* kmap = ibus_keymap_get("us");
+            if (!kmap) {
+                throw std::runtime_error("Couldn't get keymap");
+            }
+            guint keysym = ibus_keymap_lookup_keysym(kmap, scancode, 0);
+            spdlog::debug("keysym: {}", keysym);
+            bool success = ibus_input_context_process_key_event(ctx, keysym, scancode, 0);
+            spdlog::debug("Success? {}", success);
         }
     }
 }

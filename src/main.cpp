@@ -6,6 +6,7 @@
 #include <memory>
 #include <spdlog/spdlog.h>
 #include <sys/resource.h>
+#include <guile/3.0/libguile.h>
 
 void network_debug_output(ESteamNetworkingSocketsDebugOutputType type, const char* message) {
     spdlog::debug(message);
@@ -24,7 +25,7 @@ SteamNetworkingIPAddr init_net() {
     return server_addr;
 }
 
-int main(const int argc, const char** argv) {
+void* guile_main(void* _) {
     spdlog::set_level(spdlog::level::debug);
     // enable core dump to file
     rlimit core_limits;
@@ -45,4 +46,8 @@ int main(const int argc, const char** argv) {
     // TODO: Put in destructor of something/scope guard
     GameNetworkingSockets_Kill();
     return 0;
+}
+
+int main(const int argc, const char** argv) {
+    scm_with_guile(&guile_main, nullptr);
 }

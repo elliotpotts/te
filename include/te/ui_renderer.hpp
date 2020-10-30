@@ -18,6 +18,8 @@
 #include <list>
 #include <boost/signals2.hpp>
 #include <memory>
+#include <ibus/bus.hpp>
+#include <guile/3.0/libguile.h>
 
 namespace te {
     struct fontspec {
@@ -180,8 +182,11 @@ namespace te {
         decltype(windows)::iterator to_bring_to_front;
         glm::vec2 drag_offset;
         std::optional<unsigned> dragging;
+
+        ibus::bus& input_bus;
+        IBusInputContext* ctx;
     public:
-        classic_ui(te::sim&, window&, ui_renderer&, te::cache<asset_loader>&);
+        classic_ui(te::sim&, window&, ibus::bus& input_bus, ui_renderer&, te::cache<asset_loader>&);
 
         void inspect(entt::entity, te::generator&);
         void inspect(entt::entity, te::market&);
