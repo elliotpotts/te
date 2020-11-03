@@ -60,7 +60,7 @@ void te::sim::init_blueprints() {
     auto barley_field = blueprints.emplace_back(entities.create());
     entities.emplace<named>(barley_field, "Barley Field");
     entities.emplace<footprint>(barley_field, glm::vec2{2.0f,2.0f});
-    entities.emplace<generator>(barley_field, commodities[0], 1.0 / 14.0);
+    entities.emplace<generator>(barley_field, false, commodities[0], 1.0 / 14.0);
     entities.emplace<inventory>(barley_field);
     entities.emplace<trader>(barley_field, 0u);
     entities.emplace<render_mesh>(barley_field, "assets/barley.glb");
@@ -69,7 +69,7 @@ void te::sim::init_blueprints() {
     auto flax_field = blueprints.emplace_back(entities.create());
     entities.emplace<named>(flax_field, "Flax Field");
     entities.emplace<footprint>(flax_field, glm::vec2{2.0f,2.0f});
-    entities.emplace<generator>(flax_field, commodities[2], 1.0 / 10.0);
+    entities.emplace<generator>(flax_field, false, commodities[2], 1.0 / 10.0);
     entities.emplace<inventory>(flax_field);
     entities.emplace<trader>(flax_field, 0u);
     entities.emplace<render_mesh>(flax_field, "assets/wheat.glb");
@@ -362,6 +362,7 @@ void te::sim::tick(double dt, bool quiet) {
             entities.view<generator, inventory, trader, site>().each (
                 [&](auto& generator, auto& inventory, auto& trader, auto& generator_site) {
                     if (in_market(generator_site, market_site, market)) {
+                        generator.active = true;
                         if (generator.progress < 1.0) {
                             generator.progress += generator.rate * dt;
                         } else if (generator.progress >= 1.0 && inventory.stock[generator.output] < 10) {
@@ -369,6 +370,8 @@ void te::sim::tick(double dt, bool quiet) {
                             trader.bid[generator.output] -= 1.0;
                             generator.progress -= 1.0;
                         }
+                    } else {
+                        generator.active = false;
                     }
                 }
             );

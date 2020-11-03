@@ -306,6 +306,13 @@ void te::classic_ui::drag_window::draw_ui(classic_ui& ui, glm::vec2 o) {
 }
 
 void te::classic_ui::generator_window::draw_ui(classic_ui& ui, glm::vec2 o) {
+    if (model.entities.get<te::generator>(inspected).active) {
+        status.font.colour = col_lblue;
+        status.text = "Producing";
+    } else {
+        status.font.colour = col_red;
+        status.text = "Shut Down";
+    }
     drag_window::draw_ui(ui, o);
     ui.draw_ui(o, title);
     ui.draw_ui(o, output_icon);
@@ -315,7 +322,9 @@ void te::classic_ui::generator_window::draw_ui(classic_ui& ui, glm::vec2 o) {
     ui.draw_ui(o, progress);
 }
 
-te::classic_ui::generator_window::generator_window(te::sim& model, entt::entity e, const generator& generator) {
+te::classic_ui::generator_window::generator_window(te::sim& model, entt::entity e, const generator& generator) :
+    model { model }
+{
     frame = {
         .name = "frame",
         .fname = "assets/a_ui,6.{}/080.png",
@@ -510,13 +519,64 @@ void te::classic_ui::on_char(unsigned int code) {
     thecon->lines.back() += code;
 }
 
+const char* to_print = "";
+SCM handler_handle = SCM_UNDEFINED;
+SCM handle(SCM kind, SCM ex_args) {
+    SCM kind_repr = scm_object_to_string(kind, SCM_UNDEFINED);
+    to_print = scm_to_locale_string(kind_repr);
+    return SCM_UNDEFINED;
+}
+SCM eval_handle = SCM_UNDEFINED;
+SCM to_eval = SCM_UNDEFINED;
+const char* eval_begin;
+const char* eval_end;
+SCM eval() {
+    SCM result = scm_c_eval_string(eval_begin);
+    SCM result_repr = scm_object_to_string(result, SCM_UNDEFINED);
+    to_print = scm_to_locale_string(result_repr);
+    return SCM_UNDEFINED;
+}
+
+template<typename T> SCM dispatch(SCM userdata, SCM args) {
+    auto evald = (*reinterpret_cast<T*>(scm_to_pointer(userdata)))(args);
+    SCM evald_scm = scm_from_signed_integer(evald);
+    return evald_scm;
+}
+
+template<typename F> void register_fn(const char* name, F* fun) {
+    std::string dispatcher_name = fmt::format("__dispatch_{}", name);
+    SCM dispatcher = scm_c_define_gsubr(dispatcher_name.c_str(), 2, 0, 0, reinterpret_cast<void*>(&dispatch<F>));
+    auto src = fmt::format (
+        "(use-modules (system foreign)) (define {} (lambda args ({} (make-pointer {}) args)))",
+        name, dispatcher_name, reinterpret_cast<uintptr_t>(fun)
+    );
+    scm_c_eval_string(src.c_str());
+}
+
+SCM body(void* data) {
+}
+
 void te::classic_ui::on_key(int key, int scancode, int action, int mods) {
+    static bool handler_inittd = false;
+    if (!handler_inittd) {
+        handler_handle = scm_c_make_gsubr("my-handler", 2, 0, 0, reinterpret_cast<void*>(&handle));
+        eval_handle = scm_c_make_gsubr("my-eval", 0, 0, 0, reinterpret_cast<void*>(&eval));
+        //static auto fspec_type = register_type<te::fontspec>("<fontspec>");
+        static auto print_fst = [key](SCM args){
+            return key;
+        };
+        spdlog::debug("first key is: {}", key);
+        register_fn("print-fst-key", &print_fst);
+        scm_c_primitive_load("scm/ui.scm");
+        handler_inittd = true;
+    }
     if (action == GLFW_RELEASE || action == GLFW_REPEAT) {
         if (key == GLFW_KEY_ENTER) {
-            SCM input = scm_from_locale_string(thecon->lines.back().c_str());
-            SCM result = scm_eval_string(input);
-            SCM result_str = scm_object_to_string(result, SCM_UNDEFINED);
-            thecon->lines.emplace_back(scm_to_locale_string(result_str));
+            const std::string& src_line = thecon->lines.back();
+            eval_begin = src_line.c_str() + 2;
+            eval_end = eval_begin + src_line.size() - 2;
+            scm_catch(SCM_BOOL_T, eval_handle, handler_handle);
+            thecon->lines.emplace_back(to_print);
             thecon->lines.emplace_back("> ");
         } else if (key == GLFW_KEY_BACKSPACE) {
             auto& last_line = thecon->lines.back();
@@ -538,9 +598,7 @@ void te::classic_ui::on_key(int key, int scancode, int action, int mods) {
                 throw std::runtime_error("Couldn't get keymap");
             }
             guint keysym = ibus_keymap_lookup_keysym(kmap, scancode, 0);
-            spdlog::debug("keysym: {}", keysym);
             bool success = ibus_input_context_process_key_event(ctx, keysym, scancode, 0);
-            spdlog::debug("Success? {}", success);
         }
     }
 }

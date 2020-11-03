@@ -99,6 +99,7 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
                 if (glm::distance(map_site.position, *pos_under_mouse) <= 1.0f) {
                     inspected = entity;
                     if (auto gen = model.entities.try_get<te::generator>(entity)) {
+                        gen->active = true;
                         ui.inspect(entity, *gen);
                     }
                     if (auto mark = model.entities.try_get<te::market>(entity)) {
@@ -108,6 +109,10 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
                         playsfx(noisy->filename);
                     }
                     return;
+                } else {
+                    if (auto gen = model.entities.try_get<te::generator>(entity)) {
+                        gen->active = false;
+                    }
                 }
             }
         }

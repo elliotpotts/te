@@ -95,6 +95,7 @@ namespace te {
     }
 
     struct generator {
+        bool active;
         entt::entity output;
         double rate;
         double progress = 0.0;

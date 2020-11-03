@@ -117,6 +117,7 @@ namespace te {
         };
 
         struct generator_window : public drag_window {
+            te::sim& model;
             entt::entity inspected;
             label title;
             label status;
