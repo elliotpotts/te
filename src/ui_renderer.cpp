@@ -553,12 +553,42 @@ template<typename F> void register_fn(const char* name, F* fun) {
     scm_c_eval_string(src.c_str());
 }
 
-SCM body(void* data) {
+namespace scm {
+    namespace {
+        template<typename F>
+        SCM in_try_body(void* data) {
+            auto thunk = reinterpret_cast<F*>(data);
+            return (*thunk)();
+        }
+
+        template<typename F>
+        SCM in_try_handler(void* data, SCM key, SCM args) {
+            //throw std::runtime_error("scheme exception");
+            spdlog::debug("SPOOF!");
+            return SCM_BOOL_F;
+        }
+
+        template<typename F>
+        SCM in_try_preunwind_handler(void* data, SCM key, SCM args) {
+            return SCM_BOOL_F;
+        }
+    }
+
+    template <typename F>
+    SCM in_try(F&& f) {
+        return scm_c_catch (
+            SCM_BOOL_T,
+            &in_try_body<F>, reinterpret_cast<void*>(&f),
+            &in_try_handler<F>, reinterpret_cast<void*>(&f),
+            &in_try_preunwind_handler<F>, reinterpret_cast<void*>(&f)
+        );
+    }
 }
 
 void te::classic_ui::on_key(int key, int scancode, int action, int mods) {
     static bool handler_inittd = false;
     if (!handler_inittd) {
+        scm_c_eval_string("(use-modules (ice-9 pretty-print))");
         handler_handle = scm_c_make_gsubr("my-handler", 2, 0, 0, reinterpret_cast<void*>(&handle));
         eval_handle = scm_c_make_gsubr("my-eval", 0, 0, 0, reinterpret_cast<void*>(&eval));
         //static auto fspec_type = register_type<te::fontspec>("<fontspec>");
@@ -575,7 +605,24 @@ void te::classic_ui::on_key(int key, int scancode, int action, int mods) {
             const std::string& src_line = thecon->lines.back();
             eval_begin = src_line.c_str() + 2;
             eval_end = eval_begin + src_line.size() - 2;
-            scm_catch(SCM_BOOL_T, eval_handle, handler_handle);
+
+            scm::in_try([&]() {
+                struct foo {
+                    ~foo() {
+                        spdlog::debug("Foo is begin destroyed!");
+                    }
+                };
+                foo test;
+                SCM str = scm_from_locale_string(eval_begin);
+                SCM src_port = scm_open_input_string(str);
+                SCM exp = scm_read(src_port);
+                SCM out_port = scm_open_output_string();
+                SCM result = scm_eval(exp, scm_interaction_environment());
+                SCM result_str = scm_object_to_string(result, SCM_UNDEFINED);
+                thecon->lines.emplace_back(scm_to_locale_string(result_str));
+                return result;
+            });
+
             thecon->lines.emplace_back(to_print);
             thecon->lines.emplace_back("> ");
         } else if (key == GLFW_KEY_BACKSPACE) {
