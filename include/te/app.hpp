@@ -18,7 +18,7 @@
 #include <te/components.hpp>
 #include <te/tween.hpp>
 #include <complex>
-#include <te/ui_renderer.hpp>
+#include <te/classic_ui.hpp>
 #include <ft/ft.hpp>
 #include <te/gl.hpp>
 #include <hb/buffer.hpp>
@@ -52,7 +52,7 @@ namespace te {
         te::terrain_renderer terrain_renderer;
         te::mesh_renderer mesh_renderer;
 
-        te::ui_renderer ui_renderer;
+        te::canvas_renderer canvas;
         te::classic_ui ui;
 
         std::optional<entt::entity> inspected;
@@ -70,13 +70,8 @@ namespace te {
 
         void render_scene();
 
-        bool scroll_console_to_bottom = false;
-        void render_console();
-
         std::optional<entt::entity> merchant_ordering;
         std::optional<entt::entity> merchant_selected;
-
-        void render_ui();
 
         void playsfx(std::string filename);
 

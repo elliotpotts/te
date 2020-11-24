@@ -30,7 +30,7 @@ backward = declare_dependency(include_directories: 'deps/backward-cpp')
 backward_src = ['deps/backward-cpp/backward.cpp']
 
 executable('main',
-    ['src/fmod.cpp', 'src/main.cpp', 'src/terrain_renderer.cpp', 'src/camera.cpp', 'src/util.cpp', 'src/loader.cpp', 'src/window.cpp', 'src/gl/context.cpp', 'src/sim.cpp', 'src/app.cpp', 'src/mesh_renderer.cpp', 'src/network.cpp', 'src/client.cpp', 'src/server.cpp', 'src/ui_renderer.cpp', 'src/image.cpp', 'src/ft/ft.cpp', 'src/ft/face.cpp', 'src/hb/buffer.cpp', 'src/hb/font.cpp', 'src/ibus/bus.cpp', glad_src, backward_src],
+    ['src/fmod.cpp', 'src/main.cpp', 'src/terrain_renderer.cpp', 'src/camera.cpp', 'src/util.cpp', 'src/loader.cpp', 'src/window.cpp', 'src/gl/context.cpp', 'src/sim.cpp', 'src/app.cpp', 'src/mesh_renderer.cpp', 'src/network.cpp', 'src/client.cpp', 'src/server.cpp', 'src/te/classic_ui.cpp', 'src/te/canvas_renderer.cpp', 'src/image.cpp', 'src/ft/ft.cpp', 'src/ft/face.cpp', 'src/hb/buffer.cpp', 'src/hb/font.cpp', 'src/ibus/bus.cpp', glad_src, backward_src],
     dependencies: [glfw3, glad, freeimage, fmod, boost, threads, fmt, fxgltf, entt, networking, spdlog, freetype, harfbuzz, backward, ibus, guile],
     include_directories: 'include',
     cpp_args: ['-fcoroutines', '-DGLFW_INCLUDE_NONE', '-DGLM_ENABLE_EXPERIMENTAL', '-DImTextureID=unsigned', networking_flags, '-DSCM_DEBUG_TYPING_STRICTNESS=2'],
