@@ -53,7 +53,7 @@ namespace te {
         te::mesh_renderer mesh_renderer;
 
         te::canvas_renderer canvas;
-        te::classic_ui ui;
+        te::ui::root ui;
 
         std::optional<entt::entity> inspected;
         std::optional<entt::entity> ghost;

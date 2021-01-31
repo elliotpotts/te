@@ -20,14 +20,14 @@
 #include <ibus/bus.hpp>
 
 namespace te {
-    struct fontspec {
+    struct font {
         std::string filename;
         double pts;
         double aspect;
         glm::vec4 colour;
     };
-    struct fontspec_comparator {
-        bool operator()(const fontspec&, const fontspec&) const;
+    struct font_comparator {
+        bool operator()(const font&, const font&) const;
     };
 
     class canvas_renderer {
@@ -55,19 +55,20 @@ namespace te {
         gl::vao quad_vao;
 
         ft::ft ft;
-        std::map<fontspec, ft::face, fontspec_comparator> faces;
-        ft::face& face(fontspec);
-        std::map<fontspec, std::unordered_map<ft::glyph_index, te::gl::texture2d>, fontspec_comparator> glyph_textures;
-        te::gl::texture2d& glyph_texture(fontspec, ft::glyph_index);
+        std::map<font, ft::face, font_comparator> faces;
+        ft::face& face(font);
+        std::map<font, std::unordered_map<ft::glyph_index, te::gl::texture2d>, font_comparator> glyph_textures;
+        te::gl::texture2d& glyph_texture(font, ft::glyph_index);
 
     public:
         canvas_renderer(window&);
+        // dest pos, dest size are in screen cords. tex pos, tex size are in uv cords.
         void image(te::gl::texture2d&, glm::vec2 dest_pos, glm::vec2 dest_size, glm::vec2 tex_pos, glm::vec2 tex_size, glm::vec4 colour = glm::vec4{1.0});
         void image(te::gl::texture2d&, glm::vec2 dest_pos, glm::vec2 tex_pos, glm::vec2 tex_size, glm::vec4 colour = glm::vec4{1.0});
         void image(te::gl::texture2d&, glm::vec2 dest_pos, glm::vec4 colour = glm::vec4{1.0});
         bool image_button(te::gl::texture2d&, glm::vec2 dest_pos, glm::vec2 dest_size, glm::vec2 tex_pos_up, glm::vec2 tex_pos_down, glm::vec2 tex_size);
         void rect(glm::vec2 dest_pos, glm::vec2 dest_size, glm::vec4 colour);
-        void text(std::string_view str, glm::vec2 cursor, fontspec font);
+        void text(std::string_view str, glm::vec2 cursor, font fnt);
 
         void render();
     };

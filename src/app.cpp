@@ -31,7 +31,7 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     zoom_tween {12.0, 20},
     cam {
         {0.0f, 0.0f, 0.0f}, // focus
-        0.6, // altitude
+        0.8, // altitude
         radius_tween.end,
         zoom_tween.end,
         static_cast<float>(win.width()) / win.height() // aspect ratio
@@ -65,65 +65,6 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     server->max_players = 1;
     client.emplace(server->make_local(model));
     client->send(hello{1, "SinglePringle"});
-
-    /*
-    win.on_char.connect([&](unsigned int code) {
-        ui.on_char(code);
-    });
-    win.on_key.connect([&](int key, int scancode, int action, int mods) {
-        ui.on_key(key, scancode, action, mods);
-    });
-    */
-
-    ui.behind.on_click.connect([&](){
-        if (ghost) {
-            auto proto = model.entities.get<te::ghost>(*ghost).proto;
-            auto pos = model.entities.get<te::site>(*ghost).position;
-            if (model.can_place(proto, pos)) {
-                model.entities.destroy(*ghost);
-                ghost.reset();
-                playsfx("assets/sfx/build2.wav");
-                client->send(build {*client->family(), proto, pos} );
-                /*
-                  auto built = co_await client->build(*client->family(), proto, pos);
-                  if (!built) {
-                  playsfx("assets/sfx/notif3.wav");
-                  }
-                */
-            } else {
-                playsfx("assets/sfx/notif3.wav");
-            }
-            /* TODO: figure out how to play sound effecs when things fail/don't fail.
-             *       Do we always have to wait for a response from the server? */
-        } else if (pos_under_mouse) {
-            auto map_entities = model.entities.view<te::site, te::pickable>();
-            for (auto entity : map_entities) {
-                auto& map_site = map_entities.get<te::site>(entity);
-                if (glm::distance(map_site.position, *pos_under_mouse) <= 1.0f) {
-                    /*
-                    inspected = entity;
-                    if (auto gen = model.entities.try_get<te::generator>(entity)) {
-                        gen->active = true;
-                        ui.inspect(entity, *gen);
-                    }
-                    if (auto mark = model.entities.try_get<te::market>(entity)) {
-                        ui.inspect(entity, *mark);
-                    }
-                    if (auto noisy = model.entities.try_get<te::noisy>(entity); noisy) {
-                        playsfx(noisy->filename);
-                    }
-                    */
-                    //ui.inspect(entity);
-                    return;
-                } else {
-                    if (auto gen = model.entities.try_get<te::generator>(entity)) {
-                        gen->active = false;
-                    }
-                }
-            }
-        }
-        inspected.reset();
-    });
 }
 
 void te::app::on_key(const int key, const int scancode, const int action, const int mods) {

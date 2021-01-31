@@ -5,8 +5,9 @@
 #include <spdlog/spdlog.h>
 #include <utility>
 #include <te/components.hpp>
+#include <fmt/format.h>
 
-bool te::fontspec_comparator::operator()(const te::fontspec& lhs, const te::fontspec& rhs) const {
+bool te::font_comparator::operator()(const te::font& lhs, const te::font& rhs) const {
     return std::tie(lhs.filename, lhs.pts, lhs.aspect) < std::tie(rhs.filename, rhs.pts, rhs.aspect);
 }
 
@@ -57,8 +58,7 @@ te::canvas_renderer::canvas_renderer(te::window& wind):
     sampler.set(GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 }
 
-#include <fmt/format.h>
-ft::face& te::canvas_renderer::face(te::fontspec key) {
+ft::face& te::canvas_renderer::face(te::font key) {
     auto it = faces.find(key);
     if (it == faces.end()) {
         auto emplaced = faces.emplace (
@@ -106,7 +106,7 @@ void te::canvas_renderer::rect(glm::vec2 dest_pos, glm::vec2 dest_size, glm::vec
     textures.emplace_back(&white1);
 }
 
-te::gl::texture2d& te::canvas_renderer::glyph_texture(te::fontspec face_key, ft::glyph_index glyph_key) {
+te::gl::texture2d& te::canvas_renderer::glyph_texture(te::font face_key, ft::glyph_index glyph_key) {
     auto& map = glyph_textures[face_key];
     auto glyph_it = map.find(glyph_key);
     if (glyph_it == map.end()) {
@@ -122,7 +122,7 @@ te::gl::texture2d& te::canvas_renderer::glyph_texture(te::fontspec face_key, ft:
     }
 }
 
-void te::canvas_renderer::text(std::string_view str, glm::vec2 cursor, fontspec fspec) {
+void te::canvas_renderer::text(std::string_view str, glm::vec2 cursor, font fspec) {
     auto shaping_buffer = hb::buffer::shape(face(fspec), str);
     unsigned int len = hb_buffer_get_length (shaping_buffer.hnd.get());
     hb_glyph_info_t* info = hb_buffer_get_glyph_infos (shaping_buffer.hnd.get(), nullptr);
@@ -155,7 +155,7 @@ void te::canvas_renderer::render() {
     sampler.bind(0);
     quad_vao.bind();
 
-    te::gl::texture2d* activated;
+    te::gl::texture2d* activated = nullptr;
     for (auto i = 0u; i < quads.size(); i++) {
         if (textures[i] != activated) {
             textures[i]->activate(0);
