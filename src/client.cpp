@@ -76,7 +76,7 @@ namespace {
     template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 }
 void te::client::poll(double elapsed) {
-    netio->RunCallbacks(this);
+    netio->RunCallbacks();
     ISteamNetworkingMessage* incoming = nullptr;
     int count_received = netio->ReceiveMessagesOnConnection(conn, &incoming, 1);
     while (count_received == 1) {

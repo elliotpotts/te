@@ -11,7 +11,7 @@
 
 namespace te {
     struct client;
-    struct server : private ISteamNetworkingSocketsCallbacks {
+    struct server {
         struct player {
             unsigned family;
             std::string nick;
@@ -41,7 +41,7 @@ namespace te {
         void send(HSteamNetConnection conn, const te::msg& msg);
         void send_all(const te::msg& msg, HSteamNetConnection except = k_HSteamNetConnection_Invalid);
 
-        virtual void OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* info) override;
+        void OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* info);
     public:
         server(ISteamNetworkingSockets* netio, std::uint16_t port);
         client make_local(te::sim& model);

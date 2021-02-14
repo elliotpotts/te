@@ -7,12 +7,13 @@
 #include <boost/signals2.hpp>
 #include <cstdint>
 
+
 namespace te {
-    class client : private ISteamNetworkingSocketsCallbacks {
+    class client {
         ISteamNetworkingSockets* netio;
         HSteamNetConnection conn;
     protected:
-        virtual void OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* info) override;
+        void OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* info);
 
     public:
         std::int64_t send(std::span<const std::byte>);
@@ -34,7 +35,7 @@ namespace te {
         client(ISteamNetworkingSockets* netio, HSteamNetConnection conn, te::sim& model);
         client(ISteamNetworkingSockets* netio, const SteamNetworkingIPAddr &serverAddr, te::sim& model);
         client(client&& rhs);
-        virtual ~client();
+        ~client();
         void poll(double elapsed);
         std::int64_t send(te::msg&& m);
         std::optional<unsigned> family();

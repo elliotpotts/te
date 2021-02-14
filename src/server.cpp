@@ -147,7 +147,7 @@ void te::server::recv() {
 }
 
 void te::server::poll(double dt) {
-    netio->RunCallbacks(this);
+    netio->RunCallbacks();
     recv();
     tick(dt);
 

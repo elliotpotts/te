@@ -9,13 +9,16 @@ glad_src = ['deps/glad/src/glad.c']
 freeimage = dependency('freeimage')
 fmod = declare_dependency (
   include_directories: 'deps/fmodstudioapi20007linux/api/core/inc/',
-  dependencies: cpp.find_library('fmod', dirs: '/home/elliot/projects/te/deps/fmodstudioapi20007linux/api/core/lib/x86_64')
+  dependencies: cpp.find_library('fmod', dirs: '/home/elliot/projects/te/deps/fmodstudioapi20107linux/api/core/lib/x86_64')
 )
-boost = dependency('boost', version: '>=1.73') #signals need not be included as it's header-only.
+boost = dependency('boost', version: '>=1.73') #signals need not be specifically listed as it's header-only.
 fmt = dependency('fmt')
 fxgltf = declare_dependency(include_directories: 'deps/fx-gltf/include')
 entt = declare_dependency(include_directories: 'deps/entt/src')
-networking = subproject('GameNetworkingSockets').get_variable('dep_GameNetworkingSockets_so')
+networking = declare_dependency (
+  include_directories: 'deps/GameNetworkingSockets/include',
+  dependencies: cpp.find_library('GameNetworkingSockets', dirs: '/home/elliot/projects/te/deps/GameNetworkingSockets/build/bin')
+)
 networking_flags = ['-DSTEAMNETWORKINGSOCKETS_OPENSOURCE', '-DPOSIX', '-DLINUX']
 freetype = dependency('freetype2')
 harfbuzz = dependency('harfbuzz')
@@ -34,5 +37,5 @@ executable('main',
     dependencies: [glfw3, glad, freeimage, fmod, boost, threads, fmt, fxgltf, entt, networking, spdlog, freetype, harfbuzz, backward, ibus, guile],
     include_directories: 'include',
     cpp_args: ['-fcoroutines', '-DGLFW_INCLUDE_NONE', '-DGLM_ENABLE_EXPERIMENTAL', '-DImTextureID=unsigned', networking_flags, '-DSCM_DEBUG_TYPING_STRICTNESS=2'],
-    link_args: ['-ldl']
+    link_args: ['-ldl', '-static-libstdc++']
 )

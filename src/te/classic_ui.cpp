@@ -59,13 +59,13 @@ struct uui {
 
     uui(te::ui::node& root) : construction_button{root, false}, roster_button{root, false} {
         construction_button.node->offset = {40, 0};
-        /*top_bar = img(root.children.emplace_back(), "168.png", {0, 0}, true);
+        top_bar = img(root.children.emplace_back(), "168.png", {0, 0}, true);
         construction_panel = img(root.children.emplace_back(), "002.png", {0, 20}, false);
         roster_panel = img(root.children.emplace_back(), "011.png", {0, 20}, false);
         orders_panel = img(root.children.emplace_back(), "013.png", {0, 20}, false);
         route_panel = img(root.children.emplace_back(), "089.png", {0, 20}, false);
         tech_panel = img(root.children.emplace_back(), "136.png", {0, 20}, true);
-        bottom_bar = img(root.children.emplace_back(), "169.png", {0, 714}, true);*/
+        bottom_bar = img(root.children.emplace_back(), "169.png", {0, 714}, true);
     };
 };
 
