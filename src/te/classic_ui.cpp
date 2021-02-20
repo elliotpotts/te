@@ -24,49 +24,78 @@ te::ui::node* img(te::ui::node& n, std::string fname, glm::vec2 offset, bool vis
 
    we must see the model (img, div, button, etc.) as separate (and higher level) than the nodes themselves
  */
-
-struct button {
-    bool pressed;
-    te::ui::node* node;
-    button(te::ui::node& root, bool value) : pressed{value} {
-        node = img(root.children.emplace_back(), "176.png", {0, 0}, true);
-        node->size = {0.5, 1};
-        node->image_size = {0.5, 1};
-        node->on_mouse_down.connect([this]() {
-            pressed = true;
-            node->image_offset = {0.5, 0};
-        });
-        node->on_mouse_up.connect([&]() {
-            pressed = false;
-            node->image_offset = {0, 0};
-        });
+te::ui::button::button(te::ui::node& root, const char* i, bool value) : pressed{value} {
+    n = img(root.children.emplace_back(), i, {0, 0}, true);
+    n->size = {0.5, 1};
+    n->image_size = {0.5, 1};
+}
+void te::ui::button::update() {
+    if (pressed) {
+        n->image_offset = {0.5, 0};
+    } else {
+        n->image_offset = {0, 0};
     }
+}
+
+te::ui::uui::uui(te::ui::node& root) {
+    top_bar = img(root.children.emplace_back(), "168", {0, 0}, true);
+
+    panel_open = nullptr;
+    panel_button = nullptr;
+
+    construction_panel = img(root.children.emplace_back(), "002", {0, 20}, false);
+    cons_0_back = img(construction_panel->children.emplace_back(), "001", {13, 65}, true);
+    cons_0_text = &construction_panel->children.emplace_back();
+    cons_0_text->text = "PATHWAYS";
+    cons_0_text->text_font = {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 8.0, 2.0, {1.0, 1.0, 1.0, 1.0}};
+    cons_0_text->offset = {13, 65 + 16};
+    cons_0_text->visible = true;
+
+    roster_panel = img(root.children.emplace_back(), "011", {0, 20}, false);
+    orders_panel = img(root.children.emplace_back(), "013", {0, 20}, false);
+    routes_panel = img(root.children.emplace_back(), "089", {0, 20}, false);
+    tech_panel = img(root.children.emplace_back(), "136", {0, 20}, false);
+
+    bottom_bar = img(root.children.emplace_back(), "169", {0, 714}, true);
+    bottom_bar_text = &bottom_bar->children.emplace_back();
+    bottom_bar_text->id = "bottom_bar_text";
+    bottom_bar_text->visible = true;
+    bottom_bar_text->size = {485, 28};
+    bottom_bar_text->offset = {271, 13};
+    bottom_bar_text->colour = glm::vec4{0.0};
+    bottom_bar_text->text = "foo";
+    bottom_bar_text->text_font = {"Alegreya_Sans_SC/AlegreyaSansSC-Bold.ttf", 8.0, 2.0, {1.0, 1.0, 1.0, 1.0}};
+
+    roster_button = new button {root, "176", false};
+    roster_button->n->offset = {28, 14 + 714};
+    roster_button->n->on_mouse_down.connect([this]() { toggle_button(roster_button, roster_panel); });
+    routes_button = new button {root, "177", false};
+    routes_button->n->offset = {84, 14 + 714};
+    routes_button->n->on_mouse_down.connect([this]() { toggle_button(routes_button, routes_panel); });
+    construction_button = new button {root, "178", false};
+    construction_button->n->offset = {141, 14 + 714};
+    construction_button->n->on_mouse_down.connect([this]() { toggle_button(construction_button, construction_panel); });
+    tech_button = new button {root, "179", false};
+    tech_button->n->offset = {198, 14 + 714};
+    tech_button->n->on_mouse_down.connect([this]() { toggle_button(tech_button, tech_panel); });
 };
 
-struct uui {
-    te::ui::node* top_bar;
-
-    te::ui::node* construction_panel;
-    te::ui::node* roster_panel;
-    te::ui::node* orders_panel;
-    te::ui::node* route_panel;
-    te::ui::node* tech_panel;
-
-    button construction_button;
-    button roster_button;
-
-    te::ui::node* bottom_bar;
-
-    uui(te::ui::node& root) : construction_button{root, false}, roster_button{root, false} {
-        construction_button.node->offset = {40, 0};
-        top_bar = img(root.children.emplace_back(), "168.png", {0, 0}, true);
-        construction_panel = img(root.children.emplace_back(), "002.png", {0, 20}, false);
-        roster_panel = img(root.children.emplace_back(), "011.png", {0, 20}, false);
-        orders_panel = img(root.children.emplace_back(), "013.png", {0, 20}, false);
-        route_panel = img(root.children.emplace_back(), "089.png", {0, 20}, false);
-        tech_panel = img(root.children.emplace_back(), "136.png", {0, 20}, true);
-        bottom_bar = img(root.children.emplace_back(), "169.png", {0, 714}, true);
-    };
+void te::ui::uui::toggle_button(button* btn, te::ui::node* pnl) {
+    if (panel_open) {
+        panel_open->visible = false;
+        panel_button->pressed = false;
+        panel_button->update();
+    }
+    if (panel_open == pnl) {
+        panel_open = nullptr;
+        panel_button = nullptr;
+    } else {
+        panel_open = pnl;
+        panel_open->visible = !panel_open->visible;
+        panel_button = btn;
+        panel_button->pressed = !panel_button->pressed;
+        panel_button->update();
+    }
 };
 
 te::ui::node::node() : visible{true}, size{0.0}, offset{0.0}, colour{0.0}, image_size{1, 1}, image_offset{0,0} {
@@ -88,7 +117,7 @@ void te::ui::root::cursor_move(double x, double y) {
     child_it_t child_it = dom.children.begin();
     child_it_t child_it_end = dom.children.end();
     while (child_it != child_it_end) {
-        const auto& tex = resources->lazy_load<te::gl::texture2d>(fmt::format("assets/a_ui,6.{{}}/{}", child_it->image));
+        const auto& tex = resources->lazy_load<te::gl::texture2d>(fmt::format("assets/a_ui,6.{{}}/{}.png", child_it->image));
         const glm::vec2 tex_size = glm::vec2{tex.width, tex.height};
         const auto screen_size = tex_size * child_it->size;
         const glm::vec2 tl = origin + child_it->offset;
@@ -107,23 +136,28 @@ void te::ui::root::cursor_move(double x, double y) {
 }
 
 te::ui::root::root(te::sim& s, te::window& w, te::canvas_renderer& d, te::cache<asset_loader>& r):
-    input_win{&w}, canvas{&d}, resources{&r}, dom{}, over{nullptr}
+    input_win{&w}, canvas{&d}, resources{&r}, dom{}, focused{nullptr}, clicking{nullptr}, over{nullptr}
 {
     w.on_cursor_move.connect([&](double x, double y) { cursor_move(x, y); });
     w.on_mouse_button.connect([&](int button, int action, int mods) {
         if (action == GLFW_PRESS && over) {
             over->on_mouse_down();
+            clicking = over;
         } else if (action == GLFW_RELEASE && over) {
             over->on_mouse_up();
+            if (over == clicking) {
+                over->on_click();
+                clicking = nullptr;
+            }
         }
     });
 
     dom.size = glm::vec2{ w.width(), w.height() };
-    new uui { dom };
+    foo = new uui { dom };
 }
 
 bool te::ui::root::input() {
-    return true;
+    return false;
 }
 
 void te::ui::root::render(glm::vec2 origin, te::ui::node& n) {
@@ -131,11 +165,11 @@ void te::ui::root::render(glm::vec2 origin, te::ui::node& n) {
         canvas->rect(origin, n.size, n.colour);
     }
     if (!n.image.empty()) {
-        auto& tex = resources->lazy_load<te::gl::texture2d>(fmt::format("assets/a_ui,6.{{}}/{}", n.image));
+        auto& tex = resources->lazy_load<te::gl::texture2d>(fmt::format("assets/a_ui,6.{{}}/{}.png", n.image));
         const glm::vec2 tex_size = glm::vec2{tex.width, tex.height};
         glm::vec4 colour = n.colour;
         if (&n == over) {
-            colour -= glm::vec4{0, .7, .7, 0};
+            colour -= glm::vec4{0, .1, .1, 0};
         }
         canvas->image(tex, origin, tex_size * n.size, n.image_offset, n.image_size, colour);
     }

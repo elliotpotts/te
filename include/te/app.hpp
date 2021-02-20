@@ -65,6 +65,7 @@ namespace te {
         void on_chat(te::chat);
 
         std::optional<glm::vec2> pos_under_mouse;
+        std::optional<entt::entity> entt_under_mouse;
         void mouse_pick();
         glm::vec2 cast_ray(glm::vec2 screen_space) const;
 

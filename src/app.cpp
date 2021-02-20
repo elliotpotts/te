@@ -42,6 +42,7 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     ui { model, win, canvas, resources }
 {
     win.set_cursor(make_bitmap("assets/ui/cursor.png"));
+    win.on_key.connect([&](int a, int b, int c, int d) { on_key(a,b,c,d); });
     fmod->createStream("assets/music/main-theme.ogg", FMOD_CREATESTREAM | FMOD_LOOP_NORMAL, nullptr, &menu_music_src);
     //fmod->playSound(menu_music_src, nullptr, false, &menu_music);
     win.on_framebuffer_size.connect([&](int width, int height) {
@@ -58,6 +59,15 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     model.on_trade.connect([&]() {
         static std::uniform_int_distribution select{1, 4};
         playsfx(fmt::format("assets/sfx/coin{}.wav", select(rengine)));
+    });
+
+    ui.dom.on_click.connect([&]() {
+        if (entt_under_mouse) {
+            if (auto noisy = model.entities.try_get<te::noisy>(*entt_under_mouse); noisy) {
+                inspected = entt_under_mouse;
+                playsfx(noisy->filename);
+            }
+        }
     });
 
     // start singleplayer game
@@ -173,10 +183,44 @@ void te::app::playsfx(std::string filename) {
 void te::app::input() {
     if (!ui.input()) {
         mouse_pick();
-        if (ghost && pos_under_mouse) {
-            model.entities.emplace_or_replace<site>(*ghost, model.snap(*pos_under_mouse, model.entities.get<footprint>(*ghost).dimensions));
+        entt_under_mouse.reset();
+        if (pos_under_mouse) {
+            if (ghost) {
+                model.entities.emplace_or_replace<site>(*ghost, model.snap(*pos_under_mouse, model.entities.get<footprint>(*ghost).dimensions));
+            } else {
+                auto map_entities = model.entities.view<te::site, te::pickable>();
+                for (auto entity : map_entities) {
+                    auto& map_site = map_entities.get<te::site>(entity);
+                    if (glm::distance(map_site.position, *pos_under_mouse) <= 1.0f) {
+                        entt_under_mouse = entity;
+                        break;
+                    }
+                }
+            }
         }
     }
+    if (entt_under_mouse) {
+        if (auto named = model.entities.try_get<te::named>(*entt_under_mouse); named) {
+            ui.foo->bottom_bar_text->text = named->name;
+        } else {
+            ui.foo->bottom_bar_text->text = "";
+        }
+    } else {
+        ui.foo->bottom_bar_text->text = "";
+    }
+
+    //TODO: move to ui somehow
+    glm::vec3 forward = cam.forward();
+    forward.z = 0.0f;
+    forward = glm::normalize(forward);
+    glm::vec3 left = glm::rotate(forward, glm::half_pi<float>(), glm::vec3{0.0f, 0.0f, 1.0f});
+    if (win.key(GLFW_KEY_W) == GLFW_PRESS) {
+        cam.focus += 0.3f * forward;
+    }
+    if (win.key(GLFW_KEY_A) == GLFW_PRESS) cam.focus += 0.3f * left;
+    if (win.key(GLFW_KEY_S) == GLFW_PRESS) cam.focus -= 0.3f * forward;
+    if (win.key(GLFW_KEY_D) == GLFW_PRESS) cam.focus -= 0.3f * left;
+    cam.use_ortho = win.key(GLFW_KEY_SPACE) != GLFW_PRESS;
 }
 
 void te::app::draw() {
