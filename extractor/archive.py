@@ -43,46 +43,38 @@ class PixFormatRGB565:
 
         return np.dstack((r,g,b,a)).astype(np.uint8)
 
-    # def rgba(self, pixel_bytes):
-    #     return []
-    #     pixel = int.from_bytes(pixel_bytes, byteorder="little")
-    #     r = round(((pixel >> 11) & 0b11111)  / (0b11111) * 255.0)
-    #     g = round(((pixel >> 5)  & 0b111111) / (0b111111) * 255.0)
-    #     b = round(((pixel >> 0)  & 0b11111)  / (0b11111) * 255.0)
-    #     if (r, g, b) == (255, 0, 255):
-    #         a = 0
-    #     else:
-    #         a = 255
-    #     return (r,g,b,a)
-
 class PixFormatRGB555:
     def __init__(self):
         self.name = "RGB555"
         self.Bpp = 2
 
-    # def rgba(self, pixel_bytes):
-    #     pixel = int.from_bytes(pixel_bytes, byteorder="little")
-    #     r = round(((pixel >> 10) & 0b11111) / 0b11111 * 255.0)
-    #     g = round(((pixel >> 5 ) & 0b11111) / 0b11111 * 255.0)
-    #     b = round(((pixel >> 0 ) & 0b11111) / 0b11111 * 255.0)
-    #     if (r, g, b) == (255, 0, 255):
-    #         a = 0
-    #     else:
-    #         a = 255
-    #     return (r,g,b,a)
+    def to_rgba(self, rgb555):
+        rgba = np.copy(rgb555).repeat(4)
+        rgba.shape = rgb555.shape + (4,)
+
+        r = np.around((np.right_shift(rgba[:,:,0], 11) & 0b11111)  / (0b11111) * 255.0)
+        g = np.around((np.right_shift(rgba[:,:,1],  5) & 0b11111)  / (0b11111) * 255.0)
+        b = np.around((np.right_shift(rgba[:,:,2],  0) & 0b11111)  / (0b11111) * 255.0)
+        a = rgba[:,:,3]
+        a[:] = (1 - (r == 255) * (g == 0) * (b == 255)) * 255
+
+        return np.dstack((r,g,b,a)).astype(np.uint8)
 
 class PixFormatARGB4444:
     def __init__(self):
         self.name = "ARGB4444"
         self.Bpp = 2
 
-    # def rgba(self, pixel_bytes):
-    #     pixel = int.from_bytes(pixel_bytes, byteorder="little")
-    #     a = round(((pixel >> 12) & 0b1111) / 0b1111 * 255.0)
-    #     r = round(((pixel >> 8 ) & 0b1111) / 0b1111 * 255.0)
-    #     g = round(((pixel >> 4 ) & 0b1111) / 0b1111 * 255.0)
-    #     b = round(((pixel >> 0 ) & 0b1111) / 0b1111 * 255.0)
-    #     return (r,g,b,a)
+    def to_rgba(self, argb4444):
+        rgba = np.copy(argb4444).repeat(4)
+        rgba.shape = argb4444.shape + (4,)
+
+        a = np.around((np.right_shift(rgba[:,:,0], 12) & 0b1111)  / (0b1111) * 255.0)
+        r = np.around((np.right_shift(rgba[:,:,1],  8) & 0b1111)  / (0b1111) * 255.0)
+        g = np.around((np.right_shift(rgba[:,:,2],  4) & 0b1111)  / (0b1111) * 255.0)
+        b = np.around((np.right_shift(rgba[:,:,3],  0) & 0b1111)  / (0b1111) * 255.0)
+
+        return np.dstack((r,g,b,a)).astype(np.uint8)
 
 class PixFormatIndexed:
     def __init__(self, name, palette):
@@ -90,10 +82,9 @@ class PixFormatIndexed:
         self.Bpp = 1
         self.palette = palette
 
-    # def rgba(self, pixel_bytes):
-    #     colour_ix = int.from_bytes(pixel_bytes, byteorder="little")
-    #     #TODO: stop hardcoding this
-    #     return self.palette[PIXFORMAT_RGB565].rgba(colour_ix, 0)
+    def to_rgba(self, ixd):
+        #     #TODO: stop hardcoding palette pixformat
+        return self.palette[PIXFORMAT_RGB565].to_rgba()[ixd]
 
 PIXFORMAT_RGB565 = PixFormatRGB565()
 PIXFORMAT_RGB555 = PixFormatRGB555()
