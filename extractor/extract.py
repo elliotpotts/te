@@ -4,6 +4,8 @@ import archive
 import viewer
 import argparse
 import os
+from pathlib import Path
+import PIL
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Extract data from `.{}` files')
@@ -18,13 +20,12 @@ if __name__ == "__main__":
         inf.read()
         print(f"Final tell: {inf.tell():x}")
         print("-----------------------")
-        viewer.view(ar)
-        #outdir = Path(f"processed/{archive_name}")
-        #outdir.mkdir(parents=True, exist_ok=True)
-        #for ix, original in enumerate(ar.images):
-        #    out_image = PIL.Image.new("RGBA", (original.width, original.height))
-        #    for y in range(0, original.height):
-        #        for x in range(0, original.width):
-        #            out_image.putpixel((x, y), original.rgba(x, y))
-        #    with open(outdir / f"{ix:04}.png", "wb") as outf:
-        #        out_image.save(outf, "PNG")
+        #viewer.view(ar)
+
+        ar.images[0].to_rgba()
+        outdir = Path(f"debug/{archive_name}")
+        outdir.mkdir(parents=True, exist_ok=True)
+        for ix, original in enumerate(ar.images):
+            out_image = PIL.Image.fromarray(original.to_rgba())
+            with open(outdir / f"{ix:04}.png", "wb") as outf:
+                out_image.save(outf, "PNG")

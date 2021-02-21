@@ -4,6 +4,7 @@ import struct
 from pathlib import Path
 import itertools
 import io
+import numpy as np
 
 def take(n, iterable):
     "Return first n items of the iterable as a list"
@@ -17,50 +18,71 @@ ARCHIVE_MAGIC = b'\x75\xb1\xc0\xba\x00\x00\x01\x00'
 PALETTE_TAG = b'\x61\x70\x30\x31'
 IMAGE_TAG = b'\x62\x67\x36\x61'
 
+def uint_dtype(num_bytes):
+    if num_bytes == 1:
+        return np.uint8
+    elif num_bytes == 2:
+        return np.uint16
+    else:
+        raise RuntimeError(f"Cannot handle Bpp = {self.format.Bpp}")
+
 class PixFormatRGB565:
     def __init__(self):
         self.name = "RGB565"
         self.Bpp = 2
 
-    def rgba(self, pixel_bytes):
-        pixel = int.from_bytes(pixel_bytes, byteorder="little")
-        r = round(((pixel >> 11) & 0b11111)  / (0b11111) * 255.0)
-        g = round(((pixel >> 5)  & 0b111111) / (0b111111) * 255.0)
-        b = round(((pixel >> 0)  & 0b11111)  / (0b11111) * 255.0)
-        if (r, g, b) == (255, 0, 255):
-            a = 0
-        else:
-            a = 255
-        return (r,g,b,a)
+    def to_rgba(self, rgb565):
+        rgba = np.copy(rgb565).repeat(4)
+        rgba.shape = rgb565.shape + (4,)
+
+        r = np.around((np.right_shift(rgba[:,:,0], 11) & 0b011111)  / (0b011111) * 255.0)
+        g = np.around((np.right_shift(rgba[:,:,1],  5) & 0b111111)  / (0b111111) * 255.0)
+        b = np.around((np.right_shift(rgba[:,:,2],  0) & 0b011111)  / (0b011111) * 255.0)
+        a = rgba[:,:,3]
+        a[:] = (1 - (r == 255) * (g == 0) * (b == 255)) * 255
+
+        return np.dstack((r,g,b,a)).astype(np.uint8)
+
+    # def rgba(self, pixel_bytes):
+    #     return []
+    #     pixel = int.from_bytes(pixel_bytes, byteorder="little")
+    #     r = round(((pixel >> 11) & 0b11111)  / (0b11111) * 255.0)
+    #     g = round(((pixel >> 5)  & 0b111111) / (0b111111) * 255.0)
+    #     b = round(((pixel >> 0)  & 0b11111)  / (0b11111) * 255.0)
+    #     if (r, g, b) == (255, 0, 255):
+    #         a = 0
+    #     else:
+    #         a = 255
+    #     return (r,g,b,a)
 
 class PixFormatRGB555:
     def __init__(self):
         self.name = "RGB555"
         self.Bpp = 2
 
-    def rgba(self, pixel_bytes):
-        pixel = int.from_bytes(pixel_bytes, byteorder="little")
-        r = round(((pixel >> 10) & 0b11111) / 0b11111 * 255.0)
-        g = round(((pixel >> 5 ) & 0b11111) / 0b11111 * 255.0)
-        b = round(((pixel >> 0 ) & 0b11111) / 0b11111 * 255.0)
-        if (r, g, b) == (255, 0, 255):
-            a = 0
-        else:
-            a = 255
-        return (r,g,b,a)
+    # def rgba(self, pixel_bytes):
+    #     pixel = int.from_bytes(pixel_bytes, byteorder="little")
+    #     r = round(((pixel >> 10) & 0b11111) / 0b11111 * 255.0)
+    #     g = round(((pixel >> 5 ) & 0b11111) / 0b11111 * 255.0)
+    #     b = round(((pixel >> 0 ) & 0b11111) / 0b11111 * 255.0)
+    #     if (r, g, b) == (255, 0, 255):
+    #         a = 0
+    #     else:
+    #         a = 255
+    #     return (r,g,b,a)
 
 class PixFormatARGB4444:
     def __init__(self):
         self.name = "ARGB4444"
         self.Bpp = 2
 
-    def rgba(self, pixel_bytes):
-        pixel = int.from_bytes(pixel_bytes, byteorder="little")
-        a = round(((pixel >> 12) & 0b1111) / 0b1111 * 255.0)
-        r = round(((pixel >> 8 ) & 0b1111) / 0b1111 * 255.0)
-        g = round(((pixel >> 4 ) & 0b1111) / 0b1111 * 255.0)
-        b = round(((pixel >> 0 ) & 0b1111) / 0b1111 * 255.0)
-        return (r,g,b,a)
+    # def rgba(self, pixel_bytes):
+    #     pixel = int.from_bytes(pixel_bytes, byteorder="little")
+    #     a = round(((pixel >> 12) & 0b1111) / 0b1111 * 255.0)
+    #     r = round(((pixel >> 8 ) & 0b1111) / 0b1111 * 255.0)
+    #     g = round(((pixel >> 4 ) & 0b1111) / 0b1111 * 255.0)
+    #     b = round(((pixel >> 0 ) & 0b1111) / 0b1111 * 255.0)
+    #     return (r,g,b,a)
 
 class PixFormatIndexed:
     def __init__(self, name, palette):
@@ -68,26 +90,24 @@ class PixFormatIndexed:
         self.Bpp = 1
         self.palette = palette
 
-    def rgba(self, pixel_bytes):
-        colour_ix = int.from_bytes(pixel_bytes, byteorder="little")
-        #TODO: stop hardcoding this
-        return self.palette[PIXFORMAT_RGB565].rgba(colour_ix, 0)
+    # def rgba(self, pixel_bytes):
+    #     colour_ix = int.from_bytes(pixel_bytes, byteorder="little")
+    #     #TODO: stop hardcoding this
+    #     return self.palette[PIXFORMAT_RGB565].rgba(colour_ix, 0)
 
 PIXFORMAT_RGB565 = PixFormatRGB565()
 PIXFORMAT_RGB555 = PixFormatRGB555()
 PIXFORMAT_ARGB4444 = PixFormatARGB4444()
 
 class Image:
-    def __init__(self, format, width, height, bytes):
+    def __init__(self, format, pixels):
         self.format = format
-        self.width = width
-        self.height = height
-        self.raw = bytes
+        self.pixels = pixels
+        self.height = pixels.shape[0]
+        self.width = pixels.shape[1]
 
-    def rgba(self, x, y):
-        linear_ix = y * (self.width * self.format.Bpp) + (x * self.format.Bpp)
-        pixel = self.raw[linear_ix : linear_ix + self.format.Bpp]
-        return self.format.rgba(pixel)
+    def to_rgba(self):
+        return self.format.to_rgba(self.pixels)
 
 class Archive:
     def __init__(self):
@@ -115,8 +135,10 @@ class Archive:
             pixformat = parse_pixel_format()
             #TODO: what is unknown?
             unknown = infile.read(4)
-            pixels = infile.read(entries * pixformat.Bpp)
-            return Image(pixformat, entries, 1, pixels)
+            buf = infile.read(entries * pixformat.Bpp)
+            pixels = np.frombuffer(buf, dtype=uint_dtype(pixformat.Bpp))
+            pixels.shape = (entries, 1)
+            return Image(pixformat, pixels)
 
         def parse_palettes_entry():
             entries, count = struct.unpack("<LL", infile.read(4 * 2))
@@ -136,8 +158,10 @@ class Archive:
             width, height = struct.unpack("<LL", infile.read(4 * 2))
             #TODO: what is unknown3?
             unknown3 = infile.read(12)
-            data = infile.read(width  * height * pixformat.Bpp)
-            image = Image(pixformat, width, height, data)
+            buf = infile.read(width  * height * pixformat.Bpp)
+            pixels = np.frombuffer(buf, dtype=uint_dtype(pixformat.Bpp))
+            pixels.shape = (height, width)
+            image = Image(pixformat, pixels)
             #print(f"Image {len(ar.images)}: {width}x{height}, {pixformat.name}")
             ar.images.append(image)
 
