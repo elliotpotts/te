@@ -68,13 +68,14 @@
 
 `musi.{}`
 =========
-* mp3 file, 44.1kHz, 128kb/s
+* mp3 file, 44.1kHz, 128kb/s (starts after 8 magic bytes)
 Output from `ffmpeg -i`:
 ```
 Input #0, mp3, from 'musi.{}':
   Duration: 00:21:06.10, start: 0.000000, bitrate: 128 kb/s
     Stream #0:0: Audio: mp3, 44100 Hz, stereo, fltp, 128 kb/s
 ```
+* last mp3 frame is at pkt_pos=20255685, and pkt_size=417 (according to ffprobe -show_frames)
 
 `soun.{}`
 =======
@@ -83,7 +84,7 @@ Input #0, mp3, from 'musi.{}':
 
 `text.{}`
 =========
-* starts with sequence: ```\x75\xB1\xC0\xBA\x00\x00\x01\x00\x5D\xE4\x07\x00\x3D\xE6\x07\x00```
+* starts with sequence: ```\x75\xB1\xC0\xBA\x00\x00\x01\x00 \x5D\xE4\x07\x00\x3D\xE6\x07\x00```
 * followed by ISO-8859-1 encoded null separated texts
 * followed by ?
 
@@ -94,3 +95,6 @@ Input #0, mp3, from 'musi.{}':
 `ep01 China.{}`
 ===============
 Map appears to be 128x128. It can be seen by importing into gimp using an 8-bit gray just to visualise things
+* map1: offset: 21, size: 128x128
+* map2: offset: map1, size: 128x128
+* section?: offset = 32789

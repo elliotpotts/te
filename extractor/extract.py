@@ -15,17 +15,17 @@ if __name__ == "__main__":
     archive_name = os.path.basename(args.filepath)
     print(args.filepath)
     with open(args.filepath, "rb") as inf:
-        ar = archive.Archive.parse(inf)
+        ar = archive.Archive.parse(inf, archive_name)
         print(f"{len(ar.images):x} images found")
         inf.read()
         print(f"Final tell: {inf.tell():x}")
         print("-----------------------")
         #viewer.view(ar)
 
-        ar.images[0].to_rgba()
-        outdir = Path(f"debug/{archive_name}")
-        outdir.mkdir(parents=True, exist_ok=True)
-        for ix, original in enumerate(ar.images):
-            out_image = PIL.Image.fromarray(original.to_rgba())
-            with open(outdir / f"{ix:04}.png", "wb") as outf:
-                out_image.save(outf, "PNG")
+        # ar.images[0].to_rgba()
+        # outdir = Path(f"debug/{archive_name}")
+        # outdir.mkdir(parents=True, exist_ok=True)
+        # for ix, original in enumerate(ar.images):
+        #     out_image = PIL.Image.fromarray(original.to_rgba())
+        #     with open(outdir / f"{ix:04}.png", "wb") as outf:
+        #         out_image.save(outf, "PNG")

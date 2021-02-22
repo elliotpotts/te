@@ -5,18 +5,12 @@ from pathlib import Path
 import itertools
 import io
 import numpy as np
+import subprocess
+import os
 
 def take(n, iterable):
     "Return first n items of the iterable as a list"
     return list(itertools.islice(iterable, n))
-
-ARCHIVE_MAGIC = b'\x75\xb1\xc0\xba\x00\x00\x01\x00'
-#IMAGES_MAGIC = b'\xB4\x77\x83\x03\x54\x79\x83\x03'
-#ANIMS_MAGIC = b'\x79\xE8\x70\x00\x79\xE9\x70\x00'
-#TEXTS_MAGC = b'\x5D\xE4\x07\x00\x3D\xE6\x07\x00'
-
-PALETTE_TAG = b'\x61\x70\x30\x31'
-IMAGE_TAG = b'\x62\x67\x36\x61'
 
 def uint_dtype(num_bytes):
     if num_bytes == 1:
@@ -100,6 +94,15 @@ class Image:
     def to_rgba(self):
         return self.format.to_rgba(self.pixels)
 
+PALETTE_TAG = b'\x61\x70\x30\x31'
+IMAGE_TAG = b'\x62\x67\x36\x61'
+TEXT_TAG = b'\x5D\xE4\x07\x00'
+#TEXTS_MAGC = b'\x5D\xE4\x07\x00\x3D\xE6\x07\x00'
+#IMAGES_MAGIC = b'\xB4\x77\x83\x03\x54\x79\x83\x03'
+#ANIMS_MAGIC = b'\x79\xE8\x70\x00\x79\xE9\x70\x00'
+
+ARCHIVE_MAGIC = b'\x75\xb1\xc0\xba\x00\x00\x01\x00'
+
 class Archive:
     def __init__(self):
         self.images = []
@@ -108,7 +111,7 @@ class Archive:
         self.texts = []
         self.unknown = []
 
-    def parse(infile):
+    def parse(infile, fname):
         ar = Archive()
 
         def parse_pixel_format():
@@ -137,7 +140,6 @@ class Archive:
             for i in range(count):
                 image = parse_palette(entries)
                 palette[image.format] = image
-                #print(f"Palette {len(ar.palettes)}.{image.format.name}")
             ar.palettes.append(palette)
 
         def parse_image_entry():
@@ -153,8 +155,46 @@ class Archive:
             pixels = np.frombuffer(buf, dtype=uint_dtype(pixformat.Bpp))
             pixels.shape = (height, width)
             image = Image(pixformat, pixels)
-            #print(f"Image {len(ar.images)}: {width}x{height}, {pixformat.name}")
             ar.images.append(image)
+
+        def parse_sfx_entry():
+            # TODO: parse wav data
+            infile.seek(0x9EA6DC, os.SEEK_SET)
+            def parse_one():
+                # sample: 'A....emit.......'
+                unknown = infile.read(16)
+
+        def parse_music_entry():
+            # TODO: parse mp3 data
+            infile.seek(0x1351607, os.SEEK_SET)
+            def parse_one():
+                unknown1 = infile.read(3)
+                infile.read(4)
+                infile.read(1)
+                print(infile.read(7))
+                # always 0
+                infile.read(1)
+            i = 0
+            while i < 85:
+                parse_one()
+                i += 1
+
+        def parse_texts_entry():
+            #magic = b'\x3D\xE6\x07\x00'
+            #if magic != infile.read(4):
+            #    raise RuntimeError("bad text magic")
+            infile.read(8)
+            while True and infile.tell() < 0x4976C:
+                text = ""
+                c = infile.read(1)
+                while c != bytes([0]):
+                    text += str(c, 'latin-1')
+                    c = infile.read(1)
+                ar.texts.append(text)
+            l = infile.read(16)
+            while len(l) > 0:
+                print(l)
+                l = infile.read(16)
 
         def parse_X_entry():
             print(infile.read(4))
@@ -180,6 +220,7 @@ class Archive:
         entry_parsers = {
             PALETTE_TAG: parse_palettes_entry,
             IMAGE_TAG: parse_image_entry,
+            TEXT_TAG: parse_texts_entry,
             b"\x01\x00\x00\x00": parse_X_entry
         }
 
@@ -187,19 +228,26 @@ class Archive:
             pos = infile.tell()
             type_tag = infile.read(4)
             if type_tag in entry_parsers:
-                #print(f"Reading entry at {pos:x} (type tag {type_tag})")
+                print(f"Reading entry at {pos:x} (type tag {type_tag})")
                 entry_parsers[type_tag]()
             else:
+                print(f"Unnown tag: {type_tag} at pos {pos:x}")
                 ar.unknown.append((pos, type_tag))
                 return False
             return True
 
-        def check_magic():
-            magic = infile.read(8)
-            if (magic != ARCHIVE_MAGIC):
-                print(f"invalid magic number")
+        #------------------ Parsing starts
+        magic = infile.read(8)
+        if (magic != ARCHIVE_MAGIC):
+            print(f"invalid magic number")
 
-        check_magic()
+        if fname == "musi.{}":
+            parse_music_entry()
+            return ar
+        if fname == "text.{}":
+            parse_texts_entry()
+            return ar
+
         # last_entry_address: the offset relative to the start of the file of the last entry
         #       total_length: the total number of bytes in the whole file
         last_entry_address, total_length = struct.unpack("<LL", infile.read(8))

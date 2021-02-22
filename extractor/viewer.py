@@ -30,7 +30,9 @@ class ArchiveWindow(Gtk.Window):
             store.append(images_it, [mime_pixbuf("image/generic"), f"#{ix}", image])
         store.append(root_it, [mime_pixbuf("text/plain"), "Palettes", None])
         store.append(root_it, [mime_pixbuf("text/plain"), "Animations", None])
-        store.append(root_it, [mime_pixbuf("text/plain"), "Strings", None])
+        texts_it = store.append(root_it, [mime_pixbuf("text/plain"), "Strings", None])
+        for ix, text in enumerate(ar.texts):
+            store.append(texts_it, [mime_pixbuf("text/plain"), text, text])
         store.append(root_it, [mime_pixbuf("audio/generic"), "Audio", None])
 
         tree = Gtk.TreeView(model=store)
