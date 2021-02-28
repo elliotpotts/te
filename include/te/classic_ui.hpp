@@ -22,22 +22,33 @@ namespace te::ui {
         glm::vec2 image_offset;
         std::string text;
         font text_font;
-        boost::signals2::signal<void()> on_mouse_enter;
-        boost::signals2::signal<void()> on_mouse_leave;
-        boost::signals2::signal<void()> on_mouse_down;
-        boost::signals2::signal<void()> on_mouse_up;
-        boost::signals2::signal<void()> on_click;
+        boost::signals2::signal<void(double, double)> on_mouse_enter;
+        boost::signals2::signal<void(double, double)> on_mouse_move;
+        boost::signals2::signal<void(double, double)> on_mouse_leave;
+        boost::signals2::signal<void(double, double)> on_mouse_down;
+        boost::signals2::signal<void(double, double)> on_mouse_up;
+        boost::signals2::signal<void(double, double)> on_click;
         //boost::signals2::signal<void(const int, const int, const int, const int)> on_key;
         //boost::signals2::signal<void(std::string)> on_text;
-        std::list<node> children;
+        std::vector<node*> children;
         node();
     };
 
     struct button {
         bool pressed;
         node* n;
-        button(te::ui::node& root, const char* i, bool value);
+        button(const char* i, bool value);
         void update();
+    };
+
+    struct generator_window {
+        node* root;
+        node* title;
+        //button close;
+        node* status_text;
+        node* commodity_icon;
+        node* commodity_label;
+        generator_window();
     };
 
     struct uui {
@@ -69,6 +80,7 @@ namespace te::ui {
         void toggle_button(button* btn, node* pnl);
     };
 
+
     struct root {
         window* input_win;
         canvas_renderer* canvas;
@@ -79,6 +91,8 @@ namespace te::ui {
         node* focused;
         node* clicking;
         node* over;
+        node* dragging;
+        glm::vec2 drag_start;
         void cursor_move(double x, double y);
 
         void render(glm::vec2 tl, node& n);

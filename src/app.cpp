@@ -61,11 +61,14 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
         playsfx(fmt::format("assets/sfx/coin{}.wav", select(rengine)));
     });
 
-    ui.dom.on_click.connect([&]() {
+    ui.dom.on_click.connect([&](double x, double y) {
         if (entt_under_mouse) {
-            if (auto noisy = model.entities.try_get<te::noisy>(*entt_under_mouse); noisy) {
-                inspected = entt_under_mouse;
+            inspected = entt_under_mouse;
+            if (auto noisy = model.entities.try_get<te::noisy>(*inspected); noisy) {
                 playsfx(noisy->filename);
+            }
+            if (auto generator = model.entities.try_get<te::generator>(*inspected); generator) {
+                ui.dom.children.push_back((new te::ui::generator_window { })->root);
             }
         }
     });
