@@ -207,6 +207,10 @@ void te::server::poll(double dt) {
         auto v = model.entities.view<te::named>();
         for (auto e : v) send_all(component_replace{e, v.get<te::named>(e)});
     }
+    {
+        auto v = model.entities.view<te::described>();
+        for (auto e : v) send_all(component_replace{e, v.get<te::described>(e)});
+    }
 }
 
 void te::server::tick(double dt) {

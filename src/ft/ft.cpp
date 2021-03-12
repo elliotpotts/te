@@ -29,7 +29,7 @@ ft::unique_ft ft::ft::make_hnd() {
 ft::ft::ft() : hnd { make_hnd() } {
 }
 
-ft::face ft::ft::make_face(const char* filename, int pts) {
+ft::face ft::ft::make_face(const char* filename, int pts, double aspect) {
     FT_Face created;
     if (int err = FT_New_Face(*hnd, filename, 0, &created)) {
         throw std::runtime_error(error_string(err));
@@ -37,7 +37,7 @@ ft::face ft::ft::make_face(const char* filename, int pts) {
     // pixel_size = point_size * resolution / 72 
     if (int err = FT_Set_Char_Size (
             created,
-            pts * 64, // width
+            pts * aspect * 64, // width
             pts * 64, // height in 1/64th of points
             165, //horizontal DPI
             165) //vertical DPI

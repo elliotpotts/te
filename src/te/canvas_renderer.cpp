@@ -6,6 +6,7 @@
 #include <utility>
 #include <te/components.hpp>
 #include <fmt/format.h>
+#include <hb/buffer.hpp>
 
 bool te::font_comparator::operator()(const te::font& lhs, const te::font& rhs) const {
     return std::tie(lhs.filename, lhs.pts, lhs.aspect) < std::tie(rhs.filename, rhs.pts, rhs.aspect);
@@ -64,7 +65,7 @@ ft::face& te::canvas_renderer::face(te::font key) {
         auto emplaced = faces.emplace (
             std::piecewise_construct,
             std::forward_as_tuple(key),
-            std::forward_as_tuple(ft.make_face(fmt::format("assets/fonts/{}", key.filename).c_str(), key.pts))
+            std::forward_as_tuple(ft.make_face(fmt::format("assets/fonts/{}", key.filename).c_str(), key.pts, key.aspect))
         );
         return emplaced.first->second;
     } else {
@@ -122,28 +123,46 @@ te::gl::texture2d& te::canvas_renderer::glyph_texture(te::font face_key, ft::gly
     }
 }
 
-void te::canvas_renderer::text(std::string_view str, glm::vec2 cursor, font fspec) {
+te::text_run te::canvas_renderer::shape_run(std::string_view str, font fspec) {
     auto shaping_buffer = hb::buffer::shape(face(fspec), str);
     unsigned int len = hb_buffer_get_length (shaping_buffer.hnd.get());
     hb_glyph_info_t* info = hb_buffer_get_glyph_infos (shaping_buffer.hnd.get(), nullptr);
     hb_glyph_position_t* pos = hb_buffer_get_glyph_positions (shaping_buffer.hnd.get(), nullptr);
 
+    std::vector<te::text_run::glyph_instance> glyphs;
+    glm::vec2 cursor;
     for (unsigned int i = 0; i < len; i++) {
         ft::glyph_index gix { info[i].codepoint };
         double x_offset = pos[i].x_offset / 64.0;
         double y_offset = pos[i].y_offset / 64.0;
         auto glyph = face(fspec)[gix];
-        image (
-            glyph_texture(fspec, gix),
-            {
-                cursor.x + x_offset + glyph.bitmap_left,
-                cursor.y + y_offset - glyph.bitmap_top
-            },
-            fspec.colour
+        glyphs.push_back (
+            te::text_run::glyph_instance {
+                .offset = {
+                    cursor.x + x_offset + glyph.bitmap_left,
+                    cursor.y + y_offset - glyph.bitmap_top
+                },
+                .texture = &glyph_texture(fspec, gix)
+            }
         );
         cursor.x += pos[i].x_advance / 64.0;
         cursor.y += pos[i].y_advance / 64.0;
     }
+    return te::text_run {
+        .glyphs = glyphs,
+        .total_width = cursor.x,
+        .fnt = fspec
+    };
+}
+
+void te::canvas_renderer::run(te::text_run run, glm::vec2 origin) {
+    for (auto glyph : run.glyphs) {
+        image (*glyph.texture, origin + glyph.offset, run.fnt.colour);
+    }
+}
+
+void te::canvas_renderer::text(std::string_view str, glm::vec2 origin, font fspec) {
+    run(shape_run(str, fspec), origin);
 }
 
 void te::canvas_renderer::render() {

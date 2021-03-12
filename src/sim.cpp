@@ -59,6 +59,7 @@ void te::sim::init_blueprints() {
     // Buildings
     auto barley_field = blueprints.emplace_back(entities.create());
     entities.emplace<named>(barley_field, "Barley Field");
+    entities.emplace<described>(barley_field, "Barley fields produce a commodity demanded by dwellings. Supplying barley will allow the population at a market to increase.");
     entities.emplace<footprint>(barley_field, glm::vec2{2.0f,2.0f});
     entities.emplace<generator>(barley_field, false, commodities[0], 1.0 / 14.0);
     entities.emplace<inventory>(barley_field);
@@ -68,6 +69,7 @@ void te::sim::init_blueprints() {
 
     auto flax_field = blueprints.emplace_back(entities.create());
     entities.emplace<named>(flax_field, "Flax Field");
+    entities.emplace<described>(flax_field, "Flax fields produce a commodity demanded by dwellings. Supplying barley will allow the population at a market to increase.");
     entities.emplace<footprint>(flax_field, glm::vec2{2.0f,2.0f});
     entities.emplace<generator>(flax_field, false, commodities[2], 1.0 / 10.0);
     entities.emplace<inventory>(flax_field);
@@ -174,6 +176,7 @@ std::optional<entt::entity> te::sim::try_place(unsigned owner, entt::entity prot
     auto instantiated = make_net_entity(owner);
     entities.emplace<site>(instantiated, centre);
     if (auto c = entities.try_get<named>(proto)) entities.emplace<named>(instantiated, fmt::format("{} (#{})", c->name, static_cast<unsigned>(instantiated)));
+    if (auto c = entities.try_get<described>(proto)) entities.emplace<described>(instantiated, *c);
     if (auto c = entities.try_get<footprint>(proto)) entities.emplace<footprint>(instantiated, *c);
     if (auto c = entities.try_get<demander>(proto)) entities.emplace<demander>(instantiated, *c);
     if (auto c = entities.try_get<trader>(proto)) entities.emplace<trader>(instantiated, *c);

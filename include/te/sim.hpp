@@ -42,6 +42,14 @@ namespace te {
         ar(x.name);
     }
 
+    struct described {
+        std::string description;
+    };
+    template<typename Ar>
+    void serialize(Ar& ar, described& x) {
+        ar(x.description);
+    }
+
     struct price {
         double price;
     };

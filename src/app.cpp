@@ -39,7 +39,7 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     terrain_renderer{ win.gl, rengine, model.map_width, model.map_height },
     mesh_renderer { win.gl },
     canvas { win },
-    ui { model, win, canvas, resources }
+    ui { win, canvas, resources }
 {
     win.set_cursor(make_bitmap("assets/ui/cursor.png"));
     win.on_key.connect([&](int a, int b, int c, int d) { on_key(a,b,c,d); });
@@ -61,14 +61,15 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
         playsfx(fmt::format("assets/sfx/coin{}.wav", select(rengine)));
     });
 
-    ui.dom.on_click.connect([&](double x, double y) {
+    ui.on_click.connect([&]() {
         if (entt_under_mouse) {
             inspected = entt_under_mouse;
             if (auto noisy = model.entities.try_get<te::noisy>(*inspected); noisy) {
                 noise(noisy->filename);
             }
             if (auto generator = model.entities.try_get<te::generator>(*inspected); generator) {
-                ui.dom.children.push_back((new te::ui::generator_window { })->root);
+                spdlog::debug("open generator");
+                //ui.dom.children.push_back((new te::ui::generator_window {ui})->win);
             }
         }
     });
@@ -195,7 +196,7 @@ void te::app::noise(std::string filename) {
 }
 
 void te::app::input() {
-    if (!ui.input()) {
+    if (!ui.capture_input()) {
         mouse_pick();
         entt_under_mouse.reset();
         if (pos_under_mouse) {
@@ -213,14 +214,41 @@ void te::app::input() {
             }
         }
     }
+
+    static auto prev_under_mouse = entt_under_mouse;
+
+    if (prev_under_mouse != entt_under_mouse) {
+        if (entt_under_mouse) {
+            if (auto described = model.entities.try_get<te::described>(*entt_under_mouse); described) {
+                //TODO: don't do this every frame
+                ui.ingame.bottom.info = ui.make_paragraph (
+                    te::ui::text_align::left,
+                    481,
+                    1.0,
+                    font {
+                        .filename = "Alegreya_SC/AlegreyaSC-Bold.ttf",
+                        .pts = 5.9,
+                        .aspect = 1.1,
+                        .line_height = 0.7,
+                        .colour = {1.0, 1.0, 1.0, 1.0}
+                    },
+                    described->description
+                );
+            }
+        } else {
+            ui.ingame.bottom.info.reset();
+        }
+    }
+    prev_under_mouse = entt_under_mouse;
+
     if (entt_under_mouse) {
         if (auto named = model.entities.try_get<te::named>(*entt_under_mouse); named) {
-            ui.foo->bottom_bar_text->text = named->name;
+            //ui.ingame.bottom.info.content = named->name;
         } else {
-            ui.foo->bottom_bar_text->text = "";
+            //ui.ingame.bottom.info.content = "";
         }
     } else {
-        ui.foo->bottom_bar_text->text = "";
+        //ui.ingame.bottom.info.content = "";
     }
 
     //TODO: move to ui somehow
@@ -246,7 +274,7 @@ void te::app::draw() {
     }
     render_scene();
     glDisable(GL_DEPTH_TEST);
-    ui.render();
+    ui.render(model);
     glEnable(GL_DEPTH_TEST);
 }
 

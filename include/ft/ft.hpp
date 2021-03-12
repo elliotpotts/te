@@ -20,7 +20,7 @@ namespace ft {
         static unique_ft make_hnd();
     public:
         ft();
-        face make_face(const char* filename, int pts);
+        face make_face(const char* filename, int pts, double aspect);
     };
 }
 

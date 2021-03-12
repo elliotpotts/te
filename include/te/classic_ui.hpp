@@ -9,97 +9,75 @@
 #include <te/cache.hpp>
 #include <te/canvas_renderer.hpp>
 #include <te/window.hpp>
+#include <optional>
 
 namespace te::ui {
-    struct node {
-        std::string id;
-        bool visible;
-        glm::vec2 size;
-        glm::vec2 offset;
-        glm::vec4 colour;
-        std::string image;
-        glm::vec2 image_size;
-        glm::vec2 image_offset;
-        std::string text;
-        font text_font;
-        boost::signals2::signal<void(double, double)> on_mouse_enter;
-        boost::signals2::signal<void(double, double)> on_mouse_move;
-        boost::signals2::signal<void(double, double)> on_mouse_leave;
-        boost::signals2::signal<void(double, double)> on_mouse_down;
-        boost::signals2::signal<void(double, double)> on_mouse_up;
-        boost::signals2::signal<void(double, double)> on_click;
-        //boost::signals2::signal<void(const int, const int, const int, const int)> on_key;
-        //boost::signals2::signal<void(std::string)> on_text;
-        std::vector<node*> children;
-        node();
-    };
-
     struct button {
-        bool pressed;
-        node* n;
-        button(const char* i, bool value);
-        void update();
+        boost::signals2::signal<void()> clicked;
     };
 
-    struct generator_window {
-        node* root;
-        node* title;
-        //button close;
-        node* status_text;
-        node* commodity_icon;
-        node* commodity_label;
-        generator_window();
+    enum class text_align { left, justify, right };
+    struct offset_run {
+        glm::vec2 offset;
+        text_run run;
+    };
+    struct paragraph {
+        std::vector<offset_run> runs;
     };
 
-    struct uui {
-        node* top_bar;
-
-        node* construction_panel;
-        node* cons_0_back;
-        node* cons_0_text;
-        node* cons_1_back;
-        node* cons_1_text;
-
-        node* roster_panel;
-        node* orders_panel;
-        node* routes_panel;
-        node* tech_panel;
-
-        node* bottom_bar;
-        node* bottom_bar_text;
-
-        button* roster_button;
-        button* routes_button;
-        button* construction_button;
-        button* tech_button;
-
-        node* panel_open;
-        button* panel_button;
-
-        uui(node& root);
-        void toggle_button(button* btn, node* pnl);
+    struct roster_panel {
+    };
+    struct routes_panel {
+    };
+    struct construction_panel {
+    };
+    struct technologies_panel {
+    };
+    struct panels {
+    };
+    struct bottom_bar {
+        std::optional<paragraph> info;
     };
 
+    struct window {
+        te::gl::texture2d* frame;
+        button close;
+        window(int frame_img);
+    };
+    struct market_window : public window {
+    };
+    struct production_window : public window {
+    };
+    struct dwelling_window : public window {
+    };
+    struct generator_window : public window {
+    };
+
+    struct ingame_root {
+        panels left_panels;
+        bottom_bar bottom;
+    };
 
     struct root {
-        window* input_win;
-        canvas_renderer* canvas;
-        te::cache<asset_loader>* resources;
-        node dom;
-        uui* foo;
+        te::window& input_win;
+        canvas_renderer& canvas;
+        te::cache<asset_loader>& assets;
+        void ui_img(int number, glm::vec2 dest);
 
-        node* focused;
-        node* clicking;
-        node* over;
-        node* dragging;
-        glm::vec2 drag_start;
-        void cursor_move(double x, double y);
+        paragraph make_paragraph(text_align align, double width_avail, double line_height, font fnt, std::string_view text);
 
-        void render(glm::vec2 tl, node& n);
+        void render(paragraph&, glm::vec2 o);
+        void render(bottom_bar&);
+        void render(ingame_root&);
+
     public:
-        root(te::sim&, window&, canvas_renderer&, te::cache<asset_loader>&);
-        bool input();
-        void render();
+        root(te::window& win, canvas_renderer& canvas, cache<asset_loader>& loader);
+
+        ingame_root ingame;
+        boost::signals2::signal<void()> on_click;
+
+        bool capture_input();
+        void render(sim& model);
     };
 }
 #endif

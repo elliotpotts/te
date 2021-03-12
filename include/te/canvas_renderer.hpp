@@ -1,12 +1,10 @@
 #ifndef TE_CANVAS_RENDERER_HPP_INCLUDED
 #define TE_CANVAS_RENDERER_HPP_INCLUDED
 #include <te/gl.hpp>
-#include <te/mesh.hpp>
 #include <glm/vec2.hpp>
 #include <glm/vec4.hpp>
 #include <ft/ft.hpp>
 #include <ft/face.hpp>
-#include <hb/buffer.hpp>
 #include <string_view>
 #include <te/window.hpp>
 #include <string>
@@ -24,13 +22,24 @@ namespace te {
         std::string filename;
         double pts;
         double aspect;
+        double line_height;
         glm::vec4 colour;
     };
     struct font_comparator {
         bool operator()(const font&, const font&) const;
     };
 
-    class canvas_renderer {
+    struct text_run {
+        struct glyph_instance {
+            glm::vec2 offset;
+            gl::texture2d* texture;
+        };
+        const std::vector<glyph_instance> glyphs;
+        const double total_width;
+        const font fnt;
+    };
+
+    struct canvas_renderer {
         te::window* win;
         gl::context* gl;
         gl::program program;
@@ -68,7 +77,11 @@ namespace te {
         void image(te::gl::texture2d&, glm::vec2 dest_pos, glm::vec4 colour = glm::vec4{1.0});
         bool image_button(te::gl::texture2d&, glm::vec2 dest_pos, glm::vec2 dest_size, glm::vec2 tex_pos_up, glm::vec2 tex_pos_down, glm::vec2 tex_size);
         void rect(glm::vec2 dest_pos, glm::vec2 dest_size, glm::vec4 colour);
-        void text(std::string_view str, glm::vec2 cursor, font fnt);
+
+        // Origin is bottom-left corner for text
+        text_run shape_run(std::string_view str, font fnt);
+        void run(text_run run, glm::vec2 origin);
+        void text(std::string_view str, glm::vec2 origin, font fnt);
 
         void render();
     };
