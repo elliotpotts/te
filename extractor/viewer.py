@@ -60,16 +60,9 @@ class ArchiveWindow(Gtk.Window):
             if isinstance(entry, archive.Image):
                 if self.img:
                     self.box.remove(self.img)
-                pdata = bytearray()
-                for y in range(0, entry.height):
-                    for x in range(0, entry.width):
-                        r,g,b,a = entry.rgba(x, y)
-                        pdata.append(r)
-                        pdata.append(g)
-                        pdata.append(b)
-                        pdata.append(a)
+                rgba_data = entry.to_rgba()
                 pbuf = GdkPixbuf.Pixbuf.new_from_bytes (
-                    data=GLib.Bytes.new(bytes(pdata)),
+                    data=GLib.Bytes.new(entry.to_rgba().tobytes()),
                     colorspace=GdkPixbuf.Colorspace.RGB,
                     has_alpha=True,
                     bits_per_sample=8,

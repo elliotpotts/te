@@ -20,7 +20,7 @@ if __name__ == "__main__":
         inf.read()
         print(f"Final tell: {inf.tell():x}")
         print("-----------------------")
-        #viewer.view(ar)
+        viewer.view(ar)
 
         # ar.images[0].to_rgba()
         # outdir = Path(f"debug/{archive_name}")

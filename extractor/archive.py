@@ -77,7 +77,7 @@ class PixFormatIndexed:
         self.palette = palette
 
     def to_rgba(self, ixd):
-        #     #TODO: stop hardcoding palette pixformat
+        #TODO: stop hardcoding palette pixformat
         return self.palette[PIXFORMAT_RGB565].to_rgba()[ixd]
 
 PIXFORMAT_RGB565 = PixFormatRGB565()
