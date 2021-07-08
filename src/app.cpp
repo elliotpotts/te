@@ -65,7 +65,7 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
         if (entt_under_mouse) {
             inspected = entt_under_mouse;
             if (auto noisy = model.entities.try_get<te::noisy>(*inspected); noisy) {
-                playsfx(noisy->filename);
+                noise(noisy->filename);
             }
             if (auto generator = model.entities.try_get<te::generator>(*inspected); generator) {
                 ui.dom.children.push_back((new te::ui::generator_window { })->root);
@@ -181,6 +181,17 @@ struct panel {
 
 void te::app::playsfx(std::string filename) {
     fmod->playSound(resources.lazy_load<te::fmod_sound_hnd>(filename).get(), nullptr, false, nullptr);
+}
+
+void te::app::noise(std::string filename) {
+    static std::string last_played = "";
+    static auto last_played_at = std::chrono::system_clock::now();
+    const auto now = std::chrono::system_clock::now();
+    if (now - last_played_at >= std::chrono::seconds{2} || filename != last_played) {
+        last_played = filename;
+        last_played_at = now;
+        playsfx(filename);
+    }
 }
 
 void te::app::input() {

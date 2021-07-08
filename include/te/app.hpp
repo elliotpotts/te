@@ -75,6 +75,7 @@ namespace te {
         std::optional<entt::entity> merchant_selected;
 
         void playsfx(std::string filename);
+        void noise(std::string filename);
 
         void input();
         void draw();
