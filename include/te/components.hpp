@@ -1,6 +1,8 @@
 #ifndef TE_COMPONENTS_HPP_INCLUDED
 #define TE_COMPONENTS_HPP_INCLUDED
 
+#include <te/classic_ui.hpp>
+
 namespace te {
     // Render components
     struct render_tex {

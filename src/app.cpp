@@ -16,6 +16,10 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
 
+static std::string ui_img(int i) {
+    return fmt::format("assets/a_ui,6.{{}}/{:0>3}.png", i);
+}
+
 te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
     rengine { 42 },
     win { glfw.make_window(1024, 768, "Trade Empires", false)},
@@ -61,17 +65,37 @@ te::app::app(te::sim& model, SteamNetworkingIPAddr server_addr) :
         playsfx(fmt::format("assets/sfx/coin{}.wav", select(rengine)));
     });
 
-    ui.on_click.connect([&]() {
-        if (entt_under_mouse) {
+    ui.on_click.connect([&](te::ui::node& n, int button, int action, int mods) {
+        //TODO: move to global click handler
+        if (action == GLFW_PRESS) {
+            playsfx("assets/sfx/unknown1.wav");
+        } else if (action == GLFW_RELEASE) {
+            playsfx("assets/sfx/unknown2.wav");
+        }
+
+        if (action == GLFW_RELEASE && entt_under_mouse) {
             inspected = entt_under_mouse;
             if (auto noisy = model.entities.try_get<te::noisy>(*inspected); noisy) {
                 noise(noisy->filename);
             }
             if (auto generator = model.entities.try_get<te::generator>(*inspected); generator) {
-                spdlog::debug("open generator");
-                //ui.dom.children.push_back((new te::ui::generator_window {ui})->win);
+                auto gen_ui = model.entities.try_get<std::shared_ptr<ui::generator_window>>(*inspected);
+                if (gen_ui) {
+                    auto it = std::find(ui.children.begin(), ui.children.end(), *gen_ui);
+                    if (it != ui.children.end()) {
+                        std::rotate(it, it + 1, ui.children.end());
+                    } else {
+                        ui.children.push_back(*gen_ui);
+                    }
+                } else {
+                    auto created = std::make_shared<ui::generator_window>(model, ui, *inspected);
+                    model.entities.emplace<std::shared_ptr<ui::generator_window>>(*inspected, created);
+                    ui.children.push_back(created);
+                    created->parent = &ui;
+                }
             }
         }
+        return true;
     });
 
     // start singleplayer game
@@ -103,13 +127,6 @@ void te::app::on_key(const int key, const int scancode, const int action, const 
 }
 
 void te::app::on_mouse_button(int button, int action, int mods) {
-    if (button == GLFW_MOUSE_BUTTON_LEFT) {
-        if (action == GLFW_PRESS) {
-            playsfx("assets/sfx/unknown1.wav");
-        } else if (action == GLFW_RELEASE) {
-            playsfx("assets/sfx/unknown2.wav");
-        }
-    }
 }
 
 void te::app::on_chat(te::chat msg) {
@@ -221,35 +238,15 @@ void te::app::input() {
         if (entt_under_mouse) {
             if (auto described = model.entities.try_get<te::described>(*entt_under_mouse); described) {
                 //TODO: don't do this every frame
-                ui.ingame.bottom.info = ui.make_paragraph (
-                    te::ui::text_align::left,
-                    481,
-                    1.0,
-                    font {
-                        .filename = "Alegreya_SC/AlegreyaSC-Bold.ttf",
-                        .pts = 5.9,
-                        .aspect = 1.1,
-                        .line_height = 0.7,
-                        .colour = {1.0, 1.0, 1.0, 1.0}
-                    },
-                    described->description
-                );
+                //ui.ingame.bottom.text(described->description);
+            } else {
+                //ui.ingame.bottom.info.reset();
             }
         } else {
-            ui.ingame.bottom.info.reset();
+            //ui.ingame.bottom.info.reset();
         }
     }
     prev_under_mouse = entt_under_mouse;
-
-    if (entt_under_mouse) {
-        if (auto named = model.entities.try_get<te::named>(*entt_under_mouse); named) {
-            //ui.ingame.bottom.info.content = named->name;
-        } else {
-            //ui.ingame.bottom.info.content = "";
-        }
-    } else {
-        //ui.ingame.bottom.info.content = "";
-    }
 
     //TODO: move to ui somehow
     glm::vec3 forward = cam.forward();
@@ -263,6 +260,12 @@ void te::app::input() {
     if (win.key(GLFW_KEY_S) == GLFW_PRESS) cam.focus -= 0.3f * forward;
     if (win.key(GLFW_KEY_D) == GLFW_PRESS) cam.focus -= 0.3f * left;
     cam.use_ortho = win.key(GLFW_KEY_SPACE) != GLFW_PRESS;
+
+    auto generator_wins = model.entities.view<std::shared_ptr<ui::generator_window>>();
+    for (auto& e : generator_wins) {
+        auto& win = generator_wins.get<std::shared_ptr<ui::generator_window>>(e);
+        win->update(model, ui, e);
+    }
 }
 
 void te::app::draw() {

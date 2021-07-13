@@ -77,7 +77,7 @@ void te::canvas_renderer::image(te::gl::texture2d& tex, glm::vec2 dest_pos, glm:
     using namespace glm;
     quads.emplace_back (
         quad {
-            vertex {dest_pos,                                src_pos + vec2{0.0f, 0.0f} * src_size, colour},
+            vertex {dest_pos,                                src_pos                              , colour},
             vertex {dest_pos + vec2{0.0f, 1.0f} * dest_size, src_pos + vec2{0.0f, 1.0f} * src_size, colour},
             vertex {dest_pos + vec2{1.0f, 0.0f} * dest_size, src_pos + vec2{1.0f, 0.0f} * src_size, colour},
             vertex {dest_pos + vec2{1.0f, 1.0f} * dest_size, src_pos + vec2{1.0f, 1.0f} * src_size, colour}

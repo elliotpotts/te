@@ -45,7 +45,7 @@ void* guile_main(void* _) {
 
     // TODO: Put in destructor of something/scope guard
     GameNetworkingSockets_Kill();
-    return 0;
+    return nullptr;
 }
 
 int main(const int argc, const char** argv) {
