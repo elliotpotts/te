@@ -102,11 +102,15 @@ te::ui::root::root(te::window& win, te::canvas_renderer& canvas, te::cache<asset
     static glm::vec2 drag_mouse_pos;
     static glm::vec2 drag_offset;
     on_click.connect([&](node& n, int button, int action, int mods) {
-        if (button == GLFW_MOUSE_BUTTON_LEFT && n.parent == this) {
+        node* window = &n;
+        if (window->parent && window->parent != this) {
+            window = window->parent;
+        }
+        if (button == GLFW_MOUSE_BUTTON_LEFT) {
             if (action == GLFW_PRESS) {
-                dragging = &n;
+                dragging = window;
                 drag_mouse_pos = mouse_pos;
-                drag_offset = n.offset;
+                drag_offset = window->offset;
                 auto dragging_it = std::find_if(children.begin(), children.end(), [&](auto& sp) { return sp.get() == dragging; });
                 if (dragging_it != children.end()) {
                     std::rotate(dragging_it, dragging_it + 1, children.end());
@@ -117,7 +121,7 @@ te::ui::root::root(te::window& win, te::canvas_renderer& canvas, te::cache<asset
         }
         return false;
     });
-    on_mouse_move.connect([&](node& n, glm::vec2 pos, glm::vec2 dpos) {
+    on_mouse_move.connect([&](node&, glm::vec2 pos, glm::vec2 dpos) {
         if (dragging) {
             dragging->offset = drag_offset + pos - drag_mouse_pos;
         }
@@ -170,7 +174,7 @@ te::ui::button::button(te::ui::root& root, int image): pressed{false} {
         if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
             pressed = false;
         }
-        return true;
+        return false;
     });
     on_click.connect([this](te::ui::node&, int button, int action, int mods) {
         if (button == GLFW_MOUSE_BUTTON_LEFT) {
@@ -187,7 +191,7 @@ te::ui::button::button(te::ui::root& root, int image): pressed{false} {
                 }
             }
         }
-        return true;
+        return false;
     });
     on_mouse_leave.connect([this](ui::node&) {
         bg_tl.x = 0.0f;

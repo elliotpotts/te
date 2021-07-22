@@ -56,7 +56,7 @@ namespace te::ui {
             while (target != nullptr) {
                 auto& signal = (*target).*ev;
                 boost::optional<bool> bubble = signal(std::forward<Args>(args)...);
-                target = bubble && !bubble
+                target = bubble && !*bubble
                     ? nullptr
                     : target->parent;
             }
