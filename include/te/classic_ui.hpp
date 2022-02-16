@@ -12,6 +12,7 @@
 #include <te/cache.hpp>
 #include <te/canvas_renderer.hpp>
 #include <te/window.hpp>
+#include <scm.hpp>
 
 namespace te::ui {
     enum class text_align { left, justify, right };
@@ -78,8 +79,6 @@ namespace te::ui {
         te::window& input_win;
         canvas_renderer& canvas;
         te::cache<asset_loader>& assets;
-        void ui_img(int number, glm::vec2 dest);
-        void ui_btn(int number, bool down, glm::vec2 dest);
         paragraph make_paragraph(text_align align, double width_avail, double line_height, font fnt, std::string_view text);
 
         glm::vec2 mouse_pos;
@@ -127,10 +126,14 @@ namespace te::ui {
         // layout context
         glm::vec2 cursor;
         glm::vec2 lpa;
+
+        SCM eachframe;
     public:
         root(te::window& win, canvas_renderer& canvas, cache<asset_loader>& loader);
         bool capture_input();
         void render(sim& model);
+
+        void debug();
 
         boost::signals2::signal<bool(node&)> global_on_mouse_enter;
         boost::signals2::signal<bool(node&, glm::vec2, glm::vec2)> global_on_mouse_move;

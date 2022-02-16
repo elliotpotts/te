@@ -1,5 +1,5 @@
 #ifndef SCM_HPP_INCLUDED
-#define SCM_HPP
+#define SCM_HPP_INCLUDED
 
 #include <guile/3.0/libguile.h>
 

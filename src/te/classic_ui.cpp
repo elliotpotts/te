@@ -8,6 +8,7 @@
 #include <te/components.hpp>
 #include <scm.hpp>
 #include <algorithm>
+#include <fstream>
 
 static bool inside_rect(glm::vec2 pt, glm::vec2 tl, glm::vec2 br) {
     return pt.x >= tl.x && pt.x <= br.x && pt.y >= tl.y && pt.y <= br.y;
@@ -19,6 +20,10 @@ static te::font tefont {
     .aspect = 1.0,
     .colour = {1.0, 1.0, 1.0, 1.0}
 };
+
+static std::string ui_img(int i) {
+    return fmt::format("assets/a_ui,6.{{}}/{:0>3}.png", i);
+}
 
 te::ui::paragraph te::ui::root::make_paragraph(text_align align, double width_avail, double line_height, font fnt, std::string_view text) {
     auto& face = canvas.face(fnt);
@@ -98,6 +103,11 @@ te::ui::root::root(te::window& win, te::canvas_renderer& canvas, te::cache<asset
         }
         return true;
     });
+    input_win.on_key.connect([this](const int key, const int scancode, const int action, const int mods) {
+        if (under_cursor) {
+            under_cursor->fire_event(&node::on_key, *under_cursor, key, scancode, action, mods);
+        }
+    });
     static node* dragging = nullptr;
     static glm::vec2 drag_mouse_pos;
     static glm::vec2 drag_offset;
@@ -127,9 +137,208 @@ te::ui::root::root(te::window& win, te::canvas_renderer& canvas, te::cache<asset
         }
         return false;
     });
+    on_key.connect([this](node&, const int key, const int scancode, const int action, const int mods) {
+        if (key == GLFW_KEY_U && action == GLFW_RELEASE) {
+            debug();
+        }
+        return true;
+    });
 
     size = {win.width(), win.height()};
     bg_colour = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    // [this]() {
+    //     auto top_bar = this->children.emplace_back(std::make_shared<ui::node>());
+    //     top_bar->parent = this;
+    //     top_bar->offset = {0.0f, 0.0f};
+    //     top_bar->size = {768.0f, 26.0f};
+    //     top_bar->bg_colour = {1.0f, 1.0f, 1.0f, 1.0f};
+    //     top_bar->bg_image = ui_img(168);
+    // }();
+    scm::in_try([&]() {
+        auto fstr = std::ifstream{"scm/new.scm"};
+        auto it = std::istreambuf_iterator<char>(fstr.rdbuf());
+        auto end = std::istreambuf_iterator<char>();
+        std::string source(it, end);
+        SCM str = scm_from_locale_string(source.data());
+        SCM src_port = scm_open_input_string(str);
+        SCM exp = scm_read(src_port);
+        SCM out_port = scm_open_output_string();
+        eachframe = scm_eval(exp, scm_interaction_environment());
+        SCM result_str = scm_object_to_string(eachframe, SCM_UNDEFINED);
+        spdlog::debug("eachframe is {}", scm_to_locale_string(result_str));
+        return eachframe;
+    });
+}
+
+void te::ui::root::debug() {
+    static std::shared_ptr<node> created;
+    if (created) {
+        auto newend = std::remove_if (
+            children.begin(), children.end(),
+            [this](std::shared_ptr<node>& sp){ return sp.get() == created.get(); }
+        );
+        children.erase(newend);
+    }
+
+    created = std::make_shared<node>();
+    children.push_back(created);
+    auto fstr = std::ifstream{"ui.scm"};
+    auto it = std::istreambuf_iterator<char>(fstr.rdbuf());
+    auto end = std::istreambuf_iterator<char>();
+    node* top = created.get();
+
+    auto cur = [&]() -> std::istreambuf_iterator<char>& {
+        if (it == end) throw std::runtime_error("unexpected end of input");
+        else return it;
+    };
+
+    auto skipws = [&]() {
+        while (it != end && std::isspace(*it))
+            it++;
+    };
+
+    auto expect = [&](const char* val) {
+        while (it != end && *val) {
+            if (*it++ != *val++)
+                throw std::runtime_error(fmt::format("expected string '{}', got char {}", val, *it));
+        }
+    };
+    auto tok = [&](char val) {
+        if (it == end) {
+            throw std::runtime_error("unexpected end");
+        } else if (*it != val) {
+            throw std::runtime_error("unexpected input");
+        } else {
+            it++;
+        }
+    };
+
+    auto parse_ident = [&]() {
+        std::string value;
+        if (it != end && std::isalpha(*it)) {
+            value += *it;
+            it++;
+        } else {
+            throw std::runtime_error("parse_ident: expected alpha");
+        }
+        while (it != end && std::isalnum(*it)) {
+            value += *it++;
+        }
+        return value;
+    };
+
+    auto parse_str = [&]() {
+        std::string value;
+        tok('"');
+        while (*cur() != '"') {
+            value += *it++;
+        }
+        tok('"');
+        spdlog::debug("parsed string '{}'", value);
+        return value;
+    };
+
+    auto parse_int = [&]() {
+        std::string strvalue;
+        while (std::isdigit(*cur())) {
+            strvalue += *cur()++;
+        }
+        spdlog::debug("parsed int {}", std::stoi(strvalue));
+        return std::stoi(strvalue);
+    };
+
+    auto parse_double = [&]() {
+        std::string strvalue;
+        while (std::isdigit(*cur())) {
+            strvalue += *cur()++;
+        }
+        if(*cur() == '.') {
+            strvalue += *cur()++;
+        }
+        while (std::isdigit(*cur())) {
+            strvalue += *cur()++;
+        }
+        spdlog::debug("parsed double {}", std::stod(strvalue));
+        return std::stod(strvalue);
+    };
+
+    auto parse_vec2 = [&]() {
+        glm::vec2 value;
+        tok('(');
+        skipws();
+        value.x = parse_int();
+        skipws();
+        value.y = parse_int();
+        tok(')');
+        return value;
+    };
+
+    auto parse_vec4 = [&]() {
+        glm::vec4 value;
+        tok('(');
+        skipws();
+        value.r = parse_double();
+        skipws();
+        value.g = parse_double();
+        skipws();
+        value.b = parse_double();
+        skipws();
+        value.a = parse_double();
+        tok(')');
+        return value;
+    };
+
+    while (it != end) {
+        skipws();
+        if (it == end) break;
+        if (*it == ';') {
+            while (*cur() != '\n')
+                it++;
+        } else if (*it == '(') {
+            it++;
+            expect("node");
+            auto pushed = std::make_shared<node>();
+            pushed->parent = top;
+            top->children.push_back(pushed);
+            top = pushed.get();
+        } else if (*it == ')') {
+            it++;
+            top = top->parent;
+        } else if (*it == ':') {
+            it++;
+            auto key = parse_ident();
+            skipws();
+            if (key == "id") {
+                top->name = parse_str();
+            } else if (key == "src") {
+                top->bg_image = ui_img(parse_int());
+                auto& bg_tex = assets.lazy_load<te::gl::texture2d>(top->bg_image);
+                top->size = glm::vec2{bg_tex.width, bg_tex.height};
+            } else if (key == "srcw") {
+                double w = parse_double();
+                top->size.x *= w;
+                top->bg_br.x = w;
+            } else if (key == "text") {
+                top->text(parse_str());
+                //TODO: set size
+                top->font_ = font {
+                    .filename = "Alegreya_Sans_SC/AlegreyaSansSC-Medium.ttf",
+                    .pts = 7.5,
+                    .aspect = 1.1,
+                    .line_height = 1.0,
+                    .colour = glm::vec4{165.0f, 219.0f, 255.0f, 255.0f} / 255.0f
+                };
+            } else if (key == "offset") {
+                top->offset = parse_vec2();
+            } else if (key == "color") {
+                auto v = parse_vec4();
+            }
+        } else {
+            spdlog::debug("stopped on {}", *it);
+            break;
+        }
+    }
 }
 
 bool te::ui::root::capture_input() {
@@ -137,6 +346,14 @@ bool te::ui::root::capture_input() {
 }
 
 void te::ui::root::render(te::sim& sim) {
+    //debug();
+    scm::in_try([&]() {
+        SCM result = scm_call_0(eachframe);
+        SCM result_str = scm_object_to_string(result, SCM_UNDEFINED);
+        spdlog::debug("> {}", scm_to_locale_string(result_str));
+        return result;
+    });
+
     cursor = glm::vec2{0.0, 0.0};
     lpa = cursor;
     traverse_dfs([&](node& n, glm::vec2 tl, glm::vec2 size) {
@@ -203,10 +420,6 @@ te::ui::button::button(te::ui::root& root, int image): pressed{false} {
         bg_br.x = bg_tl.x + 0.5f;
         return true;
     });
-}
-
-static std::string ui_img(int i) {
-    return fmt::format("assets/a_ui,6.{{}}/{:0>3}.png", i);
 }
 
 te::ui::generator_window::generator_window(sim& model, root& ui, entt::entity e) {
