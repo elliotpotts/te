@@ -25,6 +25,7 @@ harfbuzz = dependency('harfbuzz')
 ibus = dependency('ibus-1.0')
 spdlog = dependency('spdlog')
 guile = dependency('guile-3.0')
+nlohmann_json = declare_dependency(include_directories: 'deps/json-3.10.5/include')
 
 imgui = declare_dependency(include_directories: 'deps/imgui-1.76')
 imgui_src = ['deps/imgui-1.76/imgui.cpp', 'deps/imgui-1.76/imgui_demo.cpp', 'deps/imgui-1.76/imgui_draw.cpp', 'deps/imgui-1.76/imgui_widgets.cpp', 'deps/imgui-1.76/examples/imgui_impl_opengl3.cpp', 'deps/imgui-1.76/examples/imgui_impl_glfw.cpp']
@@ -34,7 +35,7 @@ backward_src = ['deps/backward-cpp/backward.cpp']
 
 executable('main',
     ['src/fmod.cpp', 'src/main.cpp', 'src/terrain_renderer.cpp', 'src/camera.cpp', 'src/util.cpp', 'src/loader.cpp', 'src/window.cpp', 'src/gl/context.cpp', 'src/sim.cpp', 'src/app.cpp', 'src/mesh_renderer.cpp', 'src/network.cpp', 'src/client.cpp', 'src/server.cpp', 'src/te/classic_ui.cpp', 'src/te/canvas_renderer.cpp', 'src/image.cpp', 'src/ft/ft.cpp', 'src/ft/face.cpp', 'src/hb/buffer.cpp', 'src/hb/font.cpp', 'src/ibus/bus.cpp', glad_src, backward_src],
-    dependencies: [glfw3, glad, freeimage, fmod, boost, threads, fmt, fxgltf, entt, networking, spdlog, freetype, harfbuzz, backward, ibus, guile],
+    dependencies: [glfw3, glad, freeimage, fmod, boost, threads, fmt, fxgltf, entt, networking, nlohmann_json, spdlog, freetype, harfbuzz, backward, ibus, guile],
     include_directories: 'include',
     cpp_args: ['-fcoroutines', '-DGLFW_INCLUDE_NONE', '-DGLM_ENABLE_EXPERIMENTAL', '-DImTextureID=unsigned', networking_flags, '-DSCM_DEBUG_TYPING_STRICTNESS=2'],
     link_args: ['-ldl', '-static-libstdc++']

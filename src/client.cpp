@@ -57,7 +57,7 @@ void te::client::handle(te::chat msg) {
     on_chat(msg);
 }
 void te::client::handle(te::entity_create msg) {
-    spdlog::debug("creating {} by servers instruction", msg.name);
+    spdlog::debug("creating {} by servers instruction", static_cast<std::uint32_t>(msg.name));
     model.entities.create(msg.name);
 }
 void te::client::handle(te::entity_delete msg) {

@@ -1,0 +1,20 @@
+TE
+==
+TE is an implementation of Trade Empires (postmortem [here][1]), a favourite childhood game of mine by Frog City.
+
+[1]: https://www.gamedeveloper.com/disciplines/postmortem-frog-city-s-i-trade-empires-i-
+
+Building
+========
+Linux
+===
+
+Ubuntu with `equivs-build`
+---
+```
+sudo apt install equivs
+cd pkg-deps
+equivs-build te.equiv
+sudo apt install ./elliot-te_4.0_all.deb  # or whatever comes out
+```
+

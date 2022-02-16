@@ -1,0 +1,30 @@
+### Commented entries have reasonable defaults.
+### Uncomment to edit them.
+# Source: <source package name; defaults to package name>
+Section: misc
+Priority: optional
+# Homepage: <enter URL here; no default>
+Standards-Version: 3.9.2
+
+Package: elliot-te
+Version: 4.0
+Maintainer: Elliot Potts <elliotpotts@gmail.com>
+# Pre-Depends: <comma-separated list of packages>
+Depends: libpangomm-1.4-dev, libharfbuzz-dev, libglfw3-dev, libglfw3, libfreeimage-dev, libfreeimage3, libboost-dev, libfmt-dev, libfmt8, libfreetype-dev, libfreetype6, libibus-1.0-dev, libibus-1.0-5, libcereal-dev, libspdlog-dev, guile-3.0-dev, libglm-dev
+# Recommends: <comma-separated list of packages>
+# Suggests: <comma-separated list of packages>
+# Provides: <comma-separated list of packages>
+# Replaces: <comma-separated list of packages>
+# Architecture: all
+# Multi-Arch: <one of: foreign|same|allowed>
+# Copyright: <copyright file; defaults to GPL2>
+# Changelog: <changelog file; defaults to a generic changelog>
+# Readme: <README.Debian file; defaults to a generic one>
+# Extra-Files: <comma-separated list of additional files for the doc directory>
+# Links: <pair of space-separated paths; First is path symlink points at, second is filename of link>
+# Files: <pair of space-separated paths; First is file to include, second is destination>
+#  <more pairs, if there's more than one file to include. Notice the starting space>
+Description: <short description; defaults to some wise words>
+ long description and info
+ .
+ second paragraph
