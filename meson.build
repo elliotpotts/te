@@ -8,8 +8,8 @@ glad = declare_dependency(include_directories: 'deps/glad/include')
 glad_src = ['deps/glad/src/glad.c']
 freeimage = dependency('freeimage')
 fmod = declare_dependency (
-  include_directories: 'deps/fmodstudioapi20007linux/api/core/inc/',
-  dependencies: cpp.find_library('fmod', dirs: '/home/elliot/projects/te/deps/fmodstudioapi20107linux/api/core/lib/x86_64')
+  include_directories: 'deps/fmod/api/core/inc/',
+  dependencies: cpp.find_library('fmod', dirs: '/home/elliot/projects/te/deps/fmod/api/core/lib/x86_64')
 )
 boost = dependency('boost', version: '>=1.73') #signals need not be specifically listed as it's header-only.
 fmt = dependency('fmt')
@@ -27,8 +27,8 @@ spdlog = dependency('spdlog')
 guile = dependency('guile-3.0')
 nlohmann_json = declare_dependency(include_directories: 'deps/json-3.10.5/include')
 
-imgui = declare_dependency(include_directories: 'deps/imgui-1.76')
-imgui_src = ['deps/imgui-1.76/imgui.cpp', 'deps/imgui-1.76/imgui_demo.cpp', 'deps/imgui-1.76/imgui_draw.cpp', 'deps/imgui-1.76/imgui_widgets.cpp', 'deps/imgui-1.76/examples/imgui_impl_opengl3.cpp', 'deps/imgui-1.76/examples/imgui_impl_glfw.cpp']
+imgui = declare_dependency(include_directories: 'deps/imgui-1.87')
+imgui_src = ['deps/imgui-1.87/imgui.cpp', 'deps/imgui-1.87/imgui_demo.cpp', 'deps/imgui-1.87/imgui_draw.cpp', 'deps/imgui-1.87/imgui_widgets.cpp', 'deps/imgui-1.87/examples/imgui_impl_opengl3.cpp', 'deps/imgui-1.87/examples/imgui_impl_glfw.cpp']
 
 backward = declare_dependency(include_directories: 'deps/backward-cpp')
 backward_src = ['deps/backward-cpp/backward.cpp']

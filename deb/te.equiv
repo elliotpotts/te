@@ -10,7 +10,7 @@ Package: elliot-te
 Version: 4.0
 Maintainer: Elliot Potts <elliotpotts@gmail.com>
 # Pre-Depends: <comma-separated list of packages>
-Depends: libpangomm-1.4-dev, libharfbuzz-dev, libglfw3-dev, libglfw3, libfreeimage-dev, libfreeimage3, libboost-dev, libfmt-dev, libfmt8, libfreetype-dev, libfreetype6, libibus-1.0-dev, libibus-1.0-5, libcereal-dev, libspdlog-dev, guile-3.0-dev, libglm-dev
+Depends: libpangomm-1.4-dev, libharfbuzz-dev, libglfw3-dev, libglfw3, libfreeimage-dev, libfreeimage3, libboost-dev, libfmt-dev, libfmt7, libfreetype-dev, libfreetype6, libibus-1.0-dev, libibus-1.0-5, libcereal-dev, libspdlog-dev, guile-3.0-dev, libglm-dev
 # Recommends: <comma-separated list of packages>
 # Suggests: <comma-separated list of packages>
 # Provides: <comma-separated list of packages>

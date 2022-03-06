@@ -11,10 +11,30 @@ Linux
 
 Ubuntu with `equivs-build`
 ---
+1. Install dependencies
 ```
 sudo apt install equivs
 cd pkg-deps
 equivs-build te.equiv
 sudo apt install ./elliot-te_4.0_all.deb  # or whatever comes out
 ```
+2. Install more dependencies...
+   a. use https://glad.dav1d.de/ to generate a `glad`.
+      The file structure should look like `te/deps/glad/{src/include}`
+   b. download FMOD engine and place in `deps` (e.g. link `deps/fmod` to `fmodstudioapi20205linux`)
+   c. download fx-gltf in `deps` (i.e. `git clone https://github.com/jessey-git/fx-gltf.git`)
+   d. download entt in `deps` (i.e. `git clone https://github.com/skypjack/entt`)
+   e. download steam networking library in `deps` (i.e. `git clone https://github.com/ValveSoftware/GameNetworkingSockets`)
+      + runtime depends: `libssl libprotobuf`
+      + build depends: `libssl-dev libprotobuf-dev protobuf-compiler`
+      + run: `mkdir build && (cd build; cmake -GNinja .. && ninja)`
+   f. download nlohmann json into `deps` (i.e. `wget https://github.com/nlohmann/json/archive/refs/tags/v3.10.5.tar.gz && tar -xvf v3.10.5.tar.gz`)
+   g. download imgui into `deps` (i.e. `wget https://github.com/ocornut/imgui/archive/refs/tags/v1.76.tar.gz && tar -xvf v1.76.tar.gz`)
+   h. download backward-cpp into `deps` (i.e. `git clone https://github.com/bombela/backward-cpp.git && (cd backward-cpp && mkdir build && (cd build && cmake -GNinja ..))`)
+   i. rewrite deps/freeimage.pc to match your system
 
+3. Configure. In te, run `env PKG_CONFIG-PATH=$(readlink -f deps) meson build`
+4. Build. `cd build && ninja`
+5. Install extractor dependencies
+   pip install numpy
+   
