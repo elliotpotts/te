@@ -12,6 +12,9 @@ Linux
 Ubuntu with `equivs-build`
 ---
 1. Install dependencies
+
+libpangomm-1.4-dev, libharfbuzz-dev, libglfw3-dev, libglfw3, libfreeimage-dev, libfreeimage3, libboost-dev, libfmt-dev, libfmt7, libfreetype-dev, libfreetype6, libibus-1.0-dev, libibus-1.0-5, libcereal-dev, libspdlog-dev, guile-3.0-dev, libglm-dev
+
 ```
 sudo apt install equivs
 cd pkg-deps
@@ -33,7 +36,7 @@ sudo apt install ./elliot-te_4.0_all.deb  # or whatever comes out
    h. download backward-cpp into `deps` (i.e. `git clone https://github.com/bombela/backward-cpp.git && (cd backward-cpp && mkdir build && (cd build && cmake -GNinja ..))`)
    i. rewrite deps/freeimage.pc to match your system
 
-3. Configure. In te, run `env PKG_CONFIG-PATH=$(readlink -f deps) meson build`
+3. Configure. In te, run `env PKG_CONFIG_PATH=$(readlink -f deps) meson build`
 4. Build. `cd build && ninja`
 5. Install extractor dependencies
    pip install numpy

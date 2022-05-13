@@ -2,3 +2,4 @@ Name: freeimage
 Description: The freeimage library
 Version: 3.18.0
 Libs: -L/usr/lib/x86_64-linux-gnu -lfreeimage
+
