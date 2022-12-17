@@ -14,7 +14,6 @@ namespace scm {
         template<typename F>
         SCM in_try_handler(void* data, SCM key, SCM args) {
             //throw std::runtime_error("scheme exception");
-            spdlog::debug("SPOOF!");
             return SCM_BOOL_F;
         }
 
