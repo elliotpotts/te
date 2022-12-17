@@ -32,7 +32,7 @@ sudo apt install ./elliot-te_4.0_all.deb  # or whatever comes out
       + build depends: `libssl-dev libprotobuf-dev protobuf-compiler`
       + run: `mkdir build && (cd build; cmake -GNinja .. && ninja)`
    f. download nlohmann json into `deps` (i.e. `wget https://github.com/nlohmann/json/archive/refs/tags/v3.10.5.tar.gz && tar -xvf v3.10.5.tar.gz`)
-   g. download imgui into `deps` (i.e. `wget https://github.com/ocornut/imgui/archive/refs/tags/v1.76.tar.gz && tar -xvf v1.76.tar.gz`)
+   g. download imgui into `deps` (i.e. `wget https://github.com/ocornut/imgui/archive/refs/tags/v1.87.tar.gz && tar -xvf v1.87.tar.gz`)
    h. download backward-cpp into `deps` (i.e. `git clone https://github.com/bombela/backward-cpp.git && (cd backward-cpp && mkdir build && (cd build && cmake -GNinja ..))`)
    i. rewrite deps/freeimage.pc to match your system
 

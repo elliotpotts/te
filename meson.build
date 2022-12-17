@@ -9,7 +9,7 @@ glad_src = ['deps/glad/src/glad.c']
 freeimage = dependency('freeimage')
 fmod = declare_dependency (
   include_directories: 'deps/fmod/api/core/inc/',
-  dependencies: cpp.find_library('fmod', dirs: '/home/elliot/projects/te/deps/fmod/api/core/lib/x86_64')
+  dependencies: cpp.find_library('fmod', dirs: meson.current_source_dir() / 'deps/fmod/api/core/lib/x86_64')
 )
 boost = dependency('boost', version: '>=1.73') #signals need not be specifically listed as it's header-only.
 fmt = dependency('fmt')
@@ -17,7 +17,8 @@ fxgltf = declare_dependency(include_directories: 'deps/fx-gltf/include')
 entt = declare_dependency(include_directories: 'deps/entt/src')
 networking = declare_dependency (
   include_directories: 'deps/GameNetworkingSockets/include',
-  dependencies: cpp.find_library('GameNetworkingSockets', dirs: '/home/elliot/projects/te/deps/GameNetworkingSockets/build/bin')
+  dependencies: cpp.find_library('GameNetworkingSockets',
+                                 dirs: meson.current_source_dir() / 'deps/GameNetworkingSockets/build/bin')
 )
 networking_flags = ['-DSTEAMNETWORKINGSOCKETS_OPENSOURCE', '-DPOSIX', '-DLINUX']
 freetype = dependency('freetype2')
